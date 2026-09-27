@@ -29,10 +29,17 @@ func TestParseArgsAcceptsFlagsEitherSideOfCommand(t *testing.T) {
 }
 
 func TestParseArgsRejectsBadInput(t *testing.T) {
-	for _, args := range [][]string{{}, {"chat"}, {"doctor", "extra"}, {"--nope", "doctor"}} {
+	for _, args := range [][]string{{"chatty"}, {"doctor", "extra"}, {"--nope", "doctor"}} {
 		if _, err := parseArgs(args); err == nil {
 			t.Fatalf("parseArgs(%v) accepted bad input", args)
 		}
+	}
+}
+
+func TestNoCommandOpensChat(t *testing.T) {
+	o, err := parseArgs([]string{"--model", "m1"})
+	if err != nil || o.cmd != "chat" || o.model != "m1" {
+		t.Fatalf("parseArgs = %+v, err = %v", o, err)
 	}
 }
 
