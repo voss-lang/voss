@@ -254,3 +254,28 @@ async def test_server_turn_warns_when_project_policy_fails_to_load(monkeypatch, 
     )
     warnings = [e for e in seen["events"] if e.type == "warning"]
     assert any("permissions.yml" in e.model_dump_json() for e in warnings)
+
+
+# The server must pick the same credentials as `voss chat`, which honours a
+# persisted `[harness] auth` when the caller asks for "auto".
+@pytest.mark.parametrize(
+    ("requested", "saved", "resolved"),
+    [
+        ("auto", {"auth": "claude"}, "claude"),
+        ("auto", {}, "auto"),
+        ("auto", {"auth": "bogus"}, "auto"),
+        ("codex", {"auth": "claude"}, "codex"),
+    ],
+)
+def test_resolve_provider_honours_saved_harness_auth(monkeypatch, requested, saved, resolved):
+    seen = []
+
+    def fake_resolve(preference):
+        seen.append(preference)
+        return appmod.auth_mod.Resolution(source="none", detail="test")
+
+    monkeypatch.delenv("VOSS_SERVE_FAKE_TURN", raising=False)
+    monkeypatch.setattr(appmod.harness_config, "load_harness_config", lambda: saved)
+    monkeypatch.setattr(appmod.auth_mod, "resolve", fake_resolve)
+    appmod._resolve_provider(requested)
+    assert seen == [resolved]
