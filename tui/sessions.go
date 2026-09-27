@@ -22,11 +22,11 @@ type savedRecord struct {
 	Turns        []json.RawMessage `json:"turns"`
 }
 
-// readSavedSessions reads the session files the Python harness writes under
+// readSavedRecords reads the session files the Python harness writes under
 // cwd, newest first, skipping files that do not parse. No server needed.
-func readSavedSessions(cwd string) []voss.SavedSession {
+func readSavedRecords(cwd string) []savedRecord {
 	paths, _ := filepath.Glob(filepath.Join(cwd, ".voss", "sessions", "*.json"))
-	var out []voss.SavedSession
+	var out []savedRecord
 	for _, p := range paths {
 		raw, err := os.ReadFile(p)
 		if err != nil {
@@ -36,6 +36,15 @@ func readSavedSessions(cwd string) []voss.SavedSession {
 		if err := json.Unmarshal(raw, &r); err != nil || r.Id == "" {
 			continue
 		}
+		out = append(out, r)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].UpdatedAt > out[j].UpdatedAt })
+	return out
+}
+
+func readSavedSessions(cwd string) []voss.SavedSession {
+	var out []voss.SavedSession
+	for _, r := range readSavedRecords(cwd) {
 		out = append(out, voss.SavedSession{
 			Id:           r.Id,
 			Name:         r.Name,
@@ -46,8 +55,21 @@ func readSavedSessions(cwd string) []voss.SavedSession {
 			Turns:        len(r.Turns),
 		})
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].UpdatedAt > out[j].UpdatedAt })
 	return out
+}
+
+// firstTask is the session's first user message, like SessionRecord.first_task.
+func (r savedRecord) firstTask() string {
+	for _, raw := range r.Turns {
+		var turn struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}
+		if json.Unmarshal(raw, &turn) == nil && turn.Role == "user" {
+			return string([]rune(turn.Content)[:min(60, len([]rune(turn.Content)))])
+		}
+	}
+	return "(empty)"
 }
 
 func printSessions(w io.Writer, cwd string, sessions []voss.SavedSession) {

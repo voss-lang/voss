@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
@@ -135,7 +136,14 @@ func runChat(ctx context.Context, client *voss.Client, o options) error {
 	if err != nil {
 		return fmt.Errorf("event stream: %w", err)
 	}
-	meta := sessionMeta{ID: s.Id, Cwd: o.cwd, Provider: providerLabel(s.Auth), Model: info.Model, Git: gitSummary(o.cwd)}
+	meta := sessionMeta{
+		ID:       s.Id,
+		Cwd:      o.cwd,
+		Provider: providerLabel(s.Auth),
+		Model:    info.Model,
+		Git:      gitSummary(o.cwd),
+		Resume:   resumeRow(o.cwd, s.Id, time.Now()),
+	}
 	opts := []tea.ProgramOption{tea.WithContext(ctx)}
 	// Rich, which draws the Textual TUI, trusts COLORTERM even under tmux;
 	// Bubble Tea's detection does not, so match Rich.

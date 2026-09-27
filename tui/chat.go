@@ -38,6 +38,7 @@ type chatModel struct {
 	cwd       string
 	provider  string
 	git       string
+	home      [][2]string
 	events    <-chan voss.TypedEvent
 
 	turn      turn
@@ -87,6 +88,7 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 		cwd:       meta.Cwd,
 		provider:  meta.Provider,
 		git:       meta.Git,
+		home:      homeRows(meta),
 		events:    events,
 		turn:      turn{model: meta.Model},
 		mode:      modes[0],
@@ -379,7 +381,7 @@ func (m chatModel) View() tea.View {
 	if m.quitting {
 		return tea.NewView("")
 	}
-	transcript := lipgloss.NewStyle().Padding(0, 1).Render(m.vp.View())
+	transcript := lipgloss.NewStyle().Padding(0, 3, 0, 1).Render(m.vp.View())
 	v := tea.NewView(transcript + "\n" + m.bottom())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
@@ -423,6 +425,11 @@ func (m chatModel) working() string {
 func (m *chatModel) layout() {
 	m.vp.SetWidth(m.r.width)
 	m.vp.SetHeight(max(m.height-lipgloss.Height(m.bottom()), 1))
+	if len(m.blocks) == 0 && m.live == "" && !m.turn.busy {
+		m.vp.SetContent(homeScreen(m.width, m.height, m.home))
+		m.vp.GotoTop()
+		return
+	}
 	parts := append([]string(nil), m.rendered...)
 	if m.live != "" {
 		parts = append(parts, m.live)
@@ -447,7 +454,7 @@ func (m *chatModel) add(blocks ...block) {
 
 // rerender rebuilds every block for a new width or background.
 func (m *chatModel) rerender() {
-	m.r = newRenderer(m.width - 2)
+	m.r = newRenderer(m.width - transcriptInset)
 	for i, b := range m.blocks {
 		m.rendered[i] = m.r.block(b)
 	}
