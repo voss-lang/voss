@@ -81,10 +81,11 @@ func (f *fakeServer) requestsTo(suffix string) []request {
 // driver is a minimal Bubble Tea event loop: it runs commands and feeds
 // their messages back into the model.
 type driver struct {
-	t    *testing.T
-	m    chatModel
-	msgs chan tea.Msg
-	quit bool
+	t         *testing.T
+	m         chatModel
+	msgs      chan tea.Msg
+	quit      bool
+	clipboard string
 }
 
 func newDriver(t *testing.T, client *voss.Client, events <-chan voss.TypedEvent) *driver {
@@ -146,6 +147,10 @@ func (d *driver) until(what string, cond func() bool) {
 			switch msg.(type) {
 			case tea.QuitMsg:
 				d.quit = true
+				continue
+			}
+			if v := reflect.ValueOf(msg); v.Type().Name() == "setClipboardMsg" {
+				d.clipboard = v.String()
 				continue
 			}
 			d.send(msg)

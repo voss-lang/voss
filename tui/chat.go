@@ -57,8 +57,15 @@ type chatModel struct {
 	live     string
 	liveTick bool
 	navMode  bool
-	lastText string
-	pal      picker
+	navIdx   int
+	pendingG bool
+	trimmed  int
+	toast    string
+	toastGen int
+	// lastResponse is the latest answer, for Ctrl+Y.
+	lastResponse string
+	lastText     string
+	pal          picker
 	// paletteDismissed keeps a palette closed after Esc until the text changes.
 	paletteDismissed bool
 	mentionFiles     []string
@@ -104,6 +111,7 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 		r:         newRenderer(0),
 		vp:        viewport.New(),
 		follow:    true,
+		navIdx:    -1,
 	}
 }
 
@@ -165,6 +173,12 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case eventMsg:
 		wasBusy, wasStreaming := m.turn.busy, m.turn.streaming
+		switch e := msg.ev.(type) {
+		case voss.FinalEvent:
+			m.lastResponse = e.Text
+		case voss.StreamFinalize:
+			m.lastResponse = m.turn.streaming
+		}
 		var blocks []block
 		m.turn, blocks = reduce(m.turn, msg.ev)
 		if u, user := msg.ev.(voss.UserEvent); user {
@@ -217,6 +231,12 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case shellDoneMsg:
 		body := strings.Join(nonEmpty(strings.TrimRight(msg.stdout, " \t\n"), strings.TrimRight(msg.stderr, " \t\n")), "\n")
 		m.add(block{kind: blockShell, text: msg.cmd, body: body, exit: msg.exit, joined: true})
+		return m, nil
+
+	case toastExpiredMsg:
+		if msg.gen == m.toastGen {
+			m.toast = ""
+		}
 		return m, nil
 
 	case slashOutputMsg:
@@ -280,14 +300,20 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if key == "ctrl+y" {
+		return m, m.copyCode()
+	}
+
 	if m.navMode {
 		switch {
 		case slices.Contains([]string{"ctrl+c", "tab", "shift+tab", "esc", "ctrl+l", "ctrl+o", "pgup", "pgdown"}, key):
+		case slices.Contains([]string{"j", "k", "up", "down", "y", "g", "G", "enter"}, key):
+			return m, m.navKey(key)
 		case key == "i":
-			m.navMode = false
+			m.setNav(false)
 			return m, nil
 		case msg.Text != "":
-			m.navMode = false
+			m.setNav(false)
 		default:
 			return m, nil
 		}
@@ -304,12 +330,12 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.abort()
 
 	case "tab", "shift+tab":
-		m.navMode = !m.navMode
+		m.setNav(!m.navMode)
 		return m, nil
 
 	case "esc":
 		if !m.turn.busy {
-			m.navMode = !m.navMode
+			m.setNav(!m.navMode)
 		}
 		return m, nil
 
@@ -455,7 +481,9 @@ func (m chatModel) View() tea.View {
 		return tea.NewView("")
 	}
 	transcript := lipgloss.NewStyle().Padding(0, 3, 0, 1).Render(m.vp.View())
-	if m.turn.thinking != "" {
+	if m.toast != "" {
+		transcript = overlayToast(transcript, m.toast, m.width)
+	} else if m.turn.thinking != "" {
 		transcript = overlayToast(transcript, glyphs.ToolCall+" "+m.turn.thinking, m.width)
 	}
 	screen := transcript + "\n" + m.bottom()
@@ -519,6 +547,16 @@ func (m *chatModel) layout() {
 		return
 	}
 	parts := append([]string(nil), m.rendered...)
+	if i := m.navIdx; m.navMode && i >= 0 && i < len(parts) {
+		gap, body := "", parts[i]
+		if rest, ok := strings.CutPrefix(body, "\n"); ok {
+			gap, body = "\n", rest
+		}
+		parts[i] = gap + tint(body, m.r.width)
+	}
+	if m.trimmed > 0 {
+		parts = append([]string{m.trimPlaceholder()}, parts...)
+	}
 	if m.live != "" {
 		parts = append(parts, m.live)
 	}
@@ -537,6 +575,16 @@ func (m *chatModel) add(blocks ...block) {
 	for _, b := range blocks {
 		m.blocks = append(m.blocks, b)
 		m.rendered = append(m.rendered, m.renderAt(len(m.blocks)-1))
+	}
+	m.trim()
+}
+
+// setNav moves focus to or from the transcript; entering focuses the last block.
+func (m *chatModel) setNav(on bool) {
+	m.navMode, m.pendingG = on, false
+	m.navIdx = -1
+	if on {
+		m.navSet(len(m.blocks) - 1)
 	}
 }
 
