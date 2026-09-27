@@ -254,7 +254,6 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.queue = nil
 			m.editor.SetValue(strings.TrimRight(strings.Join(restored, "\n"), "\n"))
 		}
-		m.turn.thinking = "aborting"
 		m.turn.interrupted = true
 		return m, m.abort()
 
@@ -339,7 +338,6 @@ func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
 // send posts a message with the current mode.
 func (m *chatModel) send(text string) tea.Cmd {
 	m.turn.busy = true
-	m.turn.thinking = ""
 	m.sentAt = time.Now()
 	m.follow = true
 	client, ctx, id, mode := m.client, m.ctx, m.sessionID, m.mode
@@ -383,11 +381,14 @@ func (m chatModel) View() tea.View {
 		return tea.NewView("")
 	}
 	transcript := lipgloss.NewStyle().Padding(0, 3, 0, 1).Render(m.vp.View())
+	if m.turn.thinking != "" {
+		transcript = overlayToast(transcript, glyphs.ToolCall+" "+m.turn.thinking, m.width)
+	}
 	v := tea.NewView(transcript + "\n" + m.bottom())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	v.BackgroundColor = col(palette.Bg)
-	v.ForegroundColor = col(palette.Text)
+	v.ForegroundColor = col(screenText)
 	return v
 }
 

@@ -126,8 +126,11 @@ func TestIdleWithoutFinalizeFlushesPartialAndDropsPrompt(t *testing.T) {
 	if want := []block{{kind: blockAssistant, text: "half", joined: true}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("blocks = %+v, want %+v", got, want)
 	}
-	if st.busy || st.permission != nil || st.thinking != "" {
+	if st.busy || st.permission != nil {
 		t.Fatalf("state after idle = %+v", st)
+	}
+	if st.thinking != "planning" {
+		t.Fatalf("thinking = %q; Textual keeps the thinking toast until a final answer", st.thinking)
 	}
 	st, _ = reduce(st, voss.StreamDelta{Text: "next"})
 	if st.streaming != "next" {
@@ -158,5 +161,16 @@ func TestLastFinishedToolIsKeptForCtrlO(t *testing.T) {
 	st, _ = reduce(st, voss.ToolEvent{Name: "fs_edit", State: "pending"})
 	if st.lastTool == nil || st.lastTool.Name != "fs_read" {
 		t.Fatalf("lastTool = %+v, want the finished fs_read, not the pending call", st.lastTool)
+	}
+}
+
+func TestFinalAnswerClearsTheThinkingToast(t *testing.T) {
+	st, _ := reduce(turn{busy: true}, voss.ThinkingEvent{Label: "planning 1/1"})
+	if st.thinking != "planning 1/1" {
+		t.Fatalf("thinking = %q", st.thinking)
+	}
+	st, _ = reduce(st, voss.FinalEvent{Text: "done"})
+	if st.thinking != "" {
+		t.Fatalf("thinking = %q after final", st.thinking)
 	}
 }

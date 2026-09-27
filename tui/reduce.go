@@ -40,7 +40,7 @@ type turn struct {
 	busy          bool
 	streaming     string
 	interrupted   bool
-	thinking      string
+	thinking      string // the persistent toast; Textual clears it on final, not idle
 	permission    *voss.PermissionUpdated
 	lastTool      *voss.ToolEvent
 	pendingTool   string
@@ -105,9 +105,11 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 			footer += " · interrupted"
 		}
 		t.interrupted = false
+		t.thinking = ""
 		return flush(t, footer)
 	case voss.FinalEvent:
 		var out []block
+		t.thinking = ""
 		t, out = flush(t, "")
 		return t, append(out, assistantBlock(e.Text))
 	case voss.ClarifyEvent:
@@ -150,7 +152,6 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		var out []block
 		t, out = flush(t, "")
 		t.busy = false
-		t.thinking = ""
 		t.pendingTool = ""
 		t.permission = nil
 		t.interrupted = false

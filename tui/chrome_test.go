@@ -148,3 +148,15 @@ func TestInputBoxFillsTheWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestToastSitsTopRightWithoutWideningTheScreen(t *testing.T) {
+	screen := strings.Repeat("x", 80) + "\nsecond"
+	got := strings.Split(overlayToast(screen, "⏵ planning 1/1", 80), "\n")
+	if ansi.StringWidth(got[0]) != 80 || !strings.HasSuffix(ansi.Strip(got[0]), " ⏵ planning 1/1 ") || got[1] != "second" {
+		t.Fatalf("toast row = %q", ansi.Strip(got[0]))
+	}
+	long := ansi.Strip(overlayToast(strings.Repeat("x", 80), strings.Repeat("y", 90), 80))
+	if n := strings.Count(long, "y"); n != 58 {
+		t.Fatalf("toast shows %d characters, Textual caps it at 60 with padding", n)
+	}
+}

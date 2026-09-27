@@ -23,8 +23,12 @@ type sessionMeta struct {
 
 func col(c string) color.Color { return lipgloss.Color(c) }
 
-// userText is the colour Textual draws faint user text in, measured from its output.
-const userText = "#e1e1e1"
+// Colours measured from the Textual TUI's output: the screen's default text
+// and the faint user text.
+const (
+	screenText = "#e0e0e0"
+	userText   = "#e1e1e1"
+)
 
 // blend mixes fg over bg at alpha and rounds down, as Textual does for
 // `$accent 15%`.
@@ -181,4 +185,14 @@ func workingLine(frame int, label string, elapsed time.Duration, tokens int) str
 		}
 	}
 	return lipgloss.NewStyle().Faint(true).Render(out + " · ctrl+c to interrupt")
+}
+
+// overlayToast draws Textual's Toast over the top-right corner of screen: one
+// line, raised background, one column of padding, at most 60 wide.
+func overlayToast(screen, text string, width int) string {
+	toast := lipgloss.NewStyle().Background(col(palette.Raised)).Foreground(col(palette.Text)).
+		Render(" " + ansi.Truncate(text, 58, "") + " ")
+	lines := strings.SplitN(screen, "\n", 2)
+	lines[0] = ansi.Truncate(lines[0], max(width-ansi.StringWidth(toast), 0), "") + toast
+	return strings.Join(lines, "\n")
 }
