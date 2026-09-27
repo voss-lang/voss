@@ -29,15 +29,17 @@ type block struct {
 
 // turn is the session state that server events change.
 type turn struct {
-	busy       bool
-	streaming  string
-	thinking   string
-	permission *voss.PermissionUpdated
-	lastTool   *voss.ToolEvent
-	model      string
-	tokens     int
-	costUSD    float64
-	ctxPct     float64
+	busy          bool
+	streaming     string
+	thinking      string
+	permission    *voss.PermissionUpdated
+	lastTool      *voss.ToolEvent
+	pendingTool   string
+	streamedChars int
+	model         string
+	tokens        int
+	costUSD       float64
+	ctxPct        float64
 }
 
 // reduce applies one server event and returns the blocks to commit to scrollback.
@@ -45,6 +47,7 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 	switch e := ev.(type) {
 	case voss.UserEvent:
 		t.busy = true
+		t.streamedChars = 0
 		return t, []block{{blockUser, e.Task}}
 	case voss.ThinkingEvent:
 		t.thinking = e.Label
@@ -64,8 +67,10 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		return t, []block{{blockPlan, "plan: " + strings.Join(names, " → ")}}
 	case voss.ToolEvent:
 		if e.State == "pending" {
+			t.pendingTool = e.Name
 			return t, nil
 		}
+		t.pendingTool = ""
 		t.lastTool = &e
 		text := e.Name + " " + toolGlyph(e.State)
 		if e.Summary != nil {
@@ -76,6 +81,7 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		return t, []block{{blockTool, text}}
 	case voss.StreamDelta:
 		t.streaming += e.Text
+		t.streamedChars += len(e.Text)
 	case voss.StreamFinalize:
 		kind := blockAssistant
 		if e.Role == "system" {
@@ -117,6 +123,7 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		t, out = flush(t, blockAssistant)
 		t.busy = false
 		t.thinking = ""
+		t.pendingTool = ""
 		t.permission = nil
 		return t, out
 	case voss.UnknownEvent:

@@ -12,13 +12,10 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
 var modes = []string{"plan", "edit", "auto"}
-
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 type (
 	eventMsg        struct{ ev voss.TypedEvent }
@@ -39,6 +36,8 @@ type chatModel struct {
 	client    *voss.Client
 	sessionID string
 	cwd       string
+	provider  string
+	git       string
 	events    <-chan voss.TypedEvent
 
 	turn      turn
@@ -50,7 +49,6 @@ type chatModel struct {
 	tickGen   int
 	width     int
 	height    int
-	dark      bool
 	r         renderer
 	blocks    []block
 	rendered  []string
@@ -63,39 +61,44 @@ type chatModel struct {
 	offline   bool
 }
 
-func newChatModel(ctx context.Context, client *voss.Client, sessionID, cwd string, events <-chan voss.TypedEvent) chatModel {
+func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, events <-chan voss.TypedEvent) chatModel {
 	ed := textarea.New()
 	ed.ShowLineNumbers = false
-	ed.Placeholder = "message voss"
-	ed.SetPromptFunc(2, func(info textarea.PromptInfo) string {
-		if info.LineNumber == 0 {
-			return "› "
-		}
-		return "  "
-	})
+	ed.Prompt = ""
+	ed.Placeholder = "/ commands · @ files · ctrl+r history"
 	ed.DynamicHeight = true
 	ed.MinHeight = 1
-	ed.MaxHeight = 10
+	ed.MaxHeight = 6
 	ed.KeyMap.InsertNewline.SetKeys("shift+enter", "ctrl+j")
+	surface := lipgloss.NewStyle().Background(col(palette.Surface))
+	state := textarea.StyleState{
+		Base:        surface,
+		Text:        surface.Foreground(col(palette.Text)),
+		CursorLine:  surface.Foreground(col(palette.Text)),
+		Placeholder: surface.Foreground(col(palette.Dim)),
+		EndOfBuffer: surface,
+	}
+	ed.SetStyles(textarea.Styles{Focused: state, Blurred: state, Cursor: textarea.CursorStyle{Color: col(palette.Accent)}})
 	ed.Focus()
 	return chatModel{
 		ctx:       ctx,
 		client:    client,
-		sessionID: sessionID,
-		cwd:       cwd,
+		sessionID: meta.ID,
+		cwd:       meta.Cwd,
+		provider:  meta.Provider,
+		git:       meta.Git,
 		events:    events,
-		turn:      turn{model: "—"},
+		turn:      turn{model: meta.Model},
 		mode:      modes[0],
 		editor:    ed,
-		dark:      true,
-		r:         newRenderer(0, true),
+		r:         newRenderer(0),
 		vp:        viewport.New(),
 		follow:    true,
 	}
 }
 
 func (m chatModel) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, waitEvent(m.events))
+	return waitEvent(m.events)
 }
 
 func waitEvent(ch <-chan voss.TypedEvent) tea.Cmd {
@@ -108,14 +111,15 @@ func waitEvent(ch <-chan voss.TypedEvent) tea.Cmd {
 	}
 }
 
-// startTicking starts a spinner loop and retires any older one.
+// startTicking starts the working indicator's loop and retires any older one.
 func (m *chatModel) startTicking() tea.Cmd {
 	m.tickGen++
+	m.frame = -1
 	return tick(m.tickGen)
 }
 
 func tick(gen int) tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{gen} })
+	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{gen} })
 }
 
 func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -129,12 +133,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.editor.SetWidth(msg.Width)
-		m.rerender()
-		return m, nil
-
-	case tea.BackgroundColorMsg:
-		m.dark = msg.IsDark()
+		m.editor.SetWidth(max(msg.Width-8, 1))
 		m.rerender()
 		return m, nil
 
@@ -380,20 +379,43 @@ func (m chatModel) View() tea.View {
 	if m.quitting {
 		return tea.NewView("")
 	}
-	v := tea.NewView(m.vp.View() + "\n" + m.bottom())
+	transcript := lipgloss.NewStyle().Padding(0, 1).Render(m.vp.View())
+	v := tea.NewView(transcript + "\n" + m.bottom())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
+	v.BackgroundColor = col(palette.Bg)
+	v.ForegroundColor = col(palette.Text)
 	return v
 }
 
-// bottom is everything under the transcript: the prompt, the editor and the footer.
+// bottom is everything under the transcript: the permission prompt, the
+// status line and the input bar.
 func (m chatModel) bottom() string {
 	var parts []string
 	if p := m.turn.permission; p != nil {
-		parts = append(parts, m.r.permission(*p, m.cwd))
+		parts = append(parts, lipgloss.NewStyle().Padding(0, 1).Render(m.r.permission(*p, m.cwd)))
 	}
-	parts = append(parts, m.editor.View(), ansi.Truncate(m.footer(), m.r.width, "…"))
+	parts = append(parts,
+		statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git),
+		inputBox(m.width, m.editorView(), true))
 	return strings.Join(parts, "\n")
+}
+
+// editorView draws the placeholder over an empty editor with no cursor on it,
+// as Textual's overlay does.
+func (m chatModel) editorView() string {
+	if m.editor.Value() == "" {
+		return lipgloss.NewStyle().Background(col(palette.Surface)).Foreground(col(palette.Dim)).Render(m.editor.Placeholder)
+	}
+	return m.editor.View()
+}
+
+func (m chatModel) working() string {
+	label := "working"
+	if m.turn.pendingTool != "" {
+		label = "tool: " + m.turn.pendingTool
+	}
+	return workingLine(m.frame, label, time.Since(m.sentAt), m.turn.streamedChars/4)
 }
 
 // layout sizes the transcript to the space the bottom area leaves and keeps
@@ -401,13 +423,14 @@ func (m chatModel) bottom() string {
 func (m *chatModel) layout() {
 	m.vp.SetWidth(m.r.width)
 	m.vp.SetHeight(max(m.height-lipgloss.Height(m.bottom()), 1))
-	content := strings.Join(m.rendered, "\n")
+	parts := append([]string(nil), m.rendered...)
 	if m.live != "" {
-		if content != "" {
-			content += "\n"
-		}
-		content += m.live
+		parts = append(parts, m.live)
 	}
+	if m.turn.busy {
+		parts = append(parts, m.working())
+	}
+	content := strings.Join(parts, "\n")
 	m.vp.SetContent(content)
 	if m.follow {
 		m.vp.GotoBottom()
@@ -424,29 +447,11 @@ func (m *chatModel) add(blocks ...block) {
 
 // rerender rebuilds every block for a new width or background.
 func (m *chatModel) rerender() {
-	m.r = newRenderer(m.width, m.dark)
+	m.r = newRenderer(m.width - 2)
 	for i, b := range m.blocks {
 		m.rendered[i] = m.r.block(b)
 	}
 	m.live = m.renderLive()
-}
-
-func (m chatModel) footer() string {
-	var left string
-	if m.turn.busy {
-		label := m.turn.thinking
-		if label == "" {
-			label = "working"
-		}
-		elapsed := int(time.Since(m.sentAt).Seconds())
-		left = fmt.Sprintf("%s %s · %ds · esc to abort", spinnerFrames[m.frame%len(spinnerFrames)], label, elapsed)
-		if n := len(m.queue); n > 0 {
-			left += fmt.Sprintf(" · %d queued", n)
-		}
-		left += " · "
-	}
-	return styleDim.Render(left + fmt.Sprintf("%s mode · %s · %d tok · $%.4f · ctx %.0f%%",
-		m.mode, m.turn.model, m.turn.tokens, m.turn.costUSD, m.turn.ctxPct*100))
 }
 
 func (m chatModel) renderLive() string {

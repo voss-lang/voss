@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
@@ -119,18 +120,29 @@ func fail(ctx context.Context, stderr io.Writer, err error) int {
 }
 
 func runChat(ctx context.Context, client *voss.Client, o options) error {
-	id, err := client.CreateSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model})
+	s, err := client.OpenSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model})
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
+	}
+	info, err := client.GetSession(ctx, s.Id)
+	if err != nil {
+		return fmt.Errorf("read session: %w", err)
 	}
 	// One stream for the session's life: the server aborts the turn when it drops.
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	events, err := client.Events(streamCtx, id)
+	events, err := client.Events(streamCtx, s.Id)
 	if err != nil {
 		return fmt.Errorf("event stream: %w", err)
 	}
-	_, err = tea.NewProgram(newChatModel(ctx, client, id, o.cwd, events), tea.WithContext(ctx)).Run()
+	meta := sessionMeta{ID: s.Id, Cwd: o.cwd, Provider: providerLabel(s.Auth), Model: info.Model, Git: gitSummary(o.cwd)}
+	opts := []tea.ProgramOption{tea.WithContext(ctx)}
+	// Rich, which draws the Textual TUI, trusts COLORTERM even under tmux;
+	// Bubble Tea's detection does not, so match Rich.
+	if ct := os.Getenv("COLORTERM"); ct == "truecolor" || ct == "24bit" {
+		opts = append(opts, tea.WithColorProfile(colorprofile.TrueColor))
+	}
+	_, err = tea.NewProgram(newChatModel(ctx, client, meta, events), opts...).Run()
 	return err
 }
 

@@ -70,7 +70,7 @@ func TestRenderGolden(t *testing.T) {
 	for name, render := range goldenCases(t) {
 		for _, width := range []int{60, 120} {
 			t.Run(fmt.Sprintf("%s_%d", name, width), func(t *testing.T) {
-				out := render(newRenderer(width, true))
+				out := render(newRenderer(width))
 				for i, line := range strings.Split(out, "\n") {
 					if w := ansi.StringWidth(line); w > width {
 						t.Errorf("line %d is %d columns, wider than %d: %q", i+1, w, width, ansi.Strip(line))
@@ -100,7 +100,7 @@ func TestRenderGolden(t *testing.T) {
 }
 
 func TestMarkdownLinesCarryNoPadding(t *testing.T) {
-	for _, line := range strings.Split(newRenderer(120, true).markdown("short"), "\n") {
+	for _, line := range strings.Split(newRenderer(120).markdown("short"), "\n") {
 		if strings.HasSuffix(ansi.Strip(line), " ") {
 			t.Fatalf("trailing spaces in %q", ansi.Strip(line))
 		}
@@ -108,7 +108,7 @@ func TestMarkdownLinesCarryNoPadding(t *testing.T) {
 }
 
 func TestDiffStylesChangedWords(t *testing.T) {
-	out := newRenderer(80, true).diff("the old value", "the new value", true)
+	out := newRenderer(80).diff("the old value", "the new value", true)
 	if !strings.Contains(out, styleDel.Render("old")) || !strings.Contains(out, styleAdd.Render("new")) {
 		t.Fatalf("diff did not style the changed words: %q", out)
 	}

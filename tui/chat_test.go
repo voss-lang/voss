@@ -88,7 +88,7 @@ type driver struct {
 }
 
 func newDriver(t *testing.T, client *voss.Client, events <-chan voss.TypedEvent) *driver {
-	d := &driver{t: t, m: newChatModel(context.Background(), client, "sess-1", t.TempDir(), events), msgs: make(chan tea.Msg, 1024)}
+	d := &driver{t: t, m: newChatModel(context.Background(), client, sessionMeta{ID: "sess-1", Cwd: t.TempDir()}, events), msgs: make(chan tea.Msg, 1024)}
 	d.run(d.m.Init())
 	return d
 }

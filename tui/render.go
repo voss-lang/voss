@@ -33,16 +33,14 @@ type renderer struct {
 	md    *glamour.TermRenderer
 }
 
-func newRenderer(width int, dark bool) renderer {
+// newRenderer always uses glamour's dark style: like Textual, the client
+// paints its own dark background.
+func newRenderer(width int) renderer {
 	if width <= 0 {
 		width = defaultWidth
 	}
-	style := "light"
-	if dark {
-		style = "dark"
-	}
 	// glamour's styles add a 2-column margin on each side of the wrapped text.
-	md, err := glamour.NewTermRenderer(glamour.WithStandardStyle(style), glamour.WithWordWrap(max(width-4, 20)))
+	md, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(max(width-4, 20)))
 	if err != nil {
 		md = nil
 	}
