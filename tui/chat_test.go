@@ -486,7 +486,7 @@ func TestTwoQuickMessagesAgainstFakeTurnServer(t *testing.T) {
 
 	out := d.transcript()
 	last := -1
-	for _, want := range []string{"› first", "hello from fake turn", "echo: first", "› second", "echo: second"} {
+	for _, want := range []string{"❯ first", "hello from fake turn", "echo: first", "❯ second", "echo: second"} {
 		i := strings.Index(out[last+1:], want)
 		if i < 0 {
 			t.Fatalf("%q missing or out of order in:\n%s", want, out)

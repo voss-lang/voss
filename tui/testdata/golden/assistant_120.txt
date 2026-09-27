@@ -1,9 +1,9 @@
-  ## Result
-
-  The edit to  notes.txt  worked. A long sentence that has to wrap at sixty columns but fits on one line at one
-  hundred and twenty.
-
-  • first item
-  • second item
-
-    func main() {}
+●   ## Result
+  
+    The edit to  notes.txt  worked. A long sentence that has to wrap at sixty columns but fits on one line at one
+    hundred and twenty.
+  
+    • first item
+    • second item
+  
+      func main() {}

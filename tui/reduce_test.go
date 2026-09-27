@@ -50,9 +50,10 @@ func TestFakeTurnCaptureCommitsUserStreamAndFinal(t *testing.T) {
 		got = append(got, out...)
 	}
 	want := []block{
-		{blockUser, "hi"},
-		{blockAssistant, "hello from fake turn"},
-		{blockAssistant, "echo: hi"},
+		userBlock("hi"),
+		roleBlock("plan", "(empty plan)"),
+		{kind: blockAssistant, text: "hello from fake turn", footer: "assistant · $0.0000 · conf 0.90", joined: true},
+		assistantBlock("echo: hi"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("blocks = %+v, want %+v", got, want)
@@ -62,29 +63,32 @@ func TestFakeTurnCaptureCommitsUserStreamAndFinal(t *testing.T) {
 	}
 }
 
+// Expected text is copied from voss/harness/tui/renderer.py.
 func TestReduceSingleEvents(t *testing.T) {
-	path := map[string]any{"path": "notes.txt"}
 	budget := 6000
 	truncated := []string{"AGENTS.md", "VOSS.md"}
-	steps := []voss.PlanStep{{Name: "fs_read", Args: &path}, {Name: "fs_edit"}}
+	plans := 2
+	steps := []voss.PlanStep{{Name: "fs_read"}, {Name: "fs_edit"}}
+	tool := func(text string) []block { return []block{{kind: blockTool, text: text, joined: true}} }
 	for _, tc := range []struct {
 		name string
 		ev   voss.TypedEvent
 		want []block
 	}{
 		{"pending tool waits for its result", voss.ToolEvent{Name: "fs_read", State: "pending"}, nil},
-		{"finished tool is one row", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("12 lines")}, []block{{blockTool, "fs_read ✓ 12 lines"}}},
-		{"failed tool", voss.ToolEvent{Name: "fs_edit", State: "error"}, []block{{blockTool, "fs_edit ✗"}}},
-		{"plan lists its steps and paths", voss.PlanEvent{Steps: &steps}, []block{{blockPlan, "plan: fs_read notes.txt → fs_edit"}}},
-		{"stepless plan is hidden", voss.PlanEvent{}, nil},
-		{"clarify", voss.ClarifyEvent{Question: "which file?"}, []block{{blockClarify, "which file?"}}},
-		{"warning", voss.WarningEvent{Message: "cognition error"}, []block{{blockWarning, "cognition error"}}},
-		{"newer server event is visible", voss.UnknownEvent{Type: "tool.progress"}, []block{{blockNotice, `unsupported event "tool.progress" from a newer server`}}},
+		{"finished tool is one row", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("12 lines")}, tool("fs_read ✓ 12 lines")},
+		{"failed tool", voss.ToolEvent{Name: "fs_edit", State: "error"}, tool("fs_edit ✗")},
+		{"multi-line tool summary keeps its first line", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("2cf24dba│hello\nabc│world")}, tool("fs_read ✓ 2cf24dba│hello")},
+		{"plan lists its steps", voss.PlanEvent{Steps: &steps}, []block{roleBlock("plan", "  · fs_read\n  · fs_edit")}},
+		{"stepless plan", voss.PlanEvent{}, []block{roleBlock("plan", "(empty plan)")}},
+		{"clarify with its confidence bar", voss.ClarifyEvent{Question: "which file?", Confidence: 0.4}, []block{roleBlock("clarify", "which file?"), {kind: blockConfidence, conf: float64(float32(0.4)), joined: true}}},
+		{"warning", voss.WarningEvent{Message: "cognition error"}, []block{roleBlock("warning", "⚠ cognition error")}},
+		{"cognition loaded", voss.CognitionLoaded{ArchitectureTokens: 1234, ConstraintsCount: 3, PlansLoaded: &plans}, []block{roleBlock("cognition", "cognition: architecture (1.2k) + 3 constraints + 2 plans + 0 decisions")}},
+		{"architecture over budget", voss.CognitionOverflow{ArchitectureTokens: 7000, Budget: &budget}, []block{roleBlock("warning", "⚠ architecture.md is 7000 tokens (over 6000 budget) — /analyze can rewrite a tighter digest")}},
+		{"principles over budget", voss.PrinciplesOverflow{PrinciplesTokens: 1200}, []block{roleBlock("warning", "⚠ principles block is 1200 tokens (over 1000 budget) — truncated")}},
+		{"instructions truncated", voss.InstructionsOverflow{InstructionsTokens: 5000, Truncated: &truncated}, []block{roleBlock("warning", "⚠ instruction files truncated to 4000 tokens (AGENTS.md, VOSS.md)")}},
+		{"newer server event is visible", voss.UnknownEvent{Type: "tool.progress"}, []block{roleBlock("notice", `unsupported event "tool.progress" from a newer server`)}},
 		{"swarm events are ignored for now", voss.SwarmComplete{}, nil},
-		{"multi-line tool summary keeps its first line", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("2cf24dba│hello\nabc│world")}, []block{{blockTool, "fs_read ✓ 2cf24dba│hello"}}},
-		{"architecture over budget", voss.CognitionOverflow{ArchitectureTokens: 7000, Budget: &budget}, []block{{blockWarning, "architecture context is 7000 tokens, over the 6000-token budget"}}},
-		{"principles over budget", voss.PrinciplesOverflow{PrinciplesTokens: 1200}, []block{{blockWarning, "principles is 1200 tokens, over budget"}}},
-		{"instructions truncated", voss.InstructionsOverflow{InstructionsTokens: 5000, Budget: &budget, Truncated: &truncated}, []block{{blockWarning, "instructions is 5000 tokens, over the 6000-token budget; truncated AGENTS.md, VOSS.md"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, got := reduce(turn{}, tc.ev)
@@ -95,10 +99,11 @@ func TestReduceSingleEvents(t *testing.T) {
 	}
 }
 
-func TestServerErrorStreamCommitsAsError(t *testing.T) {
+func TestServerErrorStreamKeepsItsRoleInTheFooter(t *testing.T) {
 	st, _ := reduce(turn{busy: true}, voss.StreamDelta{Text: "\n[error: provider 400]\n"})
 	st, got := reduce(st, voss.StreamFinalize{Role: "system"})
-	if want := []block{{blockError, "[error: provider 400]"}}; !reflect.DeepEqual(got, want) {
+	want := []block{{kind: blockAssistant, text: "\n[error: provider 400]\n", footer: "system", joined: true}}
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("blocks = %+v, want %+v", got, want)
 	}
 	if st.streaming != "" {
@@ -106,11 +111,19 @@ func TestServerErrorStreamCommitsAsError(t *testing.T) {
 	}
 }
 
+func TestInterruptedStreamSaysSoInItsFooter(t *testing.T) {
+	st, _ := reduce(turn{busy: true, interrupted: true}, voss.StreamDelta{Text: "partial"})
+	st, got := reduce(st, voss.StreamFinalize{Role: "assistant"})
+	if len(got) != 1 || got[0].footer != "assistant · interrupted" || st.interrupted {
+		t.Fatalf("blocks = %+v, interrupted left %v", got, st.interrupted)
+	}
+}
+
 func TestIdleWithoutFinalizeFlushesPartialAndDropsPrompt(t *testing.T) {
 	st := turn{busy: true, thinking: "planning", permission: &voss.PermissionUpdated{Id: "p1"}}
 	st, _ = reduce(st, voss.StreamDelta{Text: "half"})
 	st, got := reduce(st, voss.SessionIdle{})
-	if want := []block{{blockAssistant, "half"}}; !reflect.DeepEqual(got, want) {
+	if want := []block{{kind: blockAssistant, text: "half", joined: true}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("blocks = %+v, want %+v", got, want)
 	}
 	if st.busy || st.permission != nil || st.thinking != "" {

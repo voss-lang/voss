@@ -180,7 +180,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamClosedMsg:
 		m.turn.busy = false
 		m.offline = true
-		m.add(block{blockError, "lost the connection to voss serve (ctrl+d quits)"})
+		m.add(roleBlock("error", "lost the connection to voss serve (ctrl+d quits)"))
 		return m, nil
 
 	case tickMsg:
@@ -199,11 +199,11 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.what == "send" {
 			m.turn.busy = false
 		}
-		m.add(block{blockError, msg.what + ": " + errText(msg.err)})
+		m.add(roleBlock("error", msg.what+": "+errText(msg.err)))
 		return m, nil
 
 	case costMsg:
-		m.add(block{blockNotice, fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)})
+		m.add(roleBlock("system", fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)))
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -255,11 +255,12 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.editor.SetValue(strings.TrimRight(strings.Join(restored, "\n"), "\n"))
 		}
 		m.turn.thinking = "aborting"
+		m.turn.interrupted = true
 		return m, m.abort()
 
 	case "ctrl+o":
 		if m.turn.lastTool != nil {
-			m.add(block{blockToolArgs, toolArgsText(*m.turn.lastTool)})
+			m.add(block{kind: blockToolArgs, text: toolArgsText(*m.turn.lastTool), joined: true})
 		}
 		return m, nil
 
@@ -293,7 +294,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.offline {
 			m.editor.SetValue(text)
-			m.add(block{blockError, "not connected to voss serve (ctrl+d quits)"})
+			m.add(roleBlock("error", "not connected to voss serve (ctrl+d quits)"))
 			return m, nil
 		}
 		if m.turn.busy {
@@ -328,10 +329,10 @@ func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
 			return costMsg(c)
 		}
 	case "/help":
-		m.add(block{blockNotice, "commands: /help /cost /quit"})
+		m.add(roleBlock("system", "commands: /help /cost /quit"))
 		return m, nil
 	}
-	m.add(block{blockNotice, text + " is not available in this client"})
+	m.add(roleBlock("system", text+" is not available in this client"))
 	return m, nil
 }
 
@@ -448,15 +449,25 @@ func (m *chatModel) layout() {
 func (m *chatModel) add(blocks ...block) {
 	for _, b := range blocks {
 		m.blocks = append(m.blocks, b)
-		m.rendered = append(m.rendered, m.r.block(b))
+		m.rendered = append(m.rendered, m.renderAt(len(m.blocks)-1))
 	}
+}
+
+// renderAt draws block i with the blank line Textual puts before every block
+// after the first unless it is joined to the one above.
+func (m chatModel) renderAt(i int) string {
+	b := m.blocks[i]
+	if i > 0 && !b.joined {
+		return "\n" + m.r.block(b)
+	}
+	return m.r.block(b)
 }
 
 // rerender rebuilds every block for a new width or background.
 func (m *chatModel) rerender() {
 	m.r = newRenderer(m.width - transcriptInset)
-	for i, b := range m.blocks {
-		m.rendered[i] = m.r.block(b)
+	for i := range m.blocks {
+		m.rendered[i] = m.renderAt(i)
 	}
 	m.live = m.renderLive()
 }
@@ -465,5 +476,5 @@ func (m chatModel) renderLive() string {
 	if m.turn.streaming == "" {
 		return ""
 	}
-	return m.r.markdown(m.turn.streaming)
+	return m.r.block(assistantBlock(m.turn.streaming))
 }

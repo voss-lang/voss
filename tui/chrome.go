@@ -23,7 +23,11 @@ type sessionMeta struct {
 
 func col(c string) color.Color { return lipgloss.Color(c) }
 
-// blend mixes fg over bg at alpha, as Textual does for `$accent 15%`.
+// userText is the colour Textual draws faint user text in, measured from its output.
+const userText = "#e1e1e1"
+
+// blend mixes fg over bg at alpha and rounds down, as Textual does for
+// `$accent 15%`.
 func blend(fg, bg string, alpha float64) color.Color {
 	channel := func(s string, i int) float64 {
 		v, _ := strconv.ParseUint(s[1+2*i:3+2*i], 16, 8)
@@ -31,7 +35,7 @@ func blend(fg, bg string, alpha float64) color.Color {
 	}
 	out := "#"
 	for i := range 3 {
-		out += fmt.Sprintf("%02x", int(math.Round(channel(bg, i)+(channel(fg, i)-channel(bg, i))*alpha)))
+		out += fmt.Sprintf("%02x", int(math.Floor(channel(bg, i)+(channel(fg, i)-channel(bg, i))*alpha)))
 	}
 	return lipgloss.Color(out)
 }

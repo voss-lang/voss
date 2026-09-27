@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -71,19 +72,15 @@ func (r renderer) markdown(s string) string {
 func (r renderer) block(b block) string {
 	switch b.kind {
 	case blockUser:
-		return "\n" + r.hang("›", b.text, styleUser)
+		return r.user(b.text)
 	case blockAssistant:
-		return r.markdown(b.text)
-	case blockPlan, blockNotice:
-		return r.hang("", b.text, styleDim)
+		return r.assistant(b.text, b.footer)
+	case blockRole:
+		return r.role(b.role, b.text)
+	case blockConfidence:
+		return confidenceBar(b.conf, false)
 	case blockTool:
 		return styleTool.Render(ansi.Truncate("⚙ "+b.text, r.width, "…"))
-	case blockClarify:
-		return r.hang("?", b.text, styleClarify)
-	case blockWarning:
-		return r.hang("⚠", b.text, styleTool)
-	case blockError:
-		return r.hang("✗", b.text, styleError)
 	case blockToolArgs:
 		lines := strings.Split(b.text, "\n")
 		for i, line := range lines {
@@ -92,6 +89,77 @@ func (r renderer) block(b block) string {
 		return strings.Join(lines, "\n")
 	}
 	return b.text
+}
+
+// user draws Textual's UserBlock: a faint accent edge, one column of padding
+// and faint text on the surface colour, filling the width.
+func (r renderer) user(text string) string {
+	edge := lipgloss.NewStyle().Foreground(blend(palette.Accent, palette.Bg, 0.06)).Background(col(palette.Surface)).Render("▎")
+	fill := lipgloss.NewStyle().Background(col(palette.Surface))
+	body := fill.Faint(true).Foreground(col(userText))
+	textW := max(r.width-3, 1)
+	var out []string
+	for i, line := range strings.Split(text, "\n") {
+		prefix := "  "
+		if i == 0 {
+			prefix = glyphs.UserInput + " "
+		}
+		for _, w := range richWrap(prefix+line, textW) {
+			out = append(out, edge+fill.Render(" ")+body.Render(w)+fill.Render(strings.Repeat(" ", max(textW-ansi.StringWidth(w), 0)+1)))
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// assistant draws Textual's AssistantBlock: a bold accent gutter, the
+// markdown body, and the faint metadata footer when there is one.
+func (r renderer) assistant(text, footer string) string {
+	gutter := lipgloss.NewStyle().Foreground(col(palette.Accent)).Bold(true).Render(glyphs.Assistant)
+	lines := strings.Split(renderer{width: r.width - 2, md: r.md}.markdown(text), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			lines[i] = gutter + " " + line
+		} else {
+			lines[i] = "  " + line
+		}
+	}
+	if footer != "" {
+		for _, w := range richWrap(footer, r.width) {
+			lines = append(lines, lipgloss.NewStyle().Faint(true).Render(w))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// role draws Textual's RoleBlock: a faint label, then the body indented two
+// columns.
+func (r renderer) role(role, text string) string {
+	faint := lipgloss.NewStyle().Faint(true)
+	out := []string{faint.Render(role)}
+	for _, line := range strings.Split(text, "\n") {
+		for _, w := range richWrap("  "+line, r.width) {
+			out = append(out, faint.Render(w))
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// confidenceBar matches Textual's ConfidenceBar: ten cells, the value, and a
+// colour by threshold.
+func confidenceBar(value float64, final bool) string {
+	value = math.Max(0, math.Min(1, value))
+	filled := int(math.RoundToEven(value * 10))
+	colour := palette.Error
+	switch {
+	case final && value >= 0.85:
+		colour = palette.Accent
+	case value >= 0.85:
+		colour = palette.Good
+	case value >= 0.5:
+		colour = palette.Warn
+	}
+	bar := strings.Repeat(glyphs.BarFill, filled) + strings.Repeat(glyphs.BarEmpty, 10-filled)
+	return lipgloss.NewStyle().Foreground(col(colour)).Render(fmt.Sprintf("%s %.2f ", bar, value))
 }
 
 // hang wraps text to the width with a glyph on the first line and a

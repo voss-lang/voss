@@ -29,18 +29,18 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 			return r.permission(voss.PermissionUpdated{Id: "p", ToolName: tool, Args: &args}, dir)
 		}
 	}
-	blk := func(kind blockKind, text string) func(renderer) string {
-		return func(r renderer) string { return r.block(block{kind, text}) }
+	blk := func(b block) func(renderer) string {
+		return func(r renderer) string { return r.block(b) }
 	}
 	return map[string]func(renderer) string{
-		"user":      blk(blockUser, "fix the bug in "+long),
-		"assistant": blk(blockAssistant, sampleMarkdown),
-		"plan":      blk(blockPlan, "plan: fs_read notes.txt → fs_edit notes.txt"),
-		"tool":      blk(blockTool, "fs_read ✓ "+long),
-		"clarify":   blk(blockClarify, "which file did you mean? "+long),
-		"warning":   blk(blockWarning, "instructions is 5000 tokens, over the 4000-token budget; truncated AGENTS.md"),
-		"error":     blk(blockError, "send: "+long),
-		"notice":    blk(blockNotice, `unsupported event "tool.progress" from a newer server`),
+		"user":             blk(userBlock("fix the bug in " + long + "\nsecond line")),
+		"assistant":        blk(assistantBlock(sampleMarkdown)),
+		"assistant_footer": blk(block{kind: blockAssistant, text: "streamed reply", footer: "assistant · 2026-09-27T12:00:00+00:00 · $0.0041 · conf 0.92"}),
+		"plan":             blk(roleBlock("plan", "  · fs_read\n  · fs_edit")),
+		"clarify":          blk(roleBlock("clarify", "which file did you mean? "+long)),
+		"confidence":       blk(block{kind: blockConfidence, conf: 0.62}),
+		"warning":          blk(roleBlock("warning", "⚠ instruction files truncated to 4000 tokens (AGENTS.md)")),
+		"tool":             blk(block{kind: blockTool, text: "fs_read ✓ " + long}),
 		"prompt_edit_old": prompt("fs_edit", map[string]any{
 			"path": "notes.txt", "old": "the quick brown fox", "new": "the slow brown fox jumps",
 		}),
@@ -61,7 +61,7 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 		"prompt_scope": prompt("scope_expand", map[string]any{"target": "../other"}),
 		"tool_args": func(r renderer) string {
 			args := map[string]any{"path": "notes.txt", "new": "hello\nworld " + long}
-			return r.block(block{blockToolArgs, toolArgsText(voss.ToolEvent{Name: "fs_edit", Args: &args})})
+			return r.block(block{kind: blockToolArgs, text: toolArgsText(voss.ToolEvent{Name: "fs_edit", Args: &args})})
 		},
 	}
 }
