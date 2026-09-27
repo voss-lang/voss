@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,8 +15,6 @@ import (
 	"charm.land/lipgloss/v2"
 	voss "github.com/vosslang/voss/sdk/go"
 )
-
-var modes = []string{"plan", "edit", "auto"}
 
 type (
 	eventMsg        struct{ ev voss.TypedEvent }
@@ -41,25 +40,25 @@ type chatModel struct {
 	home      [][2]string
 	events    <-chan voss.TypedEvent
 
-	turn      turn
-	mode      string
-	editor    textarea.Model
-	queue     []string
-	sentAt    time.Time
-	frame     int
-	tickGen   int
-	width     int
-	height    int
-	r         renderer
-	blocks    []block
-	rendered  []string
-	vp        viewport.Model
-	follow    bool
-	live      string
-	liveTick  bool
-	lastCtrlC time.Time
-	quitting  bool
-	offline   bool
+	turn     turn
+	mode     string
+	editor   textarea.Model
+	queue    []string
+	sentAt   time.Time
+	frame    int
+	tickGen  int
+	width    int
+	height   int
+	r        renderer
+	blocks   []block
+	rendered []string
+	vp       viewport.Model
+	follow   bool
+	live     string
+	liveTick bool
+	navMode  bool
+	quitting bool
+	offline  bool
 }
 
 func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, events <-chan voss.TypedEvent) chatModel {
@@ -91,7 +90,7 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 		home:      homeRows(meta),
 		events:    events,
 		turn:      turn{model: meta.Model},
-		mode:      modes[0],
+		mode:      "plan",
 		editor:    ed,
 		r:         newRenderer(0),
 		vp:        viewport.New(),
@@ -180,7 +179,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamClosedMsg:
 		m.turn.busy = false
 		m.offline = true
-		m.add(roleBlock("error", "lost the connection to voss serve (ctrl+d quits)"))
+		m.add(roleBlock("error", "lost the connection to voss serve (ctrl+c quits)"))
 		return m, nil
 
 	case tickMsg:
@@ -230,32 +229,41 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch key {
-	case "ctrl+c":
-		if time.Since(m.lastCtrlC) < time.Second {
-			return m.quit()
-		}
-		m.lastCtrlC = time.Now()
-		m.editor.Reset()
-		return m, nil
-
-	case "ctrl+d":
-		if m.editor.Value() == "" {
-			return m.quit()
-		}
-
-	case "esc":
-		if !m.turn.busy {
+	if m.navMode {
+		switch {
+		case slices.Contains([]string{"ctrl+c", "tab", "shift+tab", "esc", "ctrl+l", "ctrl+o", "pgup", "pgdown"}, key):
+		case key == "i":
+			m.navMode = false
+			return m, nil
+		case msg.Text != "":
+			m.navMode = false
+		default:
 			return m, nil
 		}
-		// Queued messages go back to the editor instead of sending after the abort.
-		if len(m.queue) > 0 {
-			restored := append(m.queue, m.editor.Value())
-			m.queue = nil
-			m.editor.SetValue(strings.TrimRight(strings.Join(restored, "\n"), "\n"))
+	}
+
+	switch key {
+	case "ctrl+c":
+		// Textual clears the queue before aborting so nothing queued sends after.
+		m.queue = nil
+		if !m.turn.busy {
+			return m.quit()
 		}
 		m.turn.interrupted = true
 		return m, m.abort()
+
+	case "tab", "shift+tab":
+		m.navMode = !m.navMode
+		return m, nil
+
+	case "esc":
+		if !m.turn.busy {
+			m.navMode = !m.navMode
+		}
+		return m, nil
+
+	case "ctrl+l":
+		return m, tea.ClearScreen
 
 	case "ctrl+o":
 		if m.turn.lastTool != nil {
@@ -273,15 +281,6 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.follow = m.vp.AtBottom()
 		return m, nil
 
-	case "shift+tab":
-		for i, mode := range modes {
-			if mode == m.mode {
-				m.mode = modes[(i+1)%len(modes)]
-				break
-			}
-		}
-		return m, nil
-
 	case "enter":
 		text := strings.TrimSpace(m.editor.Value())
 		if text == "" {
@@ -293,7 +292,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.offline {
 			m.editor.SetValue(text)
-			m.add(roleBlock("error", "not connected to voss serve (ctrl+d quits)"))
+			m.add(roleBlock("error", "not connected to voss serve (ctrl+c quits)"))
 			return m, nil
 		}
 		if m.turn.busy {
@@ -315,9 +314,13 @@ func (m chatModel) quit() (tea.Model, tea.Cmd) {
 }
 
 func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
-	switch strings.Fields(text)[0] {
-	case "/quit":
+	args := strings.Fields(text)
+	switch args[0] {
+	case "/quit", "/exit":
 		return m.quit()
+	case "/mode":
+		m.add(m.setMode(args[1:]))
+		return m, nil
 	case "/cost":
 		client, ctx, id := m.client, m.ctx, m.sessionID
 		return m, func() tea.Msg {
@@ -328,11 +331,28 @@ func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
 			return costMsg(c)
 		}
 	case "/help":
-		m.add(roleBlock("system", "commands: /help /cost /quit"))
+		m.add(roleBlock("system", "commands: /help /cost /mode /quit"))
 		return m, nil
 	}
-	m.add(roleBlock("system", text+" is not available in this client"))
+	m.add(roleBlock("warning", glyphs.Warn+" unknown command: "+text+". /help for list."))
 	return m, nil
+}
+
+// setMode follows the CLI's /mode: no argument shows the mode, and auto
+// needs --confirm.
+func (m *chatModel) setMode(args []string) block {
+	if len(args) == 0 {
+		return roleBlock("system", "  mode: "+m.mode)
+	}
+	switch mode := args[0]; {
+	case mode != "plan" && mode != "edit" && mode != "auto" && mode != "observe":
+		return roleBlock("warning", glyphs.Warn+" mode must be plan|edit|auto|observe")
+	case mode == "auto" && !slices.Contains(args, "--confirm"):
+		return roleBlock("warning", glyphs.Warn+" escalating to auto requires --confirm (e.g. /mode auto --confirm)")
+	default:
+		m.mode = mode
+		return roleBlock("system", "  mode: "+mode)
+	}
 }
 
 // send posts a message with the current mode.
@@ -401,7 +421,7 @@ func (m chatModel) bottom() string {
 	}
 	parts = append(parts,
 		statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git),
-		inputBox(m.width, m.editorView(), true))
+		inputBox(m.width, m.editorView(), !m.navMode))
 	return strings.Join(parts, "\n")
 }
 
