@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
 )
@@ -47,8 +49,13 @@ type chatModel struct {
 	frame     int
 	tickGen   int
 	width     int
+	height    int
 	dark      bool
 	r         renderer
+	blocks    []block
+	rendered  []string
+	vp        viewport.Model
+	follow    bool
 	live      string
 	liveTick  bool
 	lastCtrlC time.Time
@@ -82,15 +89,13 @@ func newChatModel(ctx context.Context, client *voss.Client, sessionID, cwd strin
 		editor:    ed,
 		dark:      true,
 		r:         newRenderer(0, true),
+		vp:        viewport.New(),
+		follow:    true,
 	}
 }
 
 func (m chatModel) Init() tea.Cmd {
-	return tea.Batch(
-		tea.Println(styleDim.Render("voss · "+short(m.sessionID, 8)+" · shift+tab mode · esc abort · ctrl+o tool args · ctrl+d quit")),
-		tea.RequestBackgroundColor,
-		waitEvent(m.events),
-	)
+	return tea.Batch(tea.RequestBackgroundColor, waitEvent(m.events))
 }
 
 func waitEvent(ch <-chan voss.TypedEvent) tea.Cmd {
@@ -114,19 +119,30 @@ func tick(gen int) tea.Cmd {
 }
 
 func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	cm := next.(chatModel)
+	cm.layout()
+	return cm, cmd
+}
+
+func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
+		m.width, m.height = msg.Width, msg.Height
 		m.editor.SetWidth(msg.Width)
-		m.r = newRenderer(m.width, m.dark)
-		m.live = m.renderLive()
+		m.rerender()
 		return m, nil
 
 	case tea.BackgroundColorMsg:
 		m.dark = msg.IsDark()
-		m.r = newRenderer(m.width, m.dark)
-		m.live = m.renderLive()
+		m.rerender()
 		return m, nil
+
+	case tea.MouseWheelMsg:
+		var cmd tea.Cmd
+		m.vp, cmd = m.vp.Update(msg)
+		m.follow = m.vp.AtBottom()
+		return m, cmd
 
 	case liveMsg:
 		m.liveTick = false
@@ -137,8 +153,11 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasBusy, wasStreaming := m.turn.busy, m.turn.streaming
 		var blocks []block
 		m.turn, blocks = reduce(m.turn, msg.ev)
-		// Print before reading the next event so scrollback keeps event order.
-		cmds := []tea.Cmd{tea.Sequence(m.printBlocks(blocks), waitEvent(m.events))}
+		if _, user := msg.ev.(voss.UserEvent); user {
+			m.follow = true
+		}
+		m.add(blocks...)
+		cmds := []tea.Cmd{waitEvent(m.events)}
 		if m.turn.streaming == "" {
 			m.live = ""
 		} else if m.turn.streaming != wasStreaming && !m.liveTick {
@@ -160,7 +179,8 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamClosedMsg:
 		m.turn.busy = false
 		m.offline = true
-		return m, m.printBlocks([]block{{blockError, "lost the connection to voss serve (ctrl+d quits)"}})
+		m.add(block{blockError, "lost the connection to voss serve (ctrl+d quits)"})
+		return m, nil
 
 	case tickMsg:
 		if !m.turn.busy || msg.gen != m.tickGen {
@@ -178,10 +198,12 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.what == "send" {
 			m.turn.busy = false
 		}
-		return m, m.printBlocks([]block{{blockError, msg.what + ": " + errText(msg.err)}})
+		m.add(block{blockError, msg.what + ": " + errText(msg.err)})
+		return m, nil
 
 	case costMsg:
-		return m, m.printBlocks([]block{{blockNotice, fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)}})
+		m.add(block{blockNotice, fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)})
+		return m, nil
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -235,10 +257,20 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.abort()
 
 	case "ctrl+o":
-		if m.turn.lastTool == nil {
-			return m, nil
+		if m.turn.lastTool != nil {
+			m.add(block{blockToolArgs, toolArgsText(*m.turn.lastTool)})
 		}
-		return m, tea.Println(m.r.toolArgs(*m.turn.lastTool))
+		return m, nil
+
+	case "pgup":
+		m.vp.PageUp()
+		m.follow = m.vp.AtBottom()
+		return m, nil
+
+	case "pgdown":
+		m.vp.PageDown()
+		m.follow = m.vp.AtBottom()
+		return m, nil
 
 	case "shift+tab":
 		for i, mode := range modes {
@@ -260,7 +292,8 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.offline {
 			m.editor.SetValue(text)
-			return m, m.printBlocks([]block{{blockError, "not connected to voss serve (ctrl+d quits)"}})
+			m.add(block{blockError, "not connected to voss serve (ctrl+d quits)"})
+			return m, nil
 		}
 		if m.turn.busy {
 			m.queue = append(m.queue, text)
@@ -275,7 +308,6 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// quit clears the live region so the editor is not left in scrollback.
 func (m chatModel) quit() (tea.Model, tea.Cmd) {
 	m.quitting = true
 	return m, tea.Quit
@@ -295,9 +327,11 @@ func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
 			return costMsg(c)
 		}
 	case "/help":
-		return m, m.printBlocks([]block{{blockNotice, "commands: /help /cost /quit"}})
+		m.add(block{blockNotice, "commands: /help /cost /quit"})
+		return m, nil
 	}
-	return m, m.printBlocks([]block{{blockNotice, text + " is not available in this client"}})
+	m.add(block{blockNotice, text + " is not available in this client"})
+	return m, nil
 }
 
 // send posts a message with the current mode.
@@ -305,6 +339,7 @@ func (m *chatModel) send(text string) tea.Cmd {
 	m.turn.busy = true
 	m.turn.thinking = ""
 	m.sentAt = time.Now()
+	m.follow = true
 	client, ctx, id, mode := m.client, m.ctx, m.sessionID, m.mode
 	post := func() tea.Msg {
 		err := client.PostMessage(ctx, id, text, mode)
@@ -345,15 +380,55 @@ func (m chatModel) View() tea.View {
 	if m.quitting {
 		return tea.NewView("")
 	}
+	v := tea.NewView(m.vp.View() + "\n" + m.bottom())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
+}
+
+// bottom is everything under the transcript: the prompt, the editor and the footer.
+func (m chatModel) bottom() string {
 	var parts []string
-	if m.live != "" {
-		parts = append(parts, m.live)
-	}
 	if p := m.turn.permission; p != nil {
 		parts = append(parts, m.r.permission(*p, m.cwd))
 	}
 	parts = append(parts, m.editor.View(), ansi.Truncate(m.footer(), m.r.width, "…"))
-	return tea.NewView(strings.Join(parts, "\n"))
+	return strings.Join(parts, "\n")
+}
+
+// layout sizes the transcript to the space the bottom area leaves and keeps
+// it on the newest line while following.
+func (m *chatModel) layout() {
+	m.vp.SetWidth(m.r.width)
+	m.vp.SetHeight(max(m.height-lipgloss.Height(m.bottom()), 1))
+	content := strings.Join(m.rendered, "\n")
+	if m.live != "" {
+		if content != "" {
+			content += "\n"
+		}
+		content += m.live
+	}
+	m.vp.SetContent(content)
+	if m.follow {
+		m.vp.GotoBottom()
+	}
+}
+
+// add commits finished blocks to the transcript.
+func (m *chatModel) add(blocks ...block) {
+	for _, b := range blocks {
+		m.blocks = append(m.blocks, b)
+		m.rendered = append(m.rendered, m.r.block(b))
+	}
+}
+
+// rerender rebuilds every block for a new width or background.
+func (m *chatModel) rerender() {
+	m.r = newRenderer(m.width, m.dark)
+	for i, b := range m.blocks {
+		m.rendered[i] = m.r.block(b)
+	}
+	m.live = m.renderLive()
 }
 
 func (m chatModel) footer() string {
@@ -379,15 +454,4 @@ func (m chatModel) renderLive() string {
 		return ""
 	}
 	return m.r.markdown(m.turn.streaming)
-}
-
-func (m chatModel) printBlocks(blocks []block) tea.Cmd {
-	if len(blocks) == 0 {
-		return nil
-	}
-	lines := make([]string, len(blocks))
-	for i, b := range blocks {
-		lines[i] = m.r.block(b)
-	}
-	return tea.Println(strings.Join(lines, "\n"))
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -77,14 +78,13 @@ func (f *fakeServer) requestsTo(suffix string) []request {
 	return out
 }
 
-// driver is a minimal Bubble Tea event loop: it runs commands, feeds their
-// messages back into the model and keeps what the model prints to scrollback.
+// driver is a minimal Bubble Tea event loop: it runs commands and feeds
+// their messages back into the model.
 type driver struct {
-	t       *testing.T
-	m       chatModel
-	msgs    chan tea.Msg
-	printed []string
-	quit    bool
+	t    *testing.T
+	m    chatModel
+	msgs chan tea.Msg
+	quit bool
 }
 
 func newDriver(t *testing.T, client *voss.Client, events <-chan voss.TypedEvent) *driver {
@@ -148,18 +148,14 @@ func (d *driver) until(what string, cond func() bool) {
 				d.quit = true
 				continue
 			}
-			if v := reflect.ValueOf(msg); v.Type().Name() == "printLineMessage" {
-				d.printed = append(d.printed, v.FieldByName("messageBody").String())
-				continue
-			}
 			d.send(msg)
 		case <-deadline:
-			d.t.Fatalf("timed out waiting for %s; printed:\n%s", what, strings.Join(d.printed, "\n"))
+			d.t.Fatalf("timed out waiting for %s; transcript:\n%s", what, d.transcript())
 		}
 	}
 }
 
-func (d *driver) transcript() string { return ansi.Strip(strings.Join(d.printed, "\n")) }
+func (d *driver) transcript() string { return ansi.Strip(strings.Join(d.m.rendered, "\n")) }
 
 func key(s string) tea.KeyPressMsg {
 	switch s {
@@ -398,6 +394,39 @@ func TestEditPromptShowsTheWordDiff(t *testing.T) {
 	view := d.m.View().Content
 	if !strings.Contains(view, styleDel.Render("old")) || !strings.Contains(view, styleAdd.Render("new")) {
 		t.Fatalf("prompt has no word diff:\n%s", ansi.Strip(view))
+	}
+}
+
+func TestFullScreenFillsTheWindowAndFollowsTheTail(t *testing.T) {
+	_, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent, 64)
+	d := newDriver(t, client, events)
+	d.send(tea.WindowSizeMsg{Width: 60, Height: 12})
+
+	for i := range 30 {
+		events <- voss.WarningEvent{Message: fmt.Sprintf("line %d", i)}
+	}
+	d.until("30 lines", func() bool { return strings.Contains(d.transcript(), "line 29") })
+	view := d.m.View()
+	if !view.AltScreen || strings.Count(view.Content, "\n")+1 != 12 {
+		t.Fatalf("alt screen %v, %d lines; want the full 12-line window", view.AltScreen, strings.Count(view.Content, "\n")+1)
+	}
+	if !d.m.vp.AtBottom() || !strings.Contains(ansi.Strip(view.Content), "line 29") {
+		t.Fatal("the newest line is not on screen")
+	}
+
+	d.press("pgup")
+	offset := d.m.vp.YOffset()
+	events <- voss.WarningEvent{Message: "arrives while scrolled up"}
+	d.until("new line", func() bool { return strings.Contains(d.transcript(), "arrives while scrolled up") })
+	if d.m.vp.YOffset() != offset {
+		t.Fatalf("scrolled from %d to %d while the user was reading", offset, d.m.vp.YOffset())
+	}
+
+	events <- voss.UserEvent{Task: "next question"}
+	d.until("user block", func() bool { return strings.Contains(d.transcript(), "next question") })
+	if !d.m.vp.AtBottom() {
+		t.Fatal("a new user message did not return to the bottom")
 	}
 }
 

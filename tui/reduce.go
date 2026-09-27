@@ -18,6 +18,7 @@ const (
 	blockWarning
 	blockError
 	blockNotice
+	blockToolArgs
 )
 
 // block is a finished piece of transcript, printed to scrollback once.

@@ -86,6 +86,12 @@ func (r renderer) block(b block) string {
 		return r.hang("⚠", b.text, styleTool)
 	case blockError:
 		return r.hang("✗", b.text, styleError)
+	case blockToolArgs:
+		lines := strings.Split(b.text, "\n")
+		for i, line := range lines {
+			lines[i] = styleDim.Render(ansi.Truncate(line, r.width, "…"))
+		}
+		return strings.Join(lines, "\n")
 	}
 	return b.text
 }
@@ -190,21 +196,18 @@ func writeStyled(sb *strings.Builder, text string, style lipgloss.Style) {
 	}
 }
 
-// toolArgs lists a tool call's arguments one per line, each cut to the width.
-func (r renderer) toolArgs(ev voss.ToolEvent) string {
+// toolArgsText lists a tool call's arguments one per line.
+func toolArgsText(ev voss.ToolEvent) string {
 	lines := []string{ev.Name + " arguments:"}
 	if ev.Args == nil || len(*ev.Args) == 0 {
 		lines = append(lines, "  (none)")
 	}
 	if ev.Args != nil {
 		for _, k := range sortedKeys(*ev.Args) {
-			v := strings.ReplaceAll(fmt.Sprint((*ev.Args)[k]), "\n", "⏎")
-			lines = append(lines, ansi.Truncate("  "+k+": "+v, r.width, "…"))
+			lines = append(lines, "  "+k+": "+strings.ReplaceAll(fmt.Sprint((*ev.Args)[k]), "\n", "⏎"))
 		}
 	}
-	var sb strings.Builder
-	writeStyled(&sb, strings.Join(lines, "\n"), styleDim)
-	return sb.String()
+	return strings.Join(lines, "\n")
 }
 
 func argSummary(args map[string]any) string {

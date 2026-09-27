@@ -29,18 +29,18 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 			return r.permission(voss.PermissionUpdated{Id: "p", ToolName: tool, Args: &args}, dir)
 		}
 	}
-	block := func(kind blockKind, text string) func(renderer) string {
+	blk := func(kind blockKind, text string) func(renderer) string {
 		return func(r renderer) string { return r.block(block{kind, text}) }
 	}
 	return map[string]func(renderer) string{
-		"user":      block(blockUser, "fix the bug in "+long),
-		"assistant": block(blockAssistant, sampleMarkdown),
-		"plan":      block(blockPlan, "plan: fs_read notes.txt → fs_edit notes.txt"),
-		"tool":      block(blockTool, "fs_read ✓ "+long),
-		"clarify":   block(blockClarify, "which file did you mean? "+long),
-		"warning":   block(blockWarning, "instructions is 5000 tokens, over the 4000-token budget; truncated AGENTS.md"),
-		"error":     block(blockError, "send: "+long),
-		"notice":    block(blockNotice, `unsupported event "tool.progress" from a newer server`),
+		"user":      blk(blockUser, "fix the bug in "+long),
+		"assistant": blk(blockAssistant, sampleMarkdown),
+		"plan":      blk(blockPlan, "plan: fs_read notes.txt → fs_edit notes.txt"),
+		"tool":      blk(blockTool, "fs_read ✓ "+long),
+		"clarify":   blk(blockClarify, "which file did you mean? "+long),
+		"warning":   blk(blockWarning, "instructions is 5000 tokens, over the 4000-token budget; truncated AGENTS.md"),
+		"error":     blk(blockError, "send: "+long),
+		"notice":    blk(blockNotice, `unsupported event "tool.progress" from a newer server`),
 		"prompt_edit_old": prompt("fs_edit", map[string]any{
 			"path": "notes.txt", "old": "the quick brown fox", "new": "the slow brown fox jumps",
 		}),
@@ -61,7 +61,7 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 		"prompt_scope": prompt("scope_expand", map[string]any{"target": "../other"}),
 		"tool_args": func(r renderer) string {
 			args := map[string]any{"path": "notes.txt", "new": "hello\nworld " + long}
-			return r.toolArgs(voss.ToolEvent{Name: "fs_edit", Args: &args})
+			return r.block(block{blockToolArgs, toolArgsText(voss.ToolEvent{Name: "fs_edit", Args: &args})})
 		},
 	}
 }
