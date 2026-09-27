@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -29,7 +28,6 @@ type (
 	}
 	// conflictMsg is a 409: another turn was running, so the text goes back in the queue.
 	conflictMsg struct{ text string }
-	costMsg     voss.CostInfo
 )
 
 type chatModel struct {
@@ -59,11 +57,17 @@ type chatModel struct {
 	live     string
 	liveTick bool
 	navMode  bool
-	pastes   map[string]string
-	search   reverseSearch
-	sent     []string
-	quitting bool
-	offline  bool
+	lastText string
+	pal      picker
+	// paletteDismissed keeps a palette closed after Esc until the text changes.
+	paletteDismissed bool
+	mentionFiles     []string
+	recentCommands   []string
+	pastes           map[string]string
+	search           reverseSearch
+	sent             []string
+	quitting         bool
+	offline          bool
 }
 
 func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, events <-chan voss.TypedEvent) chatModel {
@@ -131,6 +135,11 @@ func tick(gen int) tea.Cmd {
 func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	cm := next.(chatModel)
+	if v := cm.editor.Value(); v != cm.lastText || cm.search.active {
+		cm.lastText = v
+		cm.paletteDismissed = false
+		cm.syncPalette()
+	}
 	cm.layout()
 	return cm, cmd
 }
@@ -210,8 +219,8 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.add(block{kind: blockShell, text: msg.cmd, body: body, exit: msg.exit, joined: true})
 		return m, nil
 
-	case costMsg:
-		m.add(roleBlock("system", fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)))
+	case slashOutputMsg:
+		m.add(output(msg.stdout, msg.stderr)...)
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -250,6 +259,25 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if m.search.active {
 		return m.searchKey(msg)
+	}
+
+	if m.pal.kind != paletteNone {
+		switch key {
+		case "up":
+			m.pal.idx = max(m.pal.idx-1, 0)
+			return m, nil
+		case "down":
+			m.pal.idx = min(m.pal.idx+1, max(len(m.pal.names)-1, 0))
+			return m, nil
+		case "esc":
+			m.pal, m.paletteDismissed = picker{}, true
+			return m, nil
+		case "enter":
+			if len(m.pal.names) > 0 {
+				return m.choosePalette()
+			}
+			m.pal = picker{}
+		}
 	}
 
 	if m.navMode {
@@ -381,49 +409,6 @@ func (m *chatModel) drain() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m *chatModel) slash(text string) tea.Cmd {
-	args := strings.Fields(text)
-	switch args[0] {
-	case "/quit", "/exit":
-		m.quitting = true
-		return tea.Quit
-	case "/mode":
-		m.add(m.setMode(args[1:]))
-		return nil
-	case "/cost":
-		client, ctx, id := m.client, m.ctx, m.sessionID
-		return func() tea.Msg {
-			c, err := client.Cost(ctx, id)
-			if err != nil {
-				return errMsg{"cost", err}
-			}
-			return costMsg(c)
-		}
-	case "/help":
-		m.add(roleBlock("system", "commands: /help /cost /mode /quit"))
-		return nil
-	}
-	m.add(roleBlock("warning", glyphs.Warn+" unknown command: "+text+". /help for list."))
-	return nil
-}
-
-// setMode follows the CLI's /mode: no argument shows the mode, and auto
-// needs --confirm.
-func (m *chatModel) setMode(args []string) block {
-	if len(args) == 0 {
-		return roleBlock("system", "  mode: "+m.mode)
-	}
-	switch mode := args[0]; {
-	case mode != "plan" && mode != "edit" && mode != "auto" && mode != "observe":
-		return roleBlock("warning", glyphs.Warn+" mode must be plan|edit|auto|observe")
-	case mode == "auto" && !slices.Contains(args, "--confirm"):
-		return roleBlock("warning", glyphs.Warn+" escalating to auto requires --confirm (e.g. /mode auto --confirm)")
-	default:
-		m.mode = mode
-		return roleBlock("system", "  mode: "+mode)
-	}
-}
-
 // send posts a message with the current mode.
 func (m *chatModel) send(text string) tea.Cmd {
 	m.turn.busy = true
@@ -488,6 +473,9 @@ func (m chatModel) View() tea.View {
 
 // bottom is everything under the transcript: the status line and the input bar.
 func (m chatModel) bottom() string {
+	if m.pal.kind != paletteNone {
+		return paletteBox(m.pal, m.width) + "\n" + inputBox(m.width, m.editorView(), !m.navMode)
+	}
 	out := statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git)
 	if len(m.queue) > 0 {
 		out += "\n" + queueChip(m.queue, m.width)
@@ -586,4 +574,31 @@ func nonEmpty(parts ...string) []string {
 		}
 	}
 	return out
+}
+
+// choosePalette runs the highlighted command or inserts the highlighted path.
+func (m chatModel) choosePalette() (tea.Model, tea.Cmd) {
+	name := m.pal.names[m.pal.idx]
+	if m.pal.kind == paletteMention {
+		text := []rune(m.editor.Value())
+		cursor := m.cursorOffset()
+		if at, _, ok := findMentionToken(text, cursor); ok {
+			m.editor.SetValue(string(text[:at]) + name + " " + string(text[cursor:]))
+			m.moveCursorTo(at + len([]rune(name)) + 1)
+		} else {
+			m.editor.InsertString(name + " ")
+		}
+		m.pal, m.mentionFiles = picker{}, nil
+		m.lastText = m.editor.Value()
+		return m, nil
+	}
+	m.recentCommands = append([]string{name}, m.recentCommands...)[:min(len(m.recentCommands)+1, 10)]
+	m.editor.Reset()
+	line := "/" + strings.TrimLeft(name, "/")
+	if m.turn.busy {
+		m.queue = append(m.queue, line)
+		return m, nil
+	}
+	cmd := m.dispatch(line)
+	return m, cmd
 }
