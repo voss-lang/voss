@@ -224,6 +224,7 @@ type PermissionUpdated struct {
 type PlanEvent struct {
 	Confidence float32     `json:"confidence"`
 	CostUsd    float32     `json:"cost_usd"`
+	Rationale  *string     `json:"rationale,omitempty"`
 	Steps      *[]PlanStep `json:"steps,omitempty"`
 	Type       string      `json:"type"`
 	V          *int        `json:"v,omitempty"`
@@ -233,6 +234,7 @@ type PlanEvent struct {
 type PlanStep struct {
 	Args *map[string]interface{} `json:"args,omitempty"`
 	Name string                  `json:"name"`
+	Why  *string                 `json:"why,omitempty"`
 }
 
 // PrinciplesOverflow defines model for PrinciplesOverflow.
@@ -406,12 +408,15 @@ type ThinkingEvent struct {
 
 // ToolEvent defines model for ToolEvent.
 type ToolEvent struct {
-	Args    *map[string]interface{} `json:"args,omitempty"`
-	Name    string                  `json:"name"`
-	State   string                  `json:"state"`
-	Summary *string                 `json:"summary,omitempty"`
-	Type    string                  `json:"type"`
-	V       *int                    `json:"v,omitempty"`
+	Args        *map[string]interface{} `json:"args,omitempty"`
+	CallId      *string                 `json:"call_id,omitempty"`
+	Name        string                  `json:"name"`
+	Output      *string                 `json:"output,omitempty"`
+	OutputLines *int                    `json:"output_lines,omitempty"`
+	State       string                  `json:"state"`
+	Summary     *string                 `json:"summary,omitempty"`
+	Type        string                  `json:"type"`
+	V           *int                    `json:"v,omitempty"`
 }
 
 // UserEvent defines model for UserEvent.

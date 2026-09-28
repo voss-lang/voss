@@ -27,6 +27,17 @@ from typing import Any
 
 from . import events as E
 
+# Tool output is capped on the wire so one large result cannot exceed a
+# client's SSE line limit; clients get the true line count separately.
+OUTPUT_CAP = 64 * 1024
+
+
+def _cap_output(text: str) -> str:
+    if len(text) <= OUTPUT_CAP:
+        return text
+    half = OUTPUT_CAP // 2
+    return f"{text[:half]}\n…\n{text[-half:]}"
+
 
 class EventBusRenderer:
     """Publishes `render.Renderer` calls as protocol events to a queue."""
@@ -85,13 +96,15 @@ class EventBusRenderer:
 
     def show_plan(self, plan: Any, *, cost_usd: float) -> None:
         steps = [
-            E.PlanStep(name=s.name, args=s.args) for s in getattr(plan, "steps", [])
+            E.PlanStep(name=s.name, args=s.args, why=getattr(s, "why", None) or None)
+            for s in getattr(plan, "steps", [])
         ]
         self._emit(
             E.PlanEvent(
                 confidence=getattr(plan, "confidence", 0.0),
                 steps=steps,
                 cost_usd=cost_usd,
+                rationale=getattr(plan, "rationale", None) or None,
             )
         )
 
@@ -105,9 +118,17 @@ class EventBusRenderer:
         *,
         output: str | None = None,
     ) -> None:
-        # R3: call_id/output accepted and dropped — the server event contract
-        # (ToolEvent) is V15-gated and must not change here.
-        self._emit(E.ToolEvent(name=name, args=args, summary=summary, state=state))
+        self._emit(
+            E.ToolEvent(
+                name=name,
+                args=args,
+                summary=summary,
+                state=state,
+                call_id=call_id,
+                output=None if output is None else _cap_output(output),
+                output_lines=None if output is None else len(output.splitlines()),
+            )
+        )
 
     def show_clarify(self, question: str, confidence: float) -> None:
         self._emit(E.ClarifyEvent(question=question, confidence=confidence))

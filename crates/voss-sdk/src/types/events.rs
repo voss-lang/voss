@@ -1106,6 +1106,18 @@ pub struct PermissionUpdated {
 #[doc = "      \"title\": \"Cost Usd\","]
 #[doc = "      \"type\": \"number\""]
 #[doc = "    },"]
+#[doc = "    \"rationale\": {"]
+#[doc = "      \"title\": \"Rationale\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"steps\": {"]
 #[doc = "      \"title\": \"Steps\","]
 #[doc = "      \"type\": \"array\","]
@@ -1132,6 +1144,8 @@ pub struct PermissionUpdated {
 pub struct PlanEvent {
     pub confidence: f64,
     pub cost_usd: f64,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub rationale: ::std::option::Option<::std::string::String>,
     #[serde(default, skip_serializing_if = "::std::vec::Vec::is_empty")]
     pub steps: ::std::vec::Vec<PlanStep>,
     #[serde(default = "defaults::default_u64::<i64, 1>")]
@@ -1157,6 +1171,18 @@ pub struct PlanEvent {
 #[doc = "    \"name\": {"]
 #[doc = "      \"title\": \"Name\","]
 #[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"why\": {"]
+#[doc = "      \"title\": \"Why\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    }"]
 #[doc = "  }"]
 #[doc = "}"]
@@ -1167,6 +1193,8 @@ pub struct PlanStep {
     #[serde(default, skip_serializing_if = "::serde_json::Map::is_empty")]
     pub args: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
     pub name: ::std::string::String,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub why: ::std::option::Option<::std::string::String>,
 }
 #[doc = "`PrinciplesOverflow`"]
 #[doc = r""]
@@ -2048,9 +2076,45 @@ pub struct ThinkingEvent {
 #[doc = "      \"type\": \"object\","]
 #[doc = "      \"additionalProperties\": true"]
 #[doc = "    },"]
+#[doc = "    \"call_id\": {"]
+#[doc = "      \"title\": \"Call Id\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"name\": {"]
 #[doc = "      \"title\": \"Name\","]
 #[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"output\": {"]
+#[doc = "      \"title\": \"Output\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"output_lines\": {"]
+#[doc = "      \"title\": \"Output Lines\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"integer\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    },"]
 #[doc = "    \"state\": {"]
 #[doc = "      \"title\": \"State\","]
@@ -2080,7 +2144,13 @@ pub struct ThinkingEvent {
 pub struct ToolEvent {
     #[serde(default, skip_serializing_if = "::serde_json::Map::is_empty")]
     pub args: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub call_id: ::std::option::Option<::std::string::String>,
     pub name: ::std::string::String,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub output: ::std::option::Option<::std::string::String>,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub output_lines: ::std::option::Option<i64>,
     pub state: ::std::string::String,
     #[serde(default)]
     pub summary: ::std::string::String,

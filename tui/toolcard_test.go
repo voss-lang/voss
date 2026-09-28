@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -115,5 +116,61 @@ func TestCtrlOAndNavEnterToggleCards(t *testing.T) {
 	d.press("ctrl+o", "esc", "enter")
 	if !d.m.blocks[1].card.expanded || d.m.blocks[0].card.expanded {
 		t.Fatal("enter in nav mode should toggle only the focused card")
+	}
+}
+
+func TestCallIDPairsIdenticalConcurrentCalls(t *testing.T) {
+	_, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent, 16)
+	d := newDriver(t, client, events)
+	args := map[string]any{"path": "same.txt"}
+	one, two := "call-1", "call-2"
+	events <- voss.ToolEvent{Name: "fs_read", State: "pending", Args: &args, CallId: &one}
+	events <- voss.ToolEvent{Name: "fs_read", State: "pending", Args: &args, CallId: &two}
+	d.until("two cards", func() bool { return len(d.m.blocks) == 2 })
+
+	lines := 3
+	events <- voss.ToolEvent{Name: "fs_read", State: "ok", Args: &args, CallId: &two, Summary: str("second"), Output: str("second\nb\nc"), OutputLines: &lines}
+	d.until("second settles", func() bool { return d.m.blocks[1].card.state == "ok" })
+	if d.m.blocks[0].card.state != "running" {
+		t.Fatal("the result for call-2 settled call-1's card, which name-and-args pairing would do")
+	}
+}
+
+func TestOutputGivesReadAndMatchCountsAndTheBody(t *testing.T) {
+	sec := time.Second
+	for _, tc := range []struct {
+		card toolCard
+		want string
+	}{
+		{toolCard{name: "fs_read", output: "a\nb", lines: 120, elapsed: sec}, "120 lines"},
+		{toolCard{name: "fs_grep", output: "a.go:1\nb.go:2\nc.go:3", lines: 3}, "3 matches"},
+		{toolCard{name: "fs_glob", output: "a.go", lines: 1}, "1 match"},
+		{toolCard{name: "fs_grep", output: "<no matches>", lines: 1}, "0 matches"},
+		{toolCard{name: "fs_read", output: "", elapsed: sec}, "1.0s"},
+	} {
+		if got := tc.card.metric(); got != tc.want {
+			t.Errorf("%s: metric = %q, want %q", tc.card.name, got, tc.want)
+		}
+	}
+
+	var out []string
+	for i := range 30 {
+		out = append(out, fmt.Sprintf("line %d", i))
+	}
+	c := toolCard{name: "fs_read", state: "ok", output: strings.Join(out, "\n"), lines: 30, expanded: true}
+	body := ansi.Strip(strings.Join(c.bodyLines(80), "\n"))
+	if !strings.HasPrefix(body, "   …\n   line 10\n") || !strings.HasSuffix(body, "   line 29") {
+		t.Fatalf("an ok body shows the last 20 lines:\n%s", body)
+	}
+}
+
+func TestPlanShowsRationaleAndStepReasons(t *testing.T) {
+	rationale, why := "read before editing", "see the file"
+	steps := []voss.PlanStep{{Name: "fs_read", Why: &why}, {Name: "fs_edit"}}
+	_, got := reduce(turn{}, voss.PlanEvent{Rationale: &rationale, Steps: &steps})
+	want := roleBlock("plan", "read before editing\n  · fs_read — see the file\n  · fs_edit")
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("plan block = %+v", got)
 	}
 }

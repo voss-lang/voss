@@ -131,3 +131,54 @@ def test_envelope_schema_emits() -> None:
     assert "event" in schema["properties"]
     # discriminated union surfaces a discriminator mapping for codegen
     assert "$defs" in schema
+
+
+def _drain(q: asyncio.Queue) -> list:
+    out = []
+    while not q.empty():
+        out.append(q.get_nowait())
+    return out
+
+
+def test_tool_events_carry_call_id_and_output_for_clients() -> None:
+    q: asyncio.Queue = asyncio.Queue()
+    r = EventBusRenderer(q, session_id="s1")
+
+    r.show_tool_call("cid1", "fs_read", {"path": "a"}, "running…", "pending")
+    r.show_tool_call("cid1", "fs_read", {"path": "a"}, "line 1", "ok", output="line 1\nline 2\n")
+    pending, settled = _drain(q)
+
+    assert (pending.call_id, pending.output, pending.output_lines) == ("cid1", None, None)
+    assert (settled.call_id, settled.output, settled.output_lines) == ("cid1", "line 1\nline 2\n", 2)
+
+
+def test_large_tool_output_is_capped_but_keeps_the_true_line_count() -> None:
+    from voss.harness.server.renderer import OUTPUT_CAP
+
+    q: asyncio.Queue = asyncio.Queue()
+    r = EventBusRenderer(q, session_id="s1")
+    big = "".join(f"line {i}\n" for i in range(50_000))
+
+    r.show_tool_call("cid1", "fs_read", {"path": "big"}, "line 0", "ok", output=big)
+    (ev,) = _drain(q)
+
+    assert len(ev.output) <= OUTPUT_CAP + 3
+    assert ev.output.startswith("line 0\n") and ev.output.endswith("line 49999\n")
+    assert "\n…\n" in ev.output
+    assert ev.output_lines == 50_000
+
+
+def test_plan_events_carry_rationale_and_step_reasons() -> None:
+    q: asyncio.Queue = asyncio.Queue()
+    r = EventBusRenderer(q, session_id="s1")
+    r.show_plan(
+        Plan(
+            rationale="read before editing",
+            steps=[ToolCall(name="fs_read", args={"path": "a"}, why="see the file")],
+            confidence=0.9,
+        ),
+        cost_usd=0.0,
+    )
+    (ev,) = _drain(q)
+    assert ev.rationale == "read before editing"
+    assert ev.steps[0].why == "see the file"
