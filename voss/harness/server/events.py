@@ -72,6 +72,7 @@ class ThinkingEvent(_Base):
 class PlanStep(BaseModel):
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
+    why: str | None = None
 
 
 class PlanEvent(_Base):
@@ -79,6 +80,7 @@ class PlanEvent(_Base):
     confidence: float
     steps: list[PlanStep] = Field(default_factory=list)
     cost_usd: float
+    rationale: str | None = None
 
 
 class ToolEvent(_Base):
@@ -87,6 +89,11 @@ class ToolEvent(_Base):
     args: dict[str, Any] = Field(default_factory=dict)
     summary: str = ""
     state: str  # ok | error | pending
+    call_id: str | None = None
+    # Settled calls only. `output` is capped (see renderer.OUTPUT_CAP);
+    # `output_lines` counts the lines of the full output.
+    output: str | None = None
+    output_lines: int | None = None
 
 
 class ClarifyEvent(_Base):

@@ -308,10 +308,21 @@ export interface paths {
         put?: never;
         /**
          * Run Swarm
-         * @description Drive the R3 CLI members of a swarm (worktree spawn + ownership +
-         *     candidate preservation) headlessly. Native roles are untouched — they run via the
-         *     in-process turn path. Fire-and-forget: the orchestrator streams progress
-         *     over the swarm SSE plane; the route returns immediately.
+         * @description Drive a swarm's members headlessly. Fire-and-forget: the orchestrator
+         *     streams progress over the swarm SSE plane; the route returns immediately.
+         *
+         *     Both member kinds run. CLI roles go through `run_cli_swarm` (worktree
+         *     spawn, ownership reconciliation, candidate preservation); native builder
+         *     sessions run one turn each on the in-process path. The default roster is
+         *     all native, so without that second half `/run` on a default swarm did
+         *     nothing at all.
+         *
+         *     A swarm with no tasks is seeded here first: one coordinator LLM call
+         *     decomposes the goal into one task per runnable member. A client that
+         *     seeded its own tasks keeps them — this only fills an empty plan.
+         *
+         *     One run per swarm at a time, and a member whose session is mid-turn is
+         *     left alone, so a second call cannot start a second turn in a session.
          */
         post: operations["run_swarm_swarm__swarm_id__run_post"];
         delete?: never;
@@ -721,6 +732,11 @@ export interface components {
             confidence: number;
             /** Cost Usd */
             cost_usd: number;
+            /**
+             * Rationale
+             * @default null
+             */
+            rationale: string | null;
             /** Steps */
             steps?: components["schemas"]["PlanStep"][];
             /**
@@ -742,6 +758,11 @@ export interface components {
             };
             /** Name */
             name: string;
+            /**
+             * Why
+             * @default null
+             */
+            why: string | null;
         };
         /** PrinciplesOverflow */
         PrinciplesOverflow: {
@@ -1152,8 +1173,23 @@ export interface components {
             args?: {
                 [key: string]: unknown;
             };
+            /**
+             * Call Id
+             * @default null
+             */
+            call_id: string | null;
             /** Name */
             name: string;
+            /**
+             * Output
+             * @default null
+             */
+            output: string | null;
+            /**
+             * Output Lines
+             * @default null
+             */
+            output_lines: number | null;
             /** State */
             state: string;
             /**
