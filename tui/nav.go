@@ -71,6 +71,10 @@ func (b block) plainText() string {
 		return "# note saved"
 	case blockConfidence:
 		return fmt.Sprintf("%.2f", b.conf)
+	case blockTool:
+		if b.card != nil {
+			return b.card.plainText()
+		}
 	}
 	return b.text
 }
@@ -83,6 +87,10 @@ func (m *chatModel) navKey(key string) tea.Cmd {
 		m.navSet(m.navIdx + 1)
 	case "k", "up":
 		m.navSet(m.navIdx - 1)
+	case "enter":
+		if m.navIdx >= 0 && m.navIdx < len(m.blocks) {
+			m.toggleCard(m.navIdx)
+		}
 	case "y":
 		if m.navIdx < 0 || m.navIdx >= len(m.blocks) {
 			return nil

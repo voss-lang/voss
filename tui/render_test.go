@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
@@ -40,7 +41,18 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 		"clarify":          blk(roleBlock("clarify", "which file did you mean? "+long)),
 		"confidence":       blk(block{kind: blockConfidence, conf: 0.62}),
 		"warning":          blk(roleBlock("warning", "⚠ instruction files truncated to 4000 tokens (AGENTS.md)")),
-		"tool":             blk(block{kind: blockTool, text: "fs_read ✓ " + long}),
+		"tool": func(r renderer) string {
+			return r.toolCard(&toolCard{name: "fs_read", args: map[string]any{"path": "notes.txt"}, state: "ok",
+				summary: "hello", output: "hello", elapsed: 1234 * time.Millisecond}, 0)
+		},
+		"tool_edit_expanded": func(r renderer) string {
+			return r.toolCard(&toolCard{name: "fs_edit", args: map[string]any{"path": "notes.txt", "old": "a\nb", "new": "a\nc\nd"},
+				state: "ok", summary: "edited notes.txt (+1 lines)", output: "edited notes.txt (+1 lines)", expanded: true}, 0)
+		},
+		"tool_error": func(r renderer) string {
+			return r.toolCard(&toolCard{name: "shell_run", args: map[string]any{"cmd": "rm -rf /"}, state: "error",
+				summary: "<denied: denied token: 'rm -rf'>", output: "<denied: denied token: 'rm -rf'>", expanded: true}, 0)
+		},
 		"prompt_edit_old": prompt("fs_edit", map[string]any{
 			"path": "notes.txt", "old": "the quick brown fox", "new": "the slow brown fox jumps",
 		}),
@@ -59,10 +71,6 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 		}),
 		"prompt_shell": prompt("shell", map[string]any{"command": "go test ./...", "cwd": "."}),
 		"prompt_scope": prompt("scope_expand", map[string]any{"target": "../other"}),
-		"tool_args": func(r renderer) string {
-			args := map[string]any{"path": "notes.txt", "new": "hello\nworld " + long}
-			return r.block(block{kind: blockToolArgs, text: toolArgsText(voss.ToolEvent{Name: "fs_edit", Args: &args})})
-		},
 	}
 }
 

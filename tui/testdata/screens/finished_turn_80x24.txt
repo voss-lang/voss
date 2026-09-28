@@ -2,10 +2,10 @@
 
  plan
      · fs_read
- ⚙ fs_read ✓ 2cf24dba│hello
+ ⏺ fs_read                                                               0.0s
+ ⎿ ▸ …
 
  ● It says hello.
-
 
 
 

@@ -415,22 +415,6 @@ func TestClosedStreamIsReportedAndSendsAreHeld(t *testing.T) {
 	}
 }
 
-func TestCtrlOPrintsTheLastToolArguments(t *testing.T) {
-	_, client := newFakeServer(t)
-	events := make(chan voss.TypedEvent)
-	d := newDriver(t, client, events)
-
-	d.press("ctrl+o")
-	args := map[string]any{"path": "notes.txt"}
-	events <- voss.ToolEvent{Name: "fs_read", State: "ok", Args: &args}
-	d.until("tool row", func() bool { return strings.Contains(d.transcript(), "⚙ fs_read") })
-	if strings.Contains(d.transcript(), "arguments") {
-		t.Fatal("ctrl+o printed something before any tool ran")
-	}
-	d.press("ctrl+o")
-	d.until("arguments", func() bool { return strings.Contains(d.transcript(), "fs_read arguments:\n  path: notes.txt") })
-}
-
 func TestStreamedMarkdownRendersLiveThenCommits(t *testing.T) {
 	_, client := newFakeServer(t)
 	events := make(chan voss.TypedEvent, 4)

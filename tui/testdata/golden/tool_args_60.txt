@@ -1,3 +1,0 @@
-fs_edit arguments:
-  new: hello⏎world word word word word word word word word …
-  path: notes.txt
