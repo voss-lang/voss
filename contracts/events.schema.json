@@ -401,6 +401,18 @@
           "title": "Cost Usd",
           "type": "number"
         },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
         "steps": {
           "items": {
             "$ref": "#/components/schemas/PlanStep"
@@ -438,6 +450,18 @@
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "why": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Why"
         }
       },
       "required": [
@@ -1064,9 +1088,45 @@
           "title": "Args",
           "type": "object"
         },
+        "call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Id"
+        },
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output"
+        },
+        "output_lines": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Lines"
         },
         "state": {
           "title": "State",
