@@ -35,23 +35,33 @@ var (
 )
 
 type toolCard struct {
+	callID   string
 	name     string
 	args     map[string]any
 	state    string // running, ok or error
 	summary  string
-	output   string // the server sends no output yet, so this is the summary
+	output   string // capped by the server; the summary when an event has none
+	lines    int    // line count of the full output, from the server
 	started  time.Time
 	elapsed  time.Duration
 	expanded bool
 	frame0   int // the model's spinner frame when the card opened
 }
 
-// matchCard finds the running card a settled event belongs to: the oldest one
-// with the same tool name and arguments, or -1. The server drops call_id, so
-// two identical calls running at once can swap results.
+// matchCard finds the running card a settled event belongs to: by call_id,
+// or for an event without one, the oldest card with the same tool name and
+// arguments. Returns -1 when there is none.
 func (m chatModel) matchCard(ev voss.ToolEvent) int {
 	for i, b := range m.blocks {
-		if c := b.card; c != nil && c.state == "running" && c.name == ev.Name && reflect.DeepEqual(c.args, argsOf(ev)) {
+		c := b.card
+		if c == nil || c.state != "running" {
+			continue
+		}
+		if ev.CallId != nil {
+			if c.callID == *ev.CallId {
+				return i
+			}
+		} else if c.name == ev.Name && reflect.DeepEqual(c.args, argsOf(ev)) {
 			return i
 		}
 	}
@@ -71,9 +81,13 @@ func (m *chatModel) toolEvent(ev voss.ToolEvent) {
 	if ev.Summary != nil {
 		summary = *ev.Summary
 	}
+	callID := ""
+	if ev.CallId != nil {
+		callID = *ev.CallId
+	}
 	if ev.State == "pending" {
 		m.add(block{kind: blockTool, joined: true, card: &toolCard{
-			name: ev.Name, args: argsOf(ev), state: "running", started: time.Now(), expanded: m.detailExpanded, frame0: m.frame,
+			callID: callID, name: ev.Name, args: argsOf(ev), state: "running", started: time.Now(), expanded: m.detailExpanded, frame0: m.frame,
 		}})
 		return
 	}
@@ -88,7 +102,14 @@ func (m *chatModel) toolEvent(ev voss.ToolEvent) {
 	if ev.State == "ok" {
 		c.state = "ok"
 	}
-	c.summary, c.output = summary, summary
+	c.summary, c.output, c.lines = summary, summary, 0
+	if ev.Output != nil {
+		c.output = *ev.Output
+		c.lines = len(splitLines(c.output))
+		if ev.OutputLines != nil {
+			c.lines = *ev.OutputLines
+		}
+	}
 	if c.state == "error" {
 		c.expanded = true
 	}
@@ -150,9 +171,20 @@ func (c toolCard) metric() string {
 			return fmt.Sprintf("exit %s · %s", m[1], duration)
 		}
 	case readTools[c.name]:
-		// Needs the full output (S1); the summary is only its first line.
+		if c.output != "" && c.lines > 0 {
+			return fmt.Sprintf("%d lines", c.lines)
+		}
 	case matchTools[c.name]:
-		// Needs the full output (S1).
+		if strings.HasPrefix(c.output, "<no matches>") {
+			return "0 matches"
+		}
+		if c.output != "" && c.lines > 0 {
+			plural := "es"
+			if c.lines == 1 {
+				plural = ""
+			}
+			return fmt.Sprintf("%d match%s", c.lines, plural)
+		}
 	case editTools[c.name]:
 		if added, deleted, ok := editCounts(c.name, c.args); ok {
 			return fmt.Sprintf("+%d -%d", added, deleted)

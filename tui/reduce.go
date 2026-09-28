@@ -66,9 +66,16 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		t.thinking = e.Label
 	case voss.PlanEvent:
 		var lines []string
+		if e.Rationale != nil && *e.Rationale != "" {
+			lines = append(lines, *e.Rationale)
+		}
 		if e.Steps != nil {
 			for _, s := range *e.Steps {
-				lines = append(lines, "  · "+s.Name)
+				line := "  · " + s.Name
+				if s.Why != nil && *s.Why != "" {
+					line += " — " + *s.Why
+				}
+				lines = append(lines, line)
 			}
 		}
 		body := strings.Join(lines, "\n")
