@@ -1,0 +1,4 @@
+⏺ shell_run cmd=rm -rf /                                                                                            0.0s
+⎿ ▾
+   cmd=rm -rf /
+   <denied: denied token: 'rm -rf'>

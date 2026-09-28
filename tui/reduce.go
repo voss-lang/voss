@@ -15,7 +15,6 @@ const (
 	blockRole
 	blockConfidence
 	blockTool
-	blockToolArgs
 	blockShell
 	blockNote
 )
@@ -30,7 +29,8 @@ type block struct {
 	conf   float64 // ConfidenceBar value
 	body   string  // LocalBlockShell output
 	exit   int     // LocalBlockShell exit code
-	joined bool    // no blank line before it, like Textual's separate=False
+	card   *toolCard
+	joined bool // no blank line before it, like Textual's separate=False
 }
 
 func userBlock(text string) block      { return block{kind: blockUser, text: text} }
@@ -46,7 +46,6 @@ type turn struct {
 	interrupted   bool
 	thinking      string // the persistent toast; Textual clears it on final, not idle
 	permission    *voss.PermissionUpdated
-	lastTool      *voss.ToolEvent
 	pendingTool   string
 	streamedChars int
 	model         string
@@ -82,15 +81,8 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 			t.pendingTool = e.Name
 			return t, nil
 		}
+		// Cards change in place, so the model turns tool events into cards.
 		t.pendingTool = ""
-		t.lastTool = &e
-		text := e.Name + " " + toolGlyph(e.State)
-		if e.Summary != nil {
-			if line, _, _ := strings.Cut(strings.TrimSpace(*e.Summary), "\n"); line != "" {
-				text += " " + line
-			}
-		}
-		return t, []block{{kind: blockTool, text: text, joined: true}}
 	case voss.StreamDelta:
 		t.streaming += e.Text
 		t.streamedChars += len(e.Text)
@@ -184,14 +176,4 @@ func derefOr(p *int, fallback int) int {
 		return fallback
 	}
 	return *p
-}
-
-func toolGlyph(state string) string {
-	switch state {
-	case "ok":
-		return "✓"
-	case "error":
-		return "✗"
-	}
-	return state
 }

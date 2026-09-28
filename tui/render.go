@@ -46,18 +46,10 @@ func (r renderer) block(b block) string {
 		return r.role(b.role, b.text)
 	case blockConfidence:
 		return confidenceBar(b.conf, false)
-	case blockTool:
-		return styleTool.Render(ansi.Truncate("⚙ "+b.text, r.width, "…"))
 	case blockShell:
 		return r.shell(b.text, b.body, b.exit)
 	case blockNote:
 		return " " + lipgloss.NewStyle().Faint(true).Render("# note saved")
-	case blockToolArgs:
-		lines := strings.Split(b.text, "\n")
-		for i, line := range lines {
-			lines[i] = styleDim.Render(ansi.Truncate(line, r.width, "…"))
-		}
-		return strings.Join(lines, "\n")
 	}
 	return b.text
 }
@@ -284,20 +276,6 @@ func writeStyled(sb *strings.Builder, text string, style lipgloss.Style) {
 			sb.WriteString(style.Render(line))
 		}
 	}
-}
-
-// toolArgsText lists a tool call's arguments one per line.
-func toolArgsText(ev voss.ToolEvent) string {
-	lines := []string{ev.Name + " arguments:"}
-	if ev.Args == nil || len(*ev.Args) == 0 {
-		lines = append(lines, "  (none)")
-	}
-	if ev.Args != nil {
-		for _, k := range sortedKeys(*ev.Args) {
-			lines = append(lines, "  "+k+": "+strings.ReplaceAll(fmt.Sprint((*ev.Args)[k]), "\n", "⏎"))
-		}
-	}
-	return strings.Join(lines, "\n")
 }
 
 func sortedKeys(m map[string]any) []string {

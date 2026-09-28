@@ -69,16 +69,12 @@ func TestReduceSingleEvents(t *testing.T) {
 	truncated := []string{"AGENTS.md", "VOSS.md"}
 	plans := 2
 	steps := []voss.PlanStep{{Name: "fs_read"}, {Name: "fs_edit"}}
-	tool := func(text string) []block { return []block{{kind: blockTool, text: text, joined: true}} }
 	for _, tc := range []struct {
 		name string
 		ev   voss.TypedEvent
 		want []block
 	}{
-		{"pending tool waits for its result", voss.ToolEvent{Name: "fs_read", State: "pending"}, nil},
-		{"finished tool is one row", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("12 lines")}, tool("fs_read ✓ 12 lines")},
-		{"failed tool", voss.ToolEvent{Name: "fs_edit", State: "error"}, tool("fs_edit ✗")},
-		{"multi-line tool summary keeps its first line", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("2cf24dba│hello\nabc│world")}, tool("fs_read ✓ 2cf24dba│hello")},
+		{"tool events become cards in the model, not reducer blocks", voss.ToolEvent{Name: "fs_read", State: "ok"}, nil},
 		{"plan lists its steps", voss.PlanEvent{Steps: &steps}, []block{roleBlock("plan", "  · fs_read\n  · fs_edit")}},
 		{"stepless plan", voss.PlanEvent{}, []block{roleBlock("plan", "(empty plan)")}},
 		{"clarify with its confidence bar", voss.ClarifyEvent{Question: "which file?", Confidence: 0.4}, []block{roleBlock("clarify", "which file?"), {kind: blockConfidence, conf: float64(float32(0.4)), joined: true}}},
@@ -153,14 +149,6 @@ func TestPermissionEventOpensPrompt(t *testing.T) {
 	st, _ := reduce(turn{busy: true}, voss.PermissionUpdated{Id: "p1", ToolName: "fs_edit"})
 	if st.permission == nil || st.permission.Id != "p1" {
 		t.Fatalf("permission = %+v", st.permission)
-	}
-}
-
-func TestLastFinishedToolIsKeptForCtrlO(t *testing.T) {
-	st, _ := reduce(turn{}, voss.ToolEvent{Name: "fs_read", State: "ok"})
-	st, _ = reduce(st, voss.ToolEvent{Name: "fs_edit", State: "pending"})
-	if st.lastTool == nil || st.lastTool.Name != "fs_read" {
-		t.Fatalf("lastTool = %+v, want the finished fs_read, not the pending call", st.lastTool)
 	}
 }
 

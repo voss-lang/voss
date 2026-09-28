@@ -58,10 +58,12 @@ type chatModel struct {
 	liveTick bool
 	navMode  bool
 	navIdx   int
-	pendingG bool
-	trimmed  int
-	toast    string
-	toastGen int
+	// detailExpanded is Ctrl+O's expand-all state; new cards open to match it.
+	detailExpanded bool
+	pendingG       bool
+	trimmed        int
+	toast          string
+	toastGen       int
 	// lastResponse is the latest answer, for Ctrl+Y.
 	lastResponse string
 	lastText     string
@@ -186,6 +188,9 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sent = append(m.sent, u.Task)
 		}
 		m.add(blocks...)
+		if e, ok := msg.ev.(voss.ToolEvent); ok {
+			m.toolEvent(e)
+		}
 		cmds := []tea.Cmd{waitEvent(m.events)}
 		if m.turn.streaming == "" {
 			m.live = ""
@@ -214,6 +219,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.frame++
+		m.refreshRunningCards()
 		return m, tick(m.tickGen)
 
 	case conflictMsg:
@@ -353,9 +359,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "ctrl+o":
-		if m.turn.lastTool != nil {
-			m.add(block{kind: blockToolArgs, text: toolArgsText(*m.turn.lastTool), joined: true})
-		}
+		m.toggleAllCards()
 		return m, nil
 
 	case "pgup":
@@ -592,10 +596,14 @@ func (m *chatModel) setNav(on bool) {
 // after the first unless it is joined to the one above.
 func (m chatModel) renderAt(i int) string {
 	b := m.blocks[i]
-	if i > 0 && !b.joined {
-		return "\n" + m.r.block(b)
+	body := m.r.block(b)
+	if b.card != nil {
+		body = m.r.toolCard(b.card, m.frame)
 	}
-	return m.r.block(b)
+	if i > 0 && !b.joined {
+		return "\n" + body
+	}
+	return body
 }
 
 // rerender rebuilds every block for a new width or background.

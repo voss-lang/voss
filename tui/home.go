@@ -166,6 +166,13 @@ var richWord = regexp.MustCompile(`\s*\S+\s*`)
 // richWrap follows Rich's divide_line: a word that does not fit starts a new
 // line, and a word wider than the line is chopped into width-sized pieces.
 func richWrap(text string, width int) []string {
+	if strings.Contains(text, "\n") {
+		var out []string
+		for _, line := range strings.Split(text, "\n") {
+			out = append(out, richWrap(line, width)...)
+		}
+		return out
+	}
 	if strings.TrimSpace(text) == "" || width <= 0 {
 		return []string{text}
 	}
