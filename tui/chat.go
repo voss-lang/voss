@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
@@ -27,7 +28,6 @@ type (
 	}
 	// conflictMsg is a 409: another turn was running, so the text goes back in the queue.
 	conflictMsg struct{ text string }
-	costMsg     voss.CostInfo
 )
 
 type chatModel struct {
@@ -57,8 +57,24 @@ type chatModel struct {
 	live     string
 	liveTick bool
 	navMode  bool
-	quitting bool
-	offline  bool
+	navIdx   int
+	pendingG bool
+	trimmed  int
+	toast    string
+	toastGen int
+	// lastResponse is the latest answer, for Ctrl+Y.
+	lastResponse string
+	lastText     string
+	pal          picker
+	// paletteDismissed keeps a palette closed after Esc until the text changes.
+	paletteDismissed bool
+	mentionFiles     []string
+	recentCommands   []string
+	pastes           map[string]string
+	search           reverseSearch
+	sent             []string
+	quitting         bool
+	offline          bool
 }
 
 func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, events <-chan voss.TypedEvent) chatModel {
@@ -95,6 +111,7 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 		r:         newRenderer(0),
 		vp:        viewport.New(),
 		follow:    true,
+		navIdx:    -1,
 	}
 }
 
@@ -126,6 +143,11 @@ func tick(gen int) tea.Cmd {
 func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	cm := next.(chatModel)
+	if v := cm.editor.Value(); v != cm.lastText || cm.search.active {
+		cm.lastText = v
+		cm.paletteDismissed = false
+		cm.syncPalette()
+	}
 	cm.layout()
 	return cm, cmd
 }
@@ -151,10 +173,17 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case eventMsg:
 		wasBusy, wasStreaming := m.turn.busy, m.turn.streaming
+		switch e := msg.ev.(type) {
+		case voss.FinalEvent:
+			m.lastResponse = e.Text
+		case voss.StreamFinalize:
+			m.lastResponse = m.turn.streaming
+		}
 		var blocks []block
 		m.turn, blocks = reduce(m.turn, msg.ev)
-		if _, user := msg.ev.(voss.UserEvent); user {
+		if u, user := msg.ev.(voss.UserEvent); user {
 			m.follow = true
+			m.sent = append(m.sent, u.Task)
 		}
 		m.add(blocks...)
 		cmds := []tea.Cmd{waitEvent(m.events)}
@@ -169,10 +198,8 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sentAt = time.Now()
 			cmds = append(cmds, m.startTicking())
 		}
-		if _, idle := msg.ev.(voss.SessionIdle); idle && len(m.queue) > 0 {
-			text := m.queue[0]
-			m.queue = m.queue[1:]
-			cmds = append(cmds, m.send(text))
+		if _, idle := msg.ev.(voss.SessionIdle); idle {
+			cmds = append(cmds, m.drain())
 		}
 		return m, tea.Batch(cmds...)
 
@@ -201,12 +228,32 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.add(roleBlock("error", msg.what+": "+errText(msg.err)))
 		return m, nil
 
-	case costMsg:
-		m.add(roleBlock("system", fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)))
+	case shellDoneMsg:
+		body := strings.Join(nonEmpty(strings.TrimRight(msg.stdout, " \t\n"), strings.TrimRight(msg.stderr, " \t\n")), "\n")
+		m.add(block{kind: blockShell, text: msg.cmd, body: body, exit: msg.exit, joined: true})
+		return m, nil
+
+	case toastExpiredMsg:
+		if msg.gen == m.toastGen {
+			m.toast = ""
+		}
+		return m, nil
+
+	case slashOutputMsg:
+		m.add(output(msg.stdout, msg.stderr)...)
 		return m, nil
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		if m.search.active || m.navMode {
+			return m, nil
+		}
+		if len(strings.Split(msg.Content, "\n")) > pasteChipLines {
+			m.editor.InsertString(m.storePaste(msg.Content))
+			return m, nil
+		}
 	}
 
 	var cmd tea.Cmd
@@ -217,26 +264,56 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
-	if p := m.turn.permission; p != nil && key != "esc" && key != "ctrl+c" {
-		choices := "aAd"
+	if p := m.turn.permission; p != nil && key != "ctrl+c" {
+		choices := map[string]string{"a": "a", "A": "A", "d": "d", "esc": "d"}
 		if p.ToolName == "scope_expand" {
-			choices = "yn"
+			// The server's scope check accepts y/once and always; anything else denies.
+			choices = map[string]string{"y": "y", "a": "always", "n": "n", "esc": "n"}
 		}
-		if len(key) == 1 && strings.Contains(choices, key) {
+		if choice, ok := choices[key]; ok {
 			m.turn.permission = nil
-			return m, m.replyPermission(p.Id, key)
+			return m, m.replyPermission(p.Id, choice)
 		}
 		return m, nil
+	}
+
+	if m.search.active {
+		return m.searchKey(msg)
+	}
+
+	if m.pal.kind != paletteNone {
+		switch key {
+		case "up":
+			m.pal.idx = max(m.pal.idx-1, 0)
+			return m, nil
+		case "down":
+			m.pal.idx = min(m.pal.idx+1, max(len(m.pal.names)-1, 0))
+			return m, nil
+		case "esc":
+			m.pal, m.paletteDismissed = picker{}, true
+			return m, nil
+		case "enter":
+			if len(m.pal.names) > 0 {
+				return m.choosePalette()
+			}
+			m.pal = picker{}
+		}
+	}
+
+	if key == "ctrl+y" {
+		return m, m.copyCode()
 	}
 
 	if m.navMode {
 		switch {
 		case slices.Contains([]string{"ctrl+c", "tab", "shift+tab", "esc", "ctrl+l", "ctrl+o", "pgup", "pgdown"}, key):
+		case slices.Contains([]string{"j", "k", "up", "down", "y", "g", "G", "enter"}, key):
+			return m, m.navKey(key)
 		case key == "i":
-			m.navMode = false
+			m.setNav(false)
 			return m, nil
 		case msg.Text != "":
-			m.navMode = false
+			m.setNav(false)
 		default:
 			return m, nil
 		}
@@ -253,17 +330,27 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.abort()
 
 	case "tab", "shift+tab":
-		m.navMode = !m.navMode
+		m.setNav(!m.navMode)
 		return m, nil
 
 	case "esc":
 		if !m.turn.busy {
-			m.navMode = !m.navMode
+			m.setNav(!m.navMode)
 		}
 		return m, nil
 
 	case "ctrl+l":
 		return m, tea.ClearScreen
+
+	case "ctrl+r":
+		m.search = reverseSearch{active: true, saved: m.editor.Value()}
+		m.refreshSearch()
+		return m, nil
+
+	case "backspace":
+		if len(m.pastes) > 0 && m.deleteChipBeforeCursor() {
+			return m, nil
+		}
 
 	case "ctrl+o":
 		if m.turn.lastTool != nil {
@@ -282,24 +369,33 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
-		text := strings.TrimSpace(m.editor.Value())
+		text := strings.TrimSpace(m.expandPastes(m.editor.Value()))
 		if text == "" {
 			return m, nil
 		}
 		m.editor.Reset()
-		if strings.HasPrefix(text, "/") {
-			return m.slash(text)
+		// Like Textual's input bar, ! and # lines run at once, even mid-turn.
+		if cmd, ok := strings.CutPrefix(text, "!"); ok {
+			if cmd = strings.TrimSpace(cmd); cmd != "" {
+				return m, runShell(m.ctx, m.cwd, cmd)
+			}
+			return m, nil
 		}
-		if m.offline {
-			m.editor.SetValue(text)
-			m.add(roleBlock("error", "not connected to voss serve (ctrl+c quits)"))
+		if note, ok := strings.CutPrefix(text, "#"); ok {
+			if note = strings.TrimSpace(note); note != "" {
+				if err := appendVossNote(filepath.Join(m.cwd, "VOSS.md"), note, time.Now()); err != nil {
+					m.add(roleBlock("error", "note: "+err.Error()))
+				} else {
+					m.add(block{kind: blockNote, joined: true})
+				}
+			}
 			return m, nil
 		}
 		if m.turn.busy {
 			m.queue = append(m.queue, text)
 			return m, nil
 		}
-		cmd := m.send(text)
+		cmd := m.dispatch(text)
 		return m, cmd
 	}
 
@@ -313,46 +409,30 @@ func (m chatModel) quit() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
-	args := strings.Fields(text)
-	switch args[0] {
-	case "/quit", "/exit":
-		return m.quit()
-	case "/mode":
-		m.add(m.setMode(args[1:]))
-		return m, nil
-	case "/cost":
-		client, ctx, id := m.client, m.ctx, m.sessionID
-		return m, func() tea.Msg {
-			c, err := client.Cost(ctx, id)
-			if err != nil {
-				return errMsg{"cost", err}
-			}
-			return costMsg(c)
-		}
-	case "/help":
-		m.add(roleBlock("system", "commands: /help /cost /mode /quit"))
-		return m, nil
+// dispatch runs one input line: a slash command locally, anything else as a
+// turn. Live submits and queued lines both come through here, as in Textual.
+func (m *chatModel) dispatch(text string) tea.Cmd {
+	if strings.HasPrefix(text, "/") {
+		return m.slash(text)
 	}
-	m.add(roleBlock("warning", glyphs.Warn+" unknown command: "+text+". /help for list."))
-	return m, nil
+	if m.offline {
+		m.editor.SetValue(text)
+		m.add(roleBlock("error", "not connected to voss serve (ctrl+c quits)"))
+		return nil
+	}
+	return m.send(text)
 }
 
-// setMode follows the CLI's /mode: no argument shows the mode, and auto
-// needs --confirm.
-func (m *chatModel) setMode(args []string) block {
-	if len(args) == 0 {
-		return roleBlock("system", "  mode: "+m.mode)
+// drain dispatches queued lines after a turn ends, running slash commands in
+// order until a line starts the next turn.
+func (m *chatModel) drain() tea.Cmd {
+	var cmds []tea.Cmd
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting {
+		text := m.queue[0]
+		m.queue = m.queue[1:]
+		cmds = append(cmds, m.dispatch(text))
 	}
-	switch mode := args[0]; {
-	case mode != "plan" && mode != "edit" && mode != "auto" && mode != "observe":
-		return roleBlock("warning", glyphs.Warn+" mode must be plan|edit|auto|observe")
-	case mode == "auto" && !slices.Contains(args, "--confirm"):
-		return roleBlock("warning", glyphs.Warn+" escalating to auto requires --confirm (e.g. /mode auto --confirm)")
-	default:
-		m.mode = mode
-		return roleBlock("system", "  mode: "+mode)
-	}
+	return tea.Batch(cmds...)
 }
 
 // send posts a message with the current mode.
@@ -401,10 +481,17 @@ func (m chatModel) View() tea.View {
 		return tea.NewView("")
 	}
 	transcript := lipgloss.NewStyle().Padding(0, 3, 0, 1).Render(m.vp.View())
-	if m.turn.thinking != "" {
+	if m.toast != "" {
+		transcript = overlayToast(transcript, m.toast, m.width)
+	} else if m.turn.thinking != "" {
 		transcript = overlayToast(transcript, glyphs.ToolCall+" "+m.turn.thinking, m.width)
 	}
-	v := tea.NewView(transcript + "\n" + m.bottom())
+	screen := transcript + "\n" + m.bottom()
+	if p := m.turn.permission; p != nil {
+		screen = m.r.permissionModal(*p, m.cwd, m.width)
+		screen += strings.Repeat("\n", max(m.height-lipgloss.Height(screen), 0))
+	}
+	v := tea.NewView(screen)
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	v.BackgroundColor = col(palette.Bg)
@@ -412,24 +499,31 @@ func (m chatModel) View() tea.View {
 	return v
 }
 
-// bottom is everything under the transcript: the permission prompt, the
-// status line and the input bar.
+// bottom is everything under the transcript: the status line and the input bar.
 func (m chatModel) bottom() string {
-	var parts []string
-	if p := m.turn.permission; p != nil {
-		parts = append(parts, lipgloss.NewStyle().Padding(0, 1).Render(m.r.permission(*p, m.cwd)))
+	if m.pal.kind != paletteNone {
+		return paletteBox(m.pal, m.width) + "\n" + inputBox(m.width, m.editorView(), !m.navMode)
 	}
-	parts = append(parts,
-		statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git),
-		inputBox(m.width, m.editorView(), !m.navMode))
-	return strings.Join(parts, "\n")
+	out := statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git)
+	if len(m.queue) > 0 {
+		out += "\n" + queueChip(m.queue, m.width)
+	}
+	return out + "\n" + inputBox(m.width, m.editorView(), !m.navMode)
 }
 
 // editorView draws the placeholder over an empty editor with no cursor on it,
 // as Textual's overlay does.
 func (m chatModel) editorView() string {
+	surface := lipgloss.NewStyle().Background(col(palette.Surface))
+	if m.search.active {
+		line := m.searchLine()
+		if m.width > 8 {
+			line = ansi.Truncate(line, m.width-8, "…")
+		}
+		return surface.Foreground(col(palette.Text)).Render(line)
+	}
 	if m.editor.Value() == "" {
-		return lipgloss.NewStyle().Background(col(palette.Surface)).Foreground(col(palette.Dim)).Render(m.editor.Placeholder)
+		return surface.Foreground(col(palette.Dim)).Render(m.editor.Placeholder)
 	}
 	return m.editor.View()
 }
@@ -453,6 +547,16 @@ func (m *chatModel) layout() {
 		return
 	}
 	parts := append([]string(nil), m.rendered...)
+	if i := m.navIdx; m.navMode && i >= 0 && i < len(parts) {
+		gap, body := "", parts[i]
+		if rest, ok := strings.CutPrefix(body, "\n"); ok {
+			gap, body = "\n", rest
+		}
+		parts[i] = gap + tint(body, m.r.width)
+	}
+	if m.trimmed > 0 {
+		parts = append([]string{m.trimPlaceholder()}, parts...)
+	}
 	if m.live != "" {
 		parts = append(parts, m.live)
 	}
@@ -471,6 +575,16 @@ func (m *chatModel) add(blocks ...block) {
 	for _, b := range blocks {
 		m.blocks = append(m.blocks, b)
 		m.rendered = append(m.rendered, m.renderAt(len(m.blocks)-1))
+	}
+	m.trim()
+}
+
+// setNav moves focus to or from the transcript; entering focuses the last block.
+func (m *chatModel) setNav(on bool) {
+	m.navMode, m.pendingG = on, false
+	m.navIdx = -1
+	if on {
+		m.navSet(len(m.blocks) - 1)
 	}
 }
 
@@ -498,4 +612,41 @@ func (m chatModel) renderLive() string {
 		return ""
 	}
 	return m.r.block(assistantBlock(m.turn.streaming))
+}
+
+func nonEmpty(parts ...string) []string {
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// choosePalette runs the highlighted command or inserts the highlighted path.
+func (m chatModel) choosePalette() (tea.Model, tea.Cmd) {
+	name := m.pal.names[m.pal.idx]
+	if m.pal.kind == paletteMention {
+		text := []rune(m.editor.Value())
+		cursor := m.cursorOffset()
+		if at, _, ok := findMentionToken(text, cursor); ok {
+			m.editor.SetValue(string(text[:at]) + name + " " + string(text[cursor:]))
+			m.moveCursorTo(at + len([]rune(name)) + 1)
+		} else {
+			m.editor.InsertString(name + " ")
+		}
+		m.pal, m.mentionFiles = picker{}, nil
+		m.lastText = m.editor.Value()
+		return m, nil
+	}
+	m.recentCommands = append([]string{name}, m.recentCommands...)[:min(len(m.recentCommands)+1, 10)]
+	m.editor.Reset()
+	line := "/" + strings.TrimLeft(name, "/")
+	if m.turn.busy {
+		m.queue = append(m.queue, line)
+		return m, nil
+	}
+	cmd := m.dispatch(line)
+	return m, cmd
 }

@@ -13,13 +13,10 @@ import (
 )
 
 var (
-	styleUser    = lipgloss.NewStyle().Bold(true)
-	styleDim     = lipgloss.NewStyle().Faint(true)
-	styleTool    = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
-	styleClarify = lipgloss.NewStyle().Foreground(lipgloss.Cyan)
-	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Red)
-	styleDel     = lipgloss.NewStyle().Foreground(lipgloss.Red).Strikethrough(true)
-	styleAdd     = lipgloss.NewStyle().Foreground(lipgloss.Green)
+	styleDim  = lipgloss.NewStyle().Faint(true)
+	styleTool = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
+	styleDel  = lipgloss.NewStyle().Foreground(lipgloss.Red).Strikethrough(true)
+	styleAdd  = lipgloss.NewStyle().Foreground(lipgloss.Green)
 )
 
 const (
@@ -51,6 +48,10 @@ func (r renderer) block(b block) string {
 		return confidenceBar(b.conf, false)
 	case blockTool:
 		return styleTool.Render(ansi.Truncate("⚙ "+b.text, r.width, "…"))
+	case blockShell:
+		return r.shell(b.text, b.body, b.exit)
+	case blockNote:
+		return " " + lipgloss.NewStyle().Faint(true).Render("# note saved")
 	case blockToolArgs:
 		lines := strings.Split(b.text, "\n")
 		for i, line := range lines {
@@ -114,6 +115,34 @@ func (r renderer) role(role, text string) string {
 	return strings.Join(out, "\n")
 }
 
+// shell draws Textual's LocalBlockShell: "! cmd", the output, and the exit
+// code in the good or error colour, with one column of padding.
+func (r renderer) shell(cmd, body string, exit int) string {
+	var out []string
+	add := func(text string, style lipgloss.Style) {
+		for _, w := range richWrap(text, max(r.width-2, 1)) {
+			out = append(out, " "+style.Render(w))
+		}
+	}
+	for i, w := range richWrap("! "+cmd, max(r.width-2, 1)) {
+		if i == 0 {
+			w = lipgloss.NewStyle().Bold(true).Render("! ") + strings.TrimPrefix(w, "! ")
+		}
+		out = append(out, " "+w)
+	}
+	for _, line := range strings.Split(body, "\n") {
+		if body != "" {
+			add(line, lipgloss.NewStyle())
+		}
+	}
+	colour := palette.Good
+	if exit != 0 {
+		colour = palette.Error
+	}
+	add(fmt.Sprintf("· exit %d", exit), lipgloss.NewStyle().Foreground(col(colour)))
+	return strings.Join(out, "\n")
+}
+
 // confidenceBar matches Textual's ConfidenceBar: ten cells, the value, and a
 // colour by threshold.
 func confidenceBar(value float64, final bool) string {
@@ -132,42 +161,29 @@ func confidenceBar(value float64, final bool) string {
 	return lipgloss.NewStyle().Foreground(col(colour)).Render(fmt.Sprintf("%s %.2f ", bar, value))
 }
 
-// hang wraps text to the width with a glyph on the first line and a
-// two-column indent on the rest.
-func (r renderer) hang(glyph, text string, style lipgloss.Style) string {
-	indent := ""
-	if glyph != "" {
-		indent = "  "
-	}
-	lines := strings.Split(ansi.Wrap(text, r.width-len(indent), ""), "\n")
-	for i, line := range lines {
-		prefix := indent
-		if i == 0 && glyph != "" {
-			prefix = glyph + " "
-		}
-		lines[i] = style.Render(prefix + line)
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (r renderer) permission(p voss.PermissionUpdated, cwd string) string {
+// permissionModal draws Textual's PermissionModal or ScopeExpandModal, which
+// replace the whole screen: title, message and key line at the top left.
+// Textual's markup swallows "[a]" and "[d]" in its key line; this shows the
+// intended text. The word diff for edits is this client's addition.
+func (r renderer) permissionModal(p voss.PermissionUpdated, cwd string, width int) string {
 	var args map[string]any
 	if p.Args != nil {
 		args = *p.Args
 	}
-	if p.ToolName == "scope_expand" {
-		return styleTool.Render(fmt.Sprintf("⚠ expand scope to %v?", args["target"])) + "  [y] yes  [n] no"
-	}
-	head := styleTool.Render("⚠ allow " + p.ToolName + "?")
+	title := "Permission required"
+	message := fmt.Sprintf("Tool %s wants to %s %s.", p.ToolName, verbFor(p.ToolName), shortTarget(p.ToolName, args))
+	keys := "[a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny"
 	var body string
 	switch p.ToolName {
+	case "scope_expand":
+		title = "Expand edit scope?"
+		message = fmt.Sprintf("Allow writes to %v?", args["target"])
+		keys = "[y] yes once · [a] always (this session) · [n] no · [Esc] no"
 	case "fs_edit":
-		head += " " + styleDim.Render(fmt.Sprint(args["path"]))
 		newText, _ := args["new"].(string)
 		old, ok := editOld(cwd, args)
 		body = r.diff(old, newText, ok)
 	case "fs_edit_many":
-		head += " " + styleDim.Render(fmt.Sprint(args["path"]))
 		edits, _ := args["edits"].([]any)
 		parts := make([]string, 0, len(edits))
 		for _, e := range edits {
@@ -177,14 +193,52 @@ func (r renderer) permission(p voss.PermissionUpdated, cwd string) string {
 			parts = append(parts, r.diff(old, newText, ok))
 		}
 		body = strings.Join(parts, "\n"+styleDim.Render("  ···")+"\n")
-	default:
-		head = r.hang("", head+" "+styleDim.Render(argSummary(args)), lipgloss.NewStyle())
 	}
-	out := head
+	lines := append([]string{title, ""}, richWrap(message, width)...)
 	if body != "" {
-		out += "\n" + body
+		lines = append(append(lines, ""), strings.Split(body, "\n")...)
 	}
-	return out + "\n  [a] allow once  [A] always  [d] deny"
+	return strings.Join(append(append(lines, ""), richWrap(keys, width)...), "\n")
+}
+
+// verbFor and shortTarget follow voss/harness/tui/permissions_bridge.py.
+func verbFor(tool string) string {
+	switch tool {
+	case "shell_run", "shell_run_background":
+		return "run"
+	case "shell_signal":
+		return "signal"
+	case "fs_write", "fs_edit":
+		return "modify"
+	}
+	return "use"
+}
+
+func shortTarget(tool string, args map[string]any) string {
+	var raw string
+	switch tool {
+	case "shell_run", "shell_run_background":
+		raw = str2(args["cmd"])
+	case "shell_signal":
+		raw = str2(args["handle"])
+	case "fs_write", "fs_edit":
+		raw = str2(args["path"])
+	default:
+		pairs := make([]string, 0, len(args))
+		for _, k := range sortedKeys(args) {
+			pairs = append(pairs, fmt.Sprintf("%s=%v", k, args[k]))
+		}
+		raw = strings.Join(pairs, ", ")
+	}
+	return short(raw, 60)
+}
+
+// str2 renders a JSON argument like Python's str(), with "" for a missing one.
+func str2(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(v)
 }
 
 // diff renders old -> new as an indented word diff, or new alone when the old
@@ -244,14 +298,6 @@ func toolArgsText(ev voss.ToolEvent) string {
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-func argSummary(args map[string]any) string {
-	pairs := make([]string, 0, len(args))
-	for _, k := range sortedKeys(args) {
-		pairs = append(pairs, k+"="+short(strings.ReplaceAll(fmt.Sprint(args[k]), "\n", "⏎"), 60))
-	}
-	return strings.Join(pairs, " ")
 }
 
 func sortedKeys(m map[string]any) []string {

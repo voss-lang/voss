@@ -36,6 +36,12 @@ var screenCases = map[string]func(d *driver, events chan voss.TypedEvent){
 		events <- voss.ToolEvent{Name: "shell", State: "pending"}
 		d.until("pending tool", func() bool { return d.m.turn.pendingTool == "shell" })
 	},
+	"permission_modal": func(d *driver, events chan voss.TypedEvent) {
+		args := map[string]any{"path": "notes.txt", "old": "the old value", "new": "the new value"}
+		events <- voss.UserEvent{Task: "change old to new"}
+		events <- voss.PermissionUpdated{Id: "p1", ToolName: "fs_edit", Args: &args}
+		d.until("modal", func() bool { return d.m.turn.permission != nil })
+	},
 	"transcript_focused": func(d *driver, events chan voss.TypedEvent) {
 		d.press("esc")
 	},

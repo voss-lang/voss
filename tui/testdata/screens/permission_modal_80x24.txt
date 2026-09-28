@@ -1,5 +1,24 @@
 Permission required
 
-Tool shell wants to use command=go test ./..., cwd=..
+Tool fs_edit wants to modify notes.txt.
+
+  the oldnew value
 
 [a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -2,6 +2,39 @@ Permission required
 
 Tool fs_edit wants to modify notes.txt.
 
-  the quickslow brown fox jumps
+  the oldnew value
 
 [a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

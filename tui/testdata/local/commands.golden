@@ -1,0 +1,19 @@
+{"cmd": "ls -la", "allowed": true, "reason": "ok", "split": ["ls", "-la"]}
+{"cmd": "git status", "allowed": true, "reason": "ok", "split": ["git", "status"]}
+{"cmd": "cat \"my file.txt\"", "allowed": true, "reason": "ok", "split": ["cat", "my file.txt"]}
+{"cmd": "grep 'a b' \"c\\\"d\" e\\ f", "allowed": true, "reason": "ok", "split": ["grep", "a b", "c\"d", "e f"]}
+{"cmd": "echo \"back\\\\slash \\$HOME `x`\"", "allowed": false, "reason": "shell metacharacter not allowed: '`'", "split": ["echo", "back\\slash \\$HOME `x`"]}
+{"cmd": "rm -rf /", "allowed": false, "reason": "denied token: 'rm -rf'", "split": ["rm", "-rf", "/"]}
+{"cmd": "sudo ls", "allowed": false, "reason": "denied token: 'sudo'", "split": ["sudo", "ls"]}
+{"cmd": "ls; pwd", "allowed": false, "reason": "shell metacharacter not allowed: ';'", "split": ["ls;", "pwd"]}
+{"cmd": "ls | wc", "allowed": false, "reason": "shell metacharacter not allowed: '|'", "split": ["ls", "|", "wc"]}
+{"cmd": "ls > out", "allowed": false, "reason": "shell metacharacter not allowed: '>'", "split": ["ls", ">", "out"]}
+{"cmd": "ls $(pwd)", "allowed": false, "reason": "shell metacharacter not allowed: '$('", "split": ["ls", "$(pwd)"]}
+{"cmd": "echo \"unterminated", "allowed": false, "reason": "unparseable: No closing quotation", "split": "error: No closing quotation"}
+{"cmd": "curl https://x", "allowed": false, "reason": "denied token: 'curl http'", "split": ["curl", "https://x"]}
+{"cmd": "/usr/bin/GIT log", "allowed": true, "reason": "ok", "split": ["/usr/bin/GIT", "log"]}
+{"cmd": "Python3 -V", "allowed": true, "reason": "ok", "split": ["Python3", "-V"]}
+{"cmd": "make build", "allowed": false, "reason": "binary not in allowlist: make", "split": ["make", "build"]}
+{"cmd": "nc host 80", "allowed": false, "reason": "denied token: 'nc '", "split": ["nc", "host", "80"]}
+{"cmd": "ls /tmp > /dev/null", "allowed": false, "reason": "denied token: ' > /'", "split": ["ls", "/tmp", ">", "/dev/null"]}
+{"cmd": "echo trailing\\\\", "allowed": true, "reason": "ok", "split": ["echo", "trailing\\"]}

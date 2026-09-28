@@ -81,10 +81,11 @@ func (f *fakeServer) requestsTo(suffix string) []request {
 // driver is a minimal Bubble Tea event loop: it runs commands and feeds
 // their messages back into the model.
 type driver struct {
-	t    *testing.T
-	m    chatModel
-	msgs chan tea.Msg
-	quit bool
+	t         *testing.T
+	m         chatModel
+	msgs      chan tea.Msg
+	quit      bool
+	clipboard string
 }
 
 func newDriver(t *testing.T, client *voss.Client, events <-chan voss.TypedEvent) *driver {
@@ -148,6 +149,10 @@ func (d *driver) until(what string, cond func() bool) {
 				d.quit = true
 				continue
 			}
+			if v := reflect.ValueOf(msg); v.Type().Name() == "setClipboardMsg" {
+				d.clipboard = v.String()
+				continue
+			}
 			d.send(msg)
 		case <-deadline:
 			d.t.Fatalf("timed out waiting for %s; transcript:\n%s", what, d.transcript())
@@ -205,6 +210,35 @@ func TestEnterDuringTurnQueuesAndSendsAfterIdleInOrder(t *testing.T) {
 	}
 }
 
+func TestQueuedLinesShowAChipAndReplayInOrderAfterTheTurn(t *testing.T) {
+	f, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent)
+	d := newDriver(t, client, events)
+
+	d.typeText("first")
+	d.press("enter")
+	d.typeText("/mode edit")
+	d.press("enter")
+	d.typeText(`say "hi"`)
+	d.press("enter")
+	if chip := ansi.Strip(d.m.bottom()); !strings.Contains(chip, `queued (2): "say "hi""`) {
+		t.Fatalf("bottom area:\n%s", chip)
+	}
+	if strings.Contains(d.transcript(), "mode: edit") {
+		t.Fatal("a slash command typed during a turn ran before the turn ended")
+	}
+
+	events <- voss.SessionIdle{}
+	d.until("queued send", func() bool { return len(f.requestsTo("/message")) == 2 })
+	sent := f.requestsTo("/message")[1]
+	if text(sent) != `say "hi"` || sent.body["mode"] != "edit" {
+		t.Fatalf("second send = %+v; want the queued /mode applied first", sent.body)
+	}
+	if !strings.Contains(d.transcript(), "mode: edit") || strings.Contains(ansi.Strip(d.m.bottom()), "queued") {
+		t.Fatal("the queue did not drain")
+	}
+}
+
 func TestConflictPutsMessageBackAndRetriesAfterIdle(t *testing.T) {
 	f, client := newFakeServer(t)
 	f.conflicts = 1
@@ -237,13 +271,16 @@ func TestSendFailureShowsServerDetailAndClearsBusy(t *testing.T) {
 	}
 }
 
-func TestPermissionPromptTakesOnlyItsChoices(t *testing.T) {
+func TestPermissionModalTakesOnlyItsChoices(t *testing.T) {
 	f, client := newFakeServer(t)
 	events := make(chan voss.TypedEvent)
 	d := newDriver(t, client, events)
 
 	events <- voss.PermissionUpdated{Id: "p1", ToolName: "fs_edit"}
 	d.until("prompt", func() bool { return d.m.turn.permission != nil })
+	if view := ansi.Strip(d.m.View().Content); !strings.HasPrefix(view, "Permission required\n\nTool fs_edit wants to modify .") {
+		t.Fatalf("modal screen:\n%s", view)
+	}
 	d.press("x", "y")
 	if d.m.turn.permission == nil || d.m.editor.Value() != "" {
 		t.Fatalf("stray keys answered the prompt or reached the editor (editor %q)", d.m.editor.Value())
@@ -253,16 +290,22 @@ func TestPermissionPromptTakesOnlyItsChoices(t *testing.T) {
 	if r := f.requestsTo("/permission")[0]; r.body["id"] != "p1" || r.body["choice"] != "A" {
 		t.Fatalf("reply = %+v", r.body)
 	}
-	if d.m.turn.permission != nil {
-		t.Fatal("prompt still open after answering")
+
+	events <- voss.PermissionUpdated{Id: "p2", ToolName: "shell_run"}
+	d.until("second prompt", func() bool { return d.m.turn.permission != nil })
+	d.press("esc")
+	d.until("esc denies", func() bool { return len(f.requestsTo("/permission")) == 2 })
+	if r := f.requestsTo("/permission")[1]; r.body["choice"] != "d" {
+		t.Fatalf("esc replied %v, want d", r.body["choice"])
 	}
 
-	events <- voss.PermissionUpdated{Id: "p2", ToolName: "scope_expand"}
+	args := map[string]any{"target": "../other"}
+	events <- voss.PermissionUpdated{Id: "p3", ToolName: "scope_expand", Args: &args}
 	d.until("scope prompt", func() bool { return d.m.turn.permission != nil })
-	d.press("a", "n")
-	d.until("scope reply", func() bool { return len(f.requestsTo("/permission")) == 2 })
-	if r := f.requestsTo("/permission")[1]; r.body["id"] != "p2" || r.body["choice"] != "n" {
-		t.Fatalf("scope reply = %+v", r.body)
+	d.press("x", "a")
+	d.until("scope reply", func() bool { return len(f.requestsTo("/permission")) == 3 })
+	if r := f.requestsTo("/permission")[2]; r.body["id"] != "p3" || r.body["choice"] != "always" {
+		t.Fatalf("scope reply = %+v, want always: the server denies a bare a", r.body)
 	}
 }
 

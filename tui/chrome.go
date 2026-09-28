@@ -196,3 +196,23 @@ func overlayToast(screen, text string, width int) string {
 	lines[0] = ansi.Truncate(lines[0], max(width-ansi.StringWidth(toast), 0), "") + toast
 	return strings.Join(lines, "\n")
 }
+
+// queueChip is Textual's #queued-chips row: the latest queued line, cut to 60
+// characters, after an accent edge at half strength.
+func queueChip(queue []string, width int) string {
+	latest := short(strings.ReplaceAll(queue[len(queue)-1], "\n", " "), 60)
+	label := `queued: "` + latest + `"`
+	if len(queue) > 1 {
+		label = fmt.Sprintf(`queued (%d): "%s"`, len(queue), latest)
+	}
+	edge := lipgloss.NewStyle().Foreground(blend(palette.Accent, palette.Bg, 0.5)).Render("▎")
+	dim := lipgloss.NewStyle().Foreground(col(palette.Dim))
+	lines := []string{label}
+	if width > 4 {
+		lines = richWrap(label, width-4)
+	}
+	for i, l := range lines {
+		lines[i] = " " + edge + " " + dim.Render(l)
+	}
+	return strings.Join(lines, "\n")
+}

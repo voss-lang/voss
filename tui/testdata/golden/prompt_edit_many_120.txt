@@ -1,5 +1,9 @@
-⚠ allow fs_edit_many? notes.txt
+Permission required
+
+Tool fs_edit_many wants to use edits=[map[new:a = 2 old:a = 1] map[new:c old:b]], path=not….
+
   a = 12
   ···
   bc
-  [a] allow once  [A] always  [d] deny
+
+[a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny

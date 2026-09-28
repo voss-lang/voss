@@ -16,6 +16,8 @@ const (
 	blockConfidence
 	blockTool
 	blockToolArgs
+	blockShell
+	blockNote
 )
 
 // block is one finished piece of transcript, mirroring the Textual widgets:
@@ -26,6 +28,8 @@ type block struct {
 	role   string  // RoleBlock label
 	footer string  // AssistantBlock metadata line, set when a stream finalizes
 	conf   float64 // ConfidenceBar value
+	body   string  // LocalBlockShell output
+	exit   int     // LocalBlockShell exit code
 	joined bool    // no blank line before it, like Textual's separate=False
 }
 
