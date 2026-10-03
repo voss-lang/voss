@@ -58,14 +58,7 @@ def test_styles_tcss_has_accent_color() -> None:
 
 
 def test_styles_tcss_has_only_locked_palette() -> None:
-    """Color contract v2 rebaseline (R5, spec §4.1).
-
-    v2 rule: exactly 9 hex values in styles.tcss — the 5 locked foreground
-    roles plus $bg/$surface/$raised/$text. (The spec header says "exactly
-    10 hex" but its own table lists 9 distinct values: "$dim doubles as dim
-    text; no sixth gray" — the table's value count is authoritative.)
-    Translucent uses of palette vars ($accent 8%) do not count as new hex.
-    """
+    """Palette includes separate input/output colors; metadata stays unchanged."""
     path = Path(__file__).resolve().parents[3] / "voss" / "harness" / "tui" / "styles.tcss"
     keep_lines = []
     for line in path.read_text().splitlines():
@@ -77,7 +70,7 @@ def test_styles_tcss_has_only_locked_palette() -> None:
         keep_lines.append(line)
     body = "\n".join(keep_lines)
     matches = re.findall(r"#[0-9A-Fa-f]{6}", body)
-    assert len(matches) == 9, f"expected 9 hex colors, got {matches}"
+    assert len(matches) == 11, f"expected 11 hex colors, got {matches}"
     locked = {
         "#FF5B1F",  # $accent
         "#888888",  # $dim (doubles as dim text)
@@ -88,6 +81,8 @@ def test_styles_tcss_has_only_locked_palette() -> None:
         "#1C1C1C",  # $surface
         "#262626",  # $raised
         "#DADADA",  # $text
+        "#FFFFFF",  # $input-text
+        "#E6E6E6",  # $output-text
     }
     assert set(m.upper() for m in matches) == locked
 
