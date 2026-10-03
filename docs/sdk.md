@@ -247,9 +247,10 @@ The SDKs never look for a Python interpreter or a source checkout. Any
 `voss` executable that speaks the protocol works: the npm `@vosslang/cli`
 install, a pip console script, or a wheel-vendored binary.
 
-`voss-tui` is a first-party consumer of the same API. When run from a
-checkout with no `VOSS_BIN` set it prefers the sibling `.venv/bin/voss`;
-that convenience lives in the TUI, not the SDK.
+`voss-tui` is a Go consumer of the same API. The Python dispatcher passes its
+interpreter as `VOSS_SERVER_PYTHON`, so the TUI starts the server with the same
+Python installation. An explicit `VOSS_BIN` overrides that handoff. Direct
+invocations otherwise resolve `voss` on `PATH`.
 
 ---
 

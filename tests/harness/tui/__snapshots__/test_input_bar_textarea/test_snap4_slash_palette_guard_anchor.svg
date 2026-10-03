@@ -37,7 +37,8 @@
 .terminal-r3 { fill: #ff5b1f;font-weight: bold }
 .terminal-r4 { fill: #8d8d8d }
 .terminal-r5 { fill: #ff5b1f }
-.terminal-r6 { fill: #121212 }
+.terminal-r6 { fill: #ffffff }
+.terminal-r7 { fill: #121212 }
     </style>
 
     <defs>
@@ -147,7 +148,7 @@
 </text><text class="terminal-r1" x="976" y="483.6" textLength="12.2" clip-path="url(#terminal-line-19)">
 </text><text class="terminal-r5" x="0" y="508" textLength="976" clip-path="url(#terminal-line-20)">╭──────────────────────────────────────────────────────────────────────────────╮</text><text class="terminal-r1" x="976" y="508" textLength="12.2" clip-path="url(#terminal-line-20)">
 </text><text class="terminal-r5" x="0" y="532.4" textLength="976" clip-path="url(#terminal-line-21)">│╭────────────────────────────────────────────────────────────────────────────╮│</text><text class="terminal-r1" x="976" y="532.4" textLength="12.2" clip-path="url(#terminal-line-21)">
-</text><text class="terminal-r5" x="0" y="556.8" textLength="24.4" clip-path="url(#terminal-line-22)">╰│</text><text class="terminal-r3" x="24.4" y="556.8" textLength="36.6" clip-path="url(#terminal-line-22)">▌&#160;&#160;</text><text class="terminal-r2" x="61" y="556.8" textLength="12.2" clip-path="url(#terminal-line-22)">/</text><text class="terminal-r5" x="951.6" y="556.8" textLength="24.4" clip-path="url(#terminal-line-22)">│╯</text><text class="terminal-r1" x="976" y="556.8" textLength="12.2" clip-path="url(#terminal-line-22)">
+</text><text class="terminal-r5" x="0" y="556.8" textLength="24.4" clip-path="url(#terminal-line-22)">╰│</text><text class="terminal-r3" x="24.4" y="556.8" textLength="36.6" clip-path="url(#terminal-line-22)">▌&#160;&#160;</text><text class="terminal-r6" x="61" y="556.8" textLength="12.2" clip-path="url(#terminal-line-22)">/</text><text class="terminal-r5" x="951.6" y="556.8" textLength="24.4" clip-path="url(#terminal-line-22)">│╯</text><text class="terminal-r1" x="976" y="556.8" textLength="12.2" clip-path="url(#terminal-line-22)">
 </text><text class="terminal-r5" x="12.2" y="581.2" textLength="951.6" clip-path="url(#terminal-line-23)">╰────────────────────────────────────────────────────────────────────────────╯</text>
     </g>
     </g>

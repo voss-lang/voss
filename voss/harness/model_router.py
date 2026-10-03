@@ -145,6 +145,25 @@ def _claude_subscription_provider(entry: ModelEntry) -> tuple[ModelProvider, str
     return provider, entry.id
 
 
+def _codex_subscription_provider(entry: ModelEntry) -> tuple[ModelProvider, str] | None:
+    if entry.provider_id != "openai" or entry.api_base:
+        return None
+    from .subscription_models import SUBSCRIPTION_MODELS
+
+    if entry.id not in {m.id for m in SUBSCRIPTION_MODELS["codex"]}:
+        return None
+    creds = auth.load_codex()
+    if not creds or not creds.has_oauth or creds.auth_mode.lower() != "chatgpt":
+        return None
+    from .providers import OpenAIOAuthProvider
+
+    provider = OpenAIOAuthProvider(creds)
+    setattr(provider, "voss_provider_id", entry.provider_id)
+    setattr(provider, "voss_provider_label", "Codex")
+    setattr(provider, "voss_model_id", entry.id)
+    return provider, entry.id
+
+
 def flatten(groups: list[ProviderGroup]) -> list[ModelEntry]:
     """All entries across groups, in display order."""
     return [m for g in groups for m in g.models]
@@ -218,6 +237,9 @@ def boot_routed_provider(
     entry = find_entry(groups, provider_id, model_id)
     if entry is None:
         return None
+    subscription = _codex_subscription_provider(entry)
+    if subscription is not None:
+        return subscription
     key = resolve_key(entry, getter=getter, keyring_get=keyring_get)
     return build_provider_for_model(entry, api_key=key)
 
@@ -228,12 +250,16 @@ def prepare_model(
     getter: KeyGetter = os.environ.get,
     keyring_get: KeyGetter = auth.load_provider_key,
 ) -> tuple[ModelProvider, str, bool]:
-    """Convenience: resolve the key then build the provider.
+    """Prefer Codex OAuth for subscription models, otherwise resolve an API key.
 
     Returns (provider, model_string, key_present). `key_present` is False when
     the provider needs a key (env_key set) but none is configured — the picker
     surfaces this as "needs connect" (P5) rather than failing a turn later.
     """
+    subscription = _codex_subscription_provider(entry)
+    if subscription is not None:
+        provider, model = subscription
+        return provider, model, True
     key = resolve_key(entry, getter=getter, keyring_get=keyring_get)
     if key is None:
         subscription = _claude_subscription_provider(entry)

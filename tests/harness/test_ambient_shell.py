@@ -39,6 +39,10 @@ def test_status_questions_route_to_local_ambient(line: str) -> None:
         "implement ambient shell routing",
         "run tests for the harness",
         "can you refactor the CLI dispatch?",
+        "can you see the open PR?",
+        "fetch the pull request",
+        "which MCP tools are available?",
+        "use the review skill",
     ],
 )
 def test_work_intent_routes_to_voss_run(line: str) -> None:

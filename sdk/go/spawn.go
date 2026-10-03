@@ -32,6 +32,7 @@ func (e *SpawnError) Unwrap() error { return e.Err }
 // inherits the caller's working directory and waits 60s for the handshake.
 type LaunchOptions struct {
 	Executable       string
+	Args             []string // executable arguments before "serve --port 0"
 	Cwd              string
 	Env              map[string]string
 	HandshakeTimeout time.Duration
@@ -76,7 +77,8 @@ func (t *stderrTail) String() string {
 // Client bound to the ephemeral port. stdin is held open as a heartbeat: the
 // server exits when it closes.
 func Spawn(ctx context.Context, opts LaunchOptions) (*Client, error) {
-	cmd := exec.CommandContext(ctx, resolveExecutable(opts.Executable), "serve", "--port", "0")
+	args := append(append([]string(nil), opts.Args...), "serve", "--port", "0")
+	cmd := exec.CommandContext(ctx, resolveExecutable(opts.Executable), args...)
 	cmd.Dir = opts.Cwd
 	cmd.Env = append(os.Environ(), "PYDANTIC_DISABLE_PLUGINS=1", "LITELLM_LOCAL_MODEL_COST_MAP=true")
 	for k, v := range opts.Env {

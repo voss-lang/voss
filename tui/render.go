@@ -55,11 +55,11 @@ func (r renderer) block(b block) string {
 }
 
 // user draws Textual's UserBlock: a faint accent edge, one column of padding
-// and faint text on the surface colour, filling the width.
+// and white text on the surface colour, filling the width.
 func (r renderer) user(text string) string {
 	edge := lipgloss.NewStyle().Foreground(blend(palette.Accent, palette.Bg, 0.06)).Background(col(palette.Surface)).Render("▎")
 	fill := lipgloss.NewStyle().Background(col(palette.Surface))
-	body := fill.Faint(true).Foreground(col(userText))
+	body := fill.Foreground(col(palette.InputText))
 	textW := max(r.width-3, 1)
 	var out []string
 	for i, line := range strings.Split(text, "\n") {
@@ -78,8 +78,10 @@ func (r renderer) user(text string) string {
 // markdown body, and the faint metadata footer when there is one.
 func (r renderer) assistant(text, footer string) string {
 	gutter := lipgloss.NewStyle().Foreground(col(palette.Accent)).Bold(true).Render(glyphs.Assistant)
+	body := lipgloss.NewStyle().Foreground(col(palette.OutputText))
 	lines := strings.Split(richMarkdown(text, r.width-2), "\n")
 	for i, line := range lines {
+		line = body.Render(line)
 		if i == 0 {
 			lines[i] = gutter + " " + line
 		} else {

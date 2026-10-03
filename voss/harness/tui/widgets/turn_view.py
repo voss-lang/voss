@@ -155,7 +155,7 @@ class HomeScreen(Static):
 
 
 class UserBlock(Static):
-    """User message block — ❯ glyph + dim text, continuation lines indented.
+    """User message block — ❯ glyph + white text, continuation lines indented.
 
     Spec §3.2. R5 surface styling lives in styles.tcss (`UserBlock` rule):
     $surface background + $accent 6% left-edge tint (Open Q2 tint-only
@@ -166,10 +166,10 @@ class UserBlock(Static):
         lines = body.split("\n") or [""]
         text = Text()
         text.append(f"{glyphs.USER_INPUT} ", style="dim")
-        text.append(lines[0], style="dim")
+        text.append(lines[0], style=palette.INPUT_TEXT)
         for ln in lines[1:]:
             text.append("\n")
-            text.append(f"  {ln}", style="dim")
+            text.append(f"  {ln}", style=palette.INPUT_TEXT)
         super().__init__(text, **kw)
         self._plain = text.plain
 
@@ -213,7 +213,7 @@ class AssistantBlock(Static):
 
         grid = Table.grid(padding=(0, 1, 0, 0))
         grid.add_column(width=1, vertical="top")
-        grid.add_column(ratio=1)
+        grid.add_column(ratio=1, style=palette.OUTPUT_TEXT)
         grid.add_row(Text(glyphs.ASSISTANT, style=f"bold {palette.ACCENT}"), self._body)
         if self._footer is None:
             return grid
