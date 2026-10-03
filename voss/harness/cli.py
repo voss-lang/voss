@@ -1726,19 +1726,23 @@ def _build_slash_registry() -> SlashRegistry:
             if isinstance(provider, ClaudeAgentProvider) and entry.provider_id == "anthropic":
                 harness_config.set_preferred_model(entry.id)
                 harness_config.set_preferred_auth("claude")
+            elif isinstance(provider, OpenAIOAuthProvider):
+                harness_config.set_preferred_model(entry.id)
+                harness_config.set_preferred_auth("codex")
             else:
                 harness_config.set_preferred_routed(entry.id, entry.provider_id)
             from . import model_prefs
 
             model_prefs.record_recent(entry.provider_id, entry.id)
+            label = _provider_label_for_runtime(provider, fallback=entry.provider_label)
             _sync_model_selection(
                 ctx,
                 model=model_str,
                 provider=provider,
-                provider_label=entry.provider_label,
-                toast=f"model: {entry.name} · {entry.provider_label} (persisted)",
+                provider_label=label,
+                toast=f"model: {entry.name} · {label} (persisted)",
             )
-            click.echo(f"  model: {entry.name} · {entry.provider_label} (persisted)")
+            click.echo(f"  model: {entry.name} · {label} (persisted)")
 
         def _print(entries) -> None:
             last = None

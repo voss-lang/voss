@@ -345,6 +345,31 @@ def test_auth_slash_switches_current_session_and_persists(env, monkeypatch) -> N
     assert cfg.get("auth") == "codex"
 
 
+def test_tui_catalog_openai_pick_keeps_subscription_and_labels_codex(env, monkeypatch) -> None:
+    from voss.harness.providers import OpenAIOAuthProvider
+
+    monkeypatch.setattr(auth_mod, "load_codex", lambda: _codex_oauth_resolution().codex_oauth)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog({"openai": {
+        "name": "OpenAI", "env": ["OPENAI_API_KEY"],
+        "models": {"gpt-6.1-sol": {"id": "gpt-6.1-sol", "name": "GPT-6.1 Sol"}},
+    }}))
+    app = _FakeTUIApp()
+    ctx = _ctx(_codex_provider(), app=app)
+    cli._build_slash_registry().dispatch(ctx, "/model")
+    screen, callback = app.pushed[0]
+
+    callback(screen._groups[0].models[0])
+
+    assert isinstance(ctx.provider, OpenAIOAuthProvider)
+    assert app.provider == "Codex"
+    assert app.model == "gpt-6.1-sol"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "codex"
+    assert cfg["preferred_model"] == "gpt-6.1-sol"
+    assert "preferred_provider" not in cfg
+
+
 def test_tui_api_key_auth_falls_back_to_catalog_modal(env, monkeypatch) -> None:
     from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
 
