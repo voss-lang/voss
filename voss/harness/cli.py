@@ -141,6 +141,7 @@ _WORK_INTENT_PREFIXES = (
     "repair ",
     "run ",
     "update ",
+    "use ",
     "write ",
 )
 _WORK_INTENT_TERMS = (
@@ -154,6 +155,15 @@ _WORK_INTENT_TERMS = (
     " run tests",
     " update ",
     " write ",
+    " open pr",
+    " pull request",
+    " github",
+    " mcp ",
+    " skill ",
+    " skills ",
+    " inspect ",
+    " fetch ",
+    " review ",
 )
 _STATUS_QUESTION_TERMS = (
     "what model",
@@ -183,6 +193,24 @@ def _ambient_route(line: str) -> str:
     if any(term in normalized for term in _STATUS_QUESTION_TERMS):
         return "local"
     return "ambient"
+
+
+def _expand_local_skill(line: str, registry: SkillRegistry) -> str:
+    parts = line.split()
+    if not parts:
+        return line
+    if parts[0] == "/skill" and len(parts) > 1:
+        name, arguments = parts[1], parts[2:]
+    elif parts[0].startswith("$"):
+        name, arguments = parts[0][1:], parts[1:]
+    else:
+        return line
+    entry = registry.get(name)
+    if entry is None or entry.instruction_path is None:
+        return line
+    from .skill.local import prompt
+
+    return prompt(name, arguments)
 
 
 def _ambient_status_answer(ctx: object, *, auth_detail: str = "") -> str:
@@ -555,7 +583,7 @@ def _run_turn_cancellable(coro, *, renderer):
         asyncio.set_event_loop(None)
 
 
-async def _run_turn_with_teardown(turn_coro, teardown):
+async def _run_turn_with_teardown(turn_coro, teardown, *, tools=None, cwd=None):
     """Await one chat-turn coroutine, then ALWAYS run the M13 orphan-teardown.
 
     M13-06 / T-M13-02: child sub-agents are detached `asyncio.create_task`
@@ -568,9 +596,19 @@ async def _run_turn_with_teardown(turn_coro, teardown):
     idempotent (a clean turn that called `subagent_gather` leaves nothing to
     do), so running it unconditionally per turn is safe.
     """
+    mcp_client = None
     try:
+        if tools is not None and cwd is not None:
+            from .tools import attach_mcp_tools
+
+            for name in [name for name, entry in tools.items() if entry.group == "mcp"]:
+                del tools[name]
+            mcp_client = await attach_mcp_tools(tools, cwd)
         return await turn_coro
     finally:
+        turn_coro.close()
+        if mcp_client is not None:
+            await mcp_client.aclose()
         if teardown is not None:
             try:
                 await teardown()
@@ -793,7 +831,7 @@ def _print_plugins(ctx: ReplContext) -> None:
 
 def _print_skills(ctx: ReplContext) -> None:
     for entry in ctx.skill_registry.entries():
-        mut = "mut" if entry.mutating else "read"
+        mut = "local" if entry.instruction_path else "mut" if entry.mutating else "read"
         click.echo(f"  {entry.id:<16} {mut:<4} {entry.description}")
 
 
@@ -2290,21 +2328,24 @@ def do_cmd(
     except (TypeError, ValueError):
         pass
     result = _run_turn_cancellable(
-        run_turn(
-            text,
-            tools=tools,
-            cwd=cwd,
-            renderer=renderer,
-            model=do_model,
-            provider=do_provider,
-            permissions=gate,
-            history=do_history,
-            session_id=do_record.id,
-            voss_md_text=voss_md_text,
-            project_index_text=project_index_text,
-            **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
-            **_pinned_memory_kwargs(run_turn, cwd, model=do_model, store=do_memory_store),
-            **_rt_kwargs,
+        _run_turn_with_teardown(
+            run_turn(
+                text,
+                tools=tools,
+                cwd=cwd,
+                renderer=renderer,
+                model=do_model,
+                provider=do_provider,
+                permissions=gate,
+                history=do_history,
+                session_id=do_record.id,
+                voss_md_text=voss_md_text,
+                project_index_text=project_index_text,
+                **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
+                **_pinned_memory_kwargs(run_turn, cwd, model=do_model, store=do_memory_store),
+                **_rt_kwargs,
+            ),
+            None, tools=tools, cwd=cwd,
         ),
         renderer=renderer,
     )
@@ -2521,7 +2562,7 @@ def _run_repl(
         net=_get_net_session(),
         session_id=record.id,
     )
-    skill_registry = default_skill_registry()
+    skill_registry = default_skill_registry(cwd)
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
 
@@ -2658,6 +2699,7 @@ def _run_repl(
             renderer.app.total_cost = ctx.total_cost
 
             async def _dispatch_tui_turn(line: str):
+                line = _expand_local_skill(line, skill_registry)
                 if line.startswith("/"):
                     import io
                     old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -2735,6 +2777,7 @@ def _run_repl(
                                 )),
                             ),
                             _multiagent_teardown,
+                            tools=tools, cwd=cwd,
                         )
                         ctx.prior_context = None
                     finally:
@@ -2784,6 +2827,8 @@ def _run_repl(
             line = line.strip()
             if not line:
                 continue
+
+            line = _expand_local_skill(line, skill_registry)
 
             # Slash commands.
             if line.startswith("/"):
@@ -2854,6 +2899,7 @@ def _run_repl(
                             **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model, store=ctx.memory_store),
                         ),
                         _multiagent_teardown,
+                        tools=tools, cwd=cwd,
                     ),
                     renderer=renderer,
                 )
@@ -3821,7 +3867,7 @@ def _extension_context(
     renderer=None,
     gate: PermissionGate | None = None,
 ) -> SimpleNamespace:
-    skill_registry = default_skill_registry()
+    skill_registry = default_skill_registry(cwd)
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
     renderer = renderer or make_renderer(json_mode=False)
@@ -3894,7 +3940,9 @@ def plugin_disable_cmd(plugin_id: str) -> None:
 @click.command("skills")
 def skills_cmd() -> None:
     """List registered skills."""
-    ctx = _extension_context(cwd=Path.cwd())
+    from types import SimpleNamespace
+
+    ctx = SimpleNamespace(skill_registry=default_skill_registry(Path.cwd()))
     _print_skills(ctx)  # type: ignore[arg-type]
 
 
@@ -4192,7 +4240,8 @@ def mcp_group() -> None:
 @mcp_group.command("list")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
 @click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
-def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
+@click.option("--configured", is_flag=True, help="List sources without connecting to servers.")
+def mcp_list_cmd(cwd_str: str, json_mode: bool, configured: bool = False) -> None:
     """List configured MCP servers and their advertised tools."""
     import json as json_lib
 
@@ -4225,14 +4274,16 @@ def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
         finally:
             await client.aclose()
 
-    asyncio.run(_populate())
+    if not configured:
+        asyncio.run(_populate())
     servers_payload = []
     for name, server in config.servers.items():
         tools = client._tools_cache.get(name, [])
         servers_payload.append(
             {
                 "name": name,
-                "command": server.command + server.args,
+                "source": server.source,
+                "transport": "http" if server.url else "stdio",
                 "tools": [tool["name"] for tool in tools],
             }
         )
@@ -4242,7 +4293,7 @@ def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
     else:
         for server_payload in servers_payload:
             click.echo(f"{server_payload['name']}:")
-            click.echo(f"  command: {' '.join(server_payload['command'])}")
+            click.echo(f"  source: {server_payload['source']} ({server_payload['transport']})")
             tools = server_payload["tools"]
             click.echo(
                 f"  tools: {', '.join(tools) if tools else '<none discovered>'}"

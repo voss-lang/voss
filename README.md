@@ -119,6 +119,37 @@ is restored on the server; replaying the old transcript is not yet supported.
 Use `/memory` for a workspace summary and `/recall <query> [--top N]` to search it.
 Model/auth menus and the full slash-command set are still available through Textual.
 
+## Local MCP servers and skills
+
+Voss discovers MCP definitions from Claude's `~/.claude.json` and project
+`.mcp.json`, plus Codex's `~/.codex/config.toml` and project `.codex/config.toml`.
+`CODEX_HOME` is respected. Project entries override user entries; Codex wins
+same-scope collisions, followed by Claude's project-local entries.
+`~/.config/voss/mcp.yml` and project `.voss/mcp.yml` override imported servers
+(the user directory follows `XDG_CONFIG_HOME`). Set `enabled: false` in a Voss
+server entry to disable it. Stdio and Streamable HTTP are supported.
+
+Skills come from user and project `.claude/skills`, `.codex/skills`, and
+`.agents/skills` folders. Project skills override user skills with the same name;
+Voss's user `skills` folder and project `.voss/skills` take precedence.
+Skill instructions and references are read on demand through `skill_read`.
+
+```bash
+voss mcp list --configured   # show sources without connecting
+voss mcp list                # connect and list advertised tools
+voss skills
+voss chat --allow-net
+```
+
+In Textual, use `/skill <name> <task>` or `$name <task>`. In either TUI, ask
+to use a skill by name. MCP calls retain Voss's network and permission checks;
+set `[tools] allow_net = true` in Voss's `config.toml` for network tools in Go.
+Requests about open PRs, GitHub, MCP, or skills enter the tool-enabled run.
+
+Discovery does not transfer remote MCP OAuth sessions or enable host-managed
+plugins and app connectors. HTTP servers can use configured headers or token
+environment variables. Legacy SSE endpoints require a Streamable HTTP endpoint.
+
 ## First run · `voss login`
 
 Run `voss login` to configure credentials before opening the Go client.

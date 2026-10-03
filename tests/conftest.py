@@ -20,6 +20,8 @@ def _isolated_env(request, monkeypatch, tmp_path) -> None:
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
         monkeypatch.setenv("VOSS_HOME", str(tmp_path / "voss"))
+        monkeypatch.setattr("voss.harness.local_sources.user_home", lambda: tmp_path / "home")
+        monkeypatch.setattr("voss.harness.local_sources.codex_home", lambda: tmp_path / "home" / ".codex")
     try:
         yield
     finally:
