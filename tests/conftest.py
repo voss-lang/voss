@@ -15,13 +15,13 @@ _LEAK_PRONE_KEYS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
 def _isolated_env(request, monkeypatch, tmp_path) -> None:
     saved = {k: os.environ.get(k) for k in _LEAK_PRONE_KEYS}
     if request.node.get_closest_marker("live") is None:
+        monkeypatch.setattr("voss.harness.local_sources.user_home", lambda: tmp_path / "home")
+        monkeypatch.setattr("voss.harness.local_sources.codex_home", lambda: tmp_path / "home" / ".codex")
         for key in _LEAK_PRONE_KEYS:
             os.environ.pop(key, None)
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
         monkeypatch.setenv("VOSS_HOME", str(tmp_path / "voss"))
-        monkeypatch.setattr("voss.harness.local_sources.user_home", lambda: tmp_path / "home")
-        monkeypatch.setattr("voss.harness.local_sources.codex_home", lambda: tmp_path / "home" / ".codex")
     try:
         yield
     finally:
