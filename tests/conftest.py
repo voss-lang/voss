@@ -8,7 +8,7 @@ import os
 
 import pytest
 
-_LEAK_PRONE_KEYS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+_LEAK_PRONE_KEYS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TYPESAFE_API_KEY")
 
 
 @pytest.fixture(autouse=True)
@@ -22,6 +22,13 @@ def _isolated_env(request, monkeypatch, tmp_path) -> None:
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
         monkeypatch.setenv("VOSS_HOME", str(tmp_path / "voss"))
+        from voss.harness import auth
+
+        original_load_provider_key = auth.load_provider_key
+        monkeypatch.setattr(
+            auth, "load_provider_key",
+            lambda env_key: None if env_key == "TYPESAFE_API_KEY" else original_load_provider_key(env_key),
+        )
     try:
         yield
     finally:
