@@ -32,7 +32,6 @@ func (m *chatModel) expandPastes(value string) string {
 	for token, blob := range m.pastes {
 		value = strings.ReplaceAll(value, token, blob)
 	}
-	m.pastes = nil
 	return value
 }
 
@@ -62,7 +61,8 @@ func (m *chatModel) moveCursorTo(offset int) {
 	before := string([]rune(m.editor.Value())[:offset])
 	line := strings.Count(before, "\n")
 	m.editor.MoveToBegin()
-	for range line {
+	for m.editor.Line() < line {
+		m.editor.CursorEnd()
 		m.editor.CursorDown()
 	}
 	m.editor.SetCursorColumn(len([]rune(before[strings.LastIndex(before, "\n")+1:])))

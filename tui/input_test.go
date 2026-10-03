@@ -71,3 +71,72 @@ func TestReverseSearchFindsEarlierMessages(t *testing.T) {
 		t.Fatalf("repeated messages should appear once in the search, got %d", n)
 	}
 }
+
+func TestEditingKeysKeepKilledTextAvailable(t *testing.T) {
+	for _, tc := range []struct {
+		name, input, want string
+		keys              []string
+	}{
+		{"line start", "héllo world", "!héllo world", []string{"ctrl+a", "!"}},
+		{"line end", "héllo world", "héllo world!", []string{"ctrl+a", "ctrl+e", "!"}},
+		{"kill line", "héllo world", "héllo world", []string{"ctrl+a", "ctrl+k", "alt+y"}},
+		{"kill backwards", "héllo world", "héllo world", []string{"ctrl+u", "alt+y"}},
+		{"kill word backwards", "héllo world", "héllo world", []string{"ctrl+w", "alt+y"}},
+		{"kill word forwards", "héllo world", "héllo world", []string{"ctrl+a", "alt+d", "alt+y"}},
+		{"successive backwards kills", "one two three", "one two three", []string{"ctrl+w", "ctrl+w", "alt+y"}},
+		{"successive forwards kills", "one two three", "one two three", []string{"ctrl+a", "alt+d", "alt+d", "alt+y"}},
+		{"kill newline", "first\nsecond", "first\nsecond", []string{"ctrl+a", "ctrl+u", "alt+y"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, client := newFakeServer(t)
+			d := newDriver(t, client, make(chan voss.TypedEvent))
+			d.send(windowSize(80, 24))
+			d.m.editor.SetValue(tc.input)
+			d.press(tc.keys...)
+			if got := d.m.editor.Value(); got != tc.want {
+				t.Fatalf("editor = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAltYCyclesKillsWithoutReplacingSurroundingText(t *testing.T) {
+	_, client := newFakeServer(t)
+	d := newDriver(t, client, make(chan voss.TypedEvent))
+	d.send(windowSize(30, 24))
+	d.typeText("older")
+	d.press("ctrl+u")
+	d.typeText("newer")
+	d.press("ctrl+u")
+	d.m.editor.SetValue("a long first line that wraps several times\nleft right")
+	d.press("ctrl+a")
+	d.m.editor.SetCursorColumn(5)
+	d.press("alt+y", "alt+y")
+	if got := d.m.editor.Value(); got != "a long first line that wraps several times\nleft olderright" {
+		t.Fatalf("cycling should replace only the last yank, got %q", got)
+	}
+	d.press("alt+y")
+	if got := d.m.editor.Value(); !strings.HasSuffix(got, "left newerright") {
+		t.Fatalf("cycling should wrap, got %q", got)
+	}
+	d.typeText("!")
+	d.press("alt+y")
+	if got := d.m.editor.Value(); !strings.HasSuffix(got, "left newer!newerright") {
+		t.Fatalf("typing should start a fresh yank, got %q", got)
+	}
+}
+
+func TestKilledPasteSurvivesSubmission(t *testing.T) {
+	f, client := newFakeServer(t)
+	d := newDriver(t, client, make(chan voss.TypedEvent))
+	big := strings.Repeat("line\n", 7) + "end"
+	d.send(tea.PasteMsg{Content: big})
+	d.press("ctrl+u")
+	d.typeText("another prompt")
+	d.press("enter")
+	d.until("send", func() bool { return len(f.requestsTo("/message")) == 1 })
+	d.press("alt+y")
+	if got := d.m.editor.Value(); got != big {
+		t.Fatalf("kill ring should retain expanded paste, got %q", got)
+	}
+}
