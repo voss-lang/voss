@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 import math
+import os
 import re
 import time
 from typing import Literal
@@ -13,8 +14,10 @@ import uuid
 
 import httpx
 
+from ._config import RuntimeConfig, get_config
 from .budget import BudgetScope, current_budget
 from .exceptions import VossRuntimeError
+from .probable import ProbableValue
 
 JEV_URL = "https://api.typesafe.ai/v1/systemone"
 USD_PER_INPUT_TOKEN = 0.042 / 1_000_000
@@ -26,6 +29,10 @@ Outcome = Literal["answered", "abstained", "disabled", "unavailable", "budget_ex
 Description = str | dict | list
 SAFE_ID = re.compile(r"[A-Za-z0-9_.:\-]{1,64}")
 SAFE_PURPOSE = re.compile(r"[a-z][a-z0-9_.\-]{0,63}")
+KILL_ENV = "VOSS_JUDGMENTS"
+KEY_ENV = "TYPESAFE_API_KEY"
+MISSING_KEY_MESSAGE = "TYPESAFE_API_KEY not set (env or keychain)"
+KILLED_MESSAGE = "judgments disabled by VOSS_JUDGMENTS=off"
 
 
 @dataclass(frozen=True)
@@ -87,12 +94,29 @@ class NoulQuestion:
 Question = ChoiceQuestion | ScoreQuestion | NoulQuestion
 
 
+def question_from_wire(raw: object) -> Question:
+    if not isinstance(raw, Mapping) or "instructions" not in raw:
+        raise ValueError("each question needs an ID and instructions")
+    kind = raw.get("type")
+    criteria = raw.get("criteria")
+    if kind == "choice":
+        return ChoiceQuestion(raw["instructions"], criteria)
+    if kind == "score":
+        return ScoreQuestion(raw["instructions"], criteria)
+    if kind == "noul":
+        return NoulQuestion(raw["instructions"], criteria)
+    raise ValueError("question type must be choice, score, or noul")
+
+
 @dataclass(frozen=True)
 class ChoiceResult:
     choice: str
     probabilities: dict[str, float]
     confidence: float
     type: str = field(default="choice", init=False)
+
+    def to_probable(self) -> ProbableValue:
+        return ProbableValue(self.choice, self.probabilities[self.choice])
 
 
 @dataclass(frozen=True)
@@ -416,3 +440,49 @@ class JevClient:
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.aclose()
+
+
+def is_killed() -> bool:
+    return os.environ.get(KILL_ENV, "").strip().lower() in {"off", "0", "false"}
+
+
+def to_probable(result: Answer) -> ProbableValue:
+    if not isinstance(result, ChoiceResult):
+        raise TypeError("only ChoiceResult converts to ProbableValue")
+    return result.to_probable()
+
+
+def _new_client(api_key: str, cfg: RuntimeConfig, ledger: JudgmentLedger) -> JevClient:
+    return JevClient(
+        api_key, model=cfg.judgments_model, timeout_ms=cfg.judgments_timeout_ms,
+        max_request_bytes=cfg.judgments_max_request_bytes, max_calls=cfg.judgments_max_calls_per_turn,
+        max_cost_usd=cfg.judgments_max_cost_usd, ledger=ledger,
+    )
+
+
+async def judge(
+    state: object, questions: Mapping[str, Question | Mapping], *, purpose: str = "explicit",
+    ledger: JudgmentLedger | None = None,
+) -> JudgmentResult:
+    if is_killed():
+        raise JudgmentError("disabled", KILLED_MESSAGE)
+    key = os.environ.get(KEY_ENV, "").strip()
+    if not key:
+        raise JudgmentError("unavailable", MISSING_KEY_MESSAGE)
+    coerced = {}
+    for qid, question in questions.items():
+        if isinstance(question, Mapping):
+            coerced[qid] = question_from_wire(question)
+        elif isinstance(question, (ChoiceQuestion, ScoreQuestion, NoulQuestion)):
+            coerced[qid] = question
+        else:
+            raise TypeError("questions must be question objects or wire-format dicts")
+    cfg = get_config()
+    if ledger is None:
+        ledger = current_ledger()
+    if ledger is None:
+        ledger = JudgmentLedger(cfg.judgments_max_calls_per_turn, cfg.judgments_max_cost_usd)
+    call_id = uuid.uuid4().hex
+    async with _new_client(key, cfg, ledger) as client:
+        result = await client.evaluate(state, coerced, call_id=call_id, purpose=purpose)
+    return replace(result, receipt=ledger.receipt(call_id))
