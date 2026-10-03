@@ -153,7 +153,7 @@ def test_match_precedence_exact_then_prefix_then_substring() -> None:
     # exact id wins even though it is also a prefix of nothing else
     assert [m.id for m in match("codex", "gpt-5.5")] == ["gpt-5.5"]
     # unique prefix
-    assert [m.id for m in match("claude", "claude-opus")] == ["claude-opus-4-8"]
+    assert [m.id for m in match("claude", "claude-opus")] == ["claude-opus-5-5"]
     # ambiguous prefix returns all candidates
     assert len(match("claude", "claude")) == len(SUBSCRIPTION_MODELS["claude"])
     # substring
@@ -168,6 +168,7 @@ def test_match_precedence_exact_then_prefix_then_substring() -> None:
 
 
 def test_plain_bare_lists_curated_numbered_with_active_marked(env, capsys) -> None:
+    configure(default_model="claude-sonnet-5-5")
     registry = cli._build_slash_registry()
     handled = registry.dispatch(_ctx(ClaudeAgentProvider()), "/model")
     assert handled is True
@@ -179,19 +180,19 @@ def test_plain_bare_lists_curated_numbered_with_active_marked(env, capsys) -> No
         assert f"{i}. {m.id}" in out
     from voss.harness.tui import glyphs
 
-    assert f"claude-sonnet-4-5 {glyphs.CHECK}" in out
+    assert f"claude-sonnet-5-5 {glyphs.CHECK}" in out
     assert "select: /model <id>" in out
 
 
-def test_plain_bare_codex_lists_gpt5(env, capsys) -> None:
+def test_plain_bare_codex_lists_current_models_before_older_models(env, capsys) -> None:
     configure(default_model="gpt-5.5")
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(_codex_provider()), "/model")
     out = capsys.readouterr().out
-    assert "1. gpt-5.5" in out
-    assert "2. gpt-5.4" in out
-    assert "3. gpt-5.4-mini" in out
-    assert "4. gpt-5.3-codex-spark" in out
+    assert "1. gpt-6-astra" in out
+    assert "2. gpt-6.1-sol" in out
+    assert "3. gpt-6-luna" in out
+    assert "4. gpt-5.5" in out
 
 
 def test_plain_bare_no_subscription_keeps_old_dump(env, capsys) -> None:
@@ -210,9 +211,9 @@ def test_plain_bare_no_subscription_keeps_old_dump(env, capsys) -> None:
 def test_unambiguous_prefix_applies_and_persists(env) -> None:
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(ClaudeAgentProvider()), "/model claude-opus")
-    assert get_config().default_model == "claude-opus-4-8"
+    assert get_config().default_model == "claude-opus-5-5"
     cfg = harness_config.load_harness_config()
-    assert cfg.get("preferred_model") == "claude-opus-4-8"
+    assert cfg.get("preferred_model") == "claude-opus-5-5"
 
 
 def test_ambiguous_query_does_not_change_model(env, capsys) -> None:
@@ -231,11 +232,17 @@ def test_unknown_id_falls_back_to_raw_set(env) -> None:
     assert cfg.get("preferred_model") == "my-custom-model"
 
 
-def test_codex_substring_pick(env) -> None:
+@pytest.mark.parametrize("query,model", [
+    ("astra", "gpt-6-astra"),
+    ("sol", "gpt-6.1-sol"),
+    ("luna", "gpt-6-luna"),
+])
+def test_codex_substring_pick(env, query, model) -> None:
     configure(default_model="gpt-5.5")
     registry = cli._build_slash_registry()
-    registry.dispatch(_ctx(_codex_provider()), "/model mini")
-    assert get_config().default_model == "gpt-5.4-mini"
+    registry.dispatch(_ctx(_codex_provider()), f"/model {query}")
+    assert get_config().default_model == model
+    assert harness_config.load_harness_config().get("preferred_model") == model
 
 
 # ---------------------------------------------------------------------------
@@ -257,13 +264,13 @@ def test_tui_model_auth_opens_auth_picker_and_pick_applies(env) -> None:
     # simulate the user picking opus in the modal
     opus = SUBSCRIPTION_MODELS["claude"][1]
     callback(opus)
-    assert get_config().default_model == "claude-opus-4-8"
-    assert app.model == "claude-opus-4-8"  # live status source updated
+    assert get_config().default_model == "claude-opus-5-5"
+    assert app.model == "claude-opus-5-5"  # live status source updated
     cfg = harness_config.load_harness_config()
-    assert cfg.get("preferred_model") == "claude-opus-4-8"
+    assert cfg.get("preferred_model") == "claude-opus-5-5"
     # esc → None must be a no-op
     callback(None)
-    assert get_config().default_model == "claude-opus-4-8"
+    assert get_config().default_model == "claude-opus-5-5"
 
 
 def test_tui_bare_model_opens_catalog_under_codex_auth(env, monkeypatch) -> None:
