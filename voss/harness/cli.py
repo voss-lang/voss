@@ -36,6 +36,7 @@ from .memory_store import MemoryStore, make_global_store
 from .memory_gateway import open_memory_store
 from .agent import Plan
 from .claims import claims_group
+from .judgments import judge_cmd
 from .net import NetSession
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
@@ -5703,6 +5704,7 @@ AGENT_COMMANDS = (
     login_cmd,
     logout_cmd,
     doctor_cmd,
+    judge_cmd,
     sessions_cmd,
     review_cmd,
     jobs_cmd,
