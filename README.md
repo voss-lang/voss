@@ -18,7 +18,7 @@
 
 Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
-Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a local `voss serve` API (REST + SSE, `docs/protocol.md`), an opt-in Go TUI, and client SDKs in `sdk/` and `crates/voss-sdk`. npm (M6) distributes the same Python harness with a vendored interpreter. A separate Voss ADE desktop application integrates through the local protocol; the original in-repo app is frozen under `archive/voss-ade/` (`docs/architecture/0004-voss-ade-repository-split.md`).
+Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a local `voss serve` API (REST + SSE, `docs/protocol.md`), a Go TUI, and client SDKs in `sdk/` and `crates/voss-sdk`. npm (M6) distributes the same Python harness with a vendored interpreter. A separate Voss ADE desktop application integrates through the local protocol; the original in-repo app is frozen under `archive/voss-ade/` (`docs/architecture/0004-voss-ade-repository-split.md`).
 
 ## What is .voss
 
@@ -104,24 +104,26 @@ pip install -e ".[dev]"
 
 ## Go terminal client
 
-Textual remains the default. To try the Go client from a checkout:
+Bare `voss` opens the Go client when its binary is installed. From a checkout:
 
 ```bash
 (cd tui && go build -o voss-tui .)
-VOSS_USE_TUI=1 VOSS_TUI_BIN="$PWD/tui/voss-tui" voss
+VOSS_TUI_BIN="$PWD/tui/voss-tui" voss
 ```
 
-The npm platform packages include `voss-tui`; set `VOSS_USE_TUI=1` to opt in,
-or run `voss ui`. `/resume` opens a saved-session picker; `/resume <id-or-name>`
+The npm platform packages include `voss-tui`. Use `VOSS_USE_TUI=0 voss` for
+Textual; it also remains the fallback when the Go binary is missing. `voss ui`
+launches Go explicitly. `/resume` opens a saved-session picker; `/resume <id-or-name>`
 and `voss ui resume <id-or-name>` resume directly. Earlier conversation context
 is restored on the server; replaying the old transcript is not yet supported.
 Use `/memory` for a workspace summary and `/recall <query> [--top N]` to search it.
+Model/auth menus and the full slash-command set are still available through Textual.
 
 ## First run · `voss login`
 
-The first time you run `voss` with no credentials configured, an interactive
-sign-in wizard launches automatically. You can also re-run it any time with
-`voss login` or `/login` inside the REPL.
+Run `voss login` to configure credentials before opening the Go client.
+Textual also opens the sign-in wizard automatically when credentials are
+missing, and supports `/login` inside its REPL.
 
 ```text
 ╭ voss · sign in ──────────────────────────────────────────╮

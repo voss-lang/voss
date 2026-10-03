@@ -70,17 +70,18 @@ def test_should_use_native_tui_flag(monkeypatch):
     monkeypatch.setenv("VOSS_USE_TUI", "0")
     assert vcli._should_use_native_tui() is False
     monkeypatch.delenv("VOSS_USE_TUI", raising=False)
-    assert vcli._should_use_native_tui() is False
+    assert vcli._should_use_native_tui() is True
 
 
-@pytest.mark.parametrize("flag,native", [("1", True), ("0", False), (None, False)])
-def test_bare_voss_keeps_textual_default_and_passes_python_to_go(monkeypatch, flag, native):
+@pytest.mark.parametrize("flag,native", [("1", True), ("true", True), ("0", False), ("false", False), (None, True)])
+@pytest.mark.parametrize("binary", ["/fake/voss-tui", None])
+def test_bare_voss_prefers_go_unless_disabled_or_missing(monkeypatch, flag, native, binary):
     if flag is None:
         monkeypatch.delenv("VOSS_USE_TUI", raising=False)
     else:
         monkeypatch.setenv("VOSS_USE_TUI", flag)
     monkeypatch.setenv("VOSS_BIN", "/custom/server")
-    monkeypatch.setattr(vcli, "_find_voss_tui", lambda: "/fake/voss-tui")
+    monkeypatch.setattr(vcli, "_find_voss_tui", lambda: binary)
     calls = []
 
     def fake_exec(path, argv, env):
@@ -94,4 +95,4 @@ def test_bare_voss_keeps_textual_default_and_passes_python_to_go(monkeypatch, fl
     monkeypatch.setattr(vcli, "_run_inprocess_chat", lambda ctx: calls.append("textual"))
     result = CliRunner().invoke(vcli.main, [])
     assert result.exit_code == 0, result.output
-    assert calls == ["native" if native else "textual"]
+    assert calls == ["native" if native and binary else "textual"]

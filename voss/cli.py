@@ -213,9 +213,6 @@ def main(ctx: click.Context) -> None:
     Interactive commands: run `voss chat`, then /help
     """
     if ctx.invoked_subcommand is None:
-        # H6.3: opt-in native client. Default stays the in-process Textual REPL
-        # until the Go client reaches parity; `VOSS_USE_TUI=1` (with the
-        # binary installed) execs voss-tui for bare `voss`.
         if _should_use_native_tui():
             binary = _find_voss_tui()
             if binary:
@@ -234,7 +231,7 @@ def _find_voss_tui() -> str | None:
 
 
 def _should_use_native_tui() -> bool:
-    return os.environ.get("VOSS_USE_TUI", "").lower() in ("1", "true", "yes")
+    return os.environ.get("VOSS_USE_TUI", "1").lower() in ("1", "true", "yes")
 
 
 def _run_inprocess_chat(ctx: click.Context) -> None:
