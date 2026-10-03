@@ -206,3 +206,11 @@ func TestConnectPreservesExplicitServerOverride(t *testing.T) {
 		t.Fatalf("VOSS_BIN override was not used: %v", err)
 	}
 }
+
+func TestHelpSucceedsWithoutServer(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := run(context.Background(), []string{"--help"}, &out, &errOut)
+	if code != 0 || errOut.Len() != 0 || !strings.Contains(out.String(), "usage: voss-tui ") || !strings.Contains(out.String(), "resume ID") {
+		t.Fatalf("help exit=%d stdout=%q stderr=%q", code, out.String(), errOut.String())
+	}
+}

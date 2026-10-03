@@ -9,7 +9,6 @@ members = [
     "crates/voss-tools",
     "crates/voss-render",
     "crates/voss-bridge",
-    "crates/voss-tui",
     "crates/voss-sdk",
 ]
 

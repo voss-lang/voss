@@ -1,8 +1,9 @@
-// Command voss-tui-go is the Go terminal client for `voss serve`.
+// Command voss-tui is the Go terminal client for `voss serve`.
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,7 +18,7 @@ import (
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
-const usage = `usage: voss-tui-go [--attach URL --token TOKEN] [--cwd DIR] [--model MODEL] [command]
+const usage = `usage: voss-tui [--attach URL --token TOKEN] [--cwd DIR] [--model MODEL] [command]
 
 Without a command, opens a chat session.
 
@@ -26,7 +27,8 @@ commands:
   sessions   list saved sessions for --cwd and exit
   resume ID  resume a saved session by id or name
 
-Without --attach, voss serve is started from VOSS_BIN, else voss on PATH.
+Without --attach, starts voss serve using VOSS_BIN, the dispatcher's Python,
+or voss on PATH.
 --token defaults to VOSS_TUI_TOKEN.
 `
 
@@ -39,10 +41,10 @@ type options struct {
 	resume string
 }
 
-// parseArgs accepts the flags before or after the command, like the Rust client.
+// parseArgs accepts the flags before or after the command.
 func parseArgs(args []string) (options, error) {
 	o := options{token: os.Getenv("VOSS_TUI_TOKEN")}
-	fs := flag.NewFlagSet("voss-tui-go", flag.ContinueOnError)
+	fs := flag.NewFlagSet("voss-tui", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.StringVar(&o.attach, "attach", "", "")
 	fs.StringVar(&o.token, "token", o.token, "")
@@ -93,8 +95,12 @@ func main() {
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	o, err := parseArgs(args)
+	if errors.Is(err, flag.ErrHelp) {
+		fmt.Fprint(stdout, usage)
+		return 0
+	}
 	if err != nil {
-		fmt.Fprintf(stderr, "voss-tui-go: %v\n\n%s", err, usage)
+		fmt.Fprintf(stderr, "voss-tui: %v\n\n%s", err, usage)
 		return 2
 	}
 	if o.cmd == "sessions" {
@@ -128,7 +134,7 @@ func fail(ctx context.Context, stderr io.Writer, err error) int {
 	if ctx.Err() != nil {
 		return 130
 	}
-	fmt.Fprintf(stderr, "voss-tui-go: %v\n", err)
+	fmt.Fprintf(stderr, "voss-tui: %v\n", err)
 	return 1
 }
 

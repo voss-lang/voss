@@ -18,7 +18,7 @@
 
 Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
-Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a local `voss serve` API (REST + SSE, `docs/protocol.md`), a thin Rust TUI, and client SDKs in `sdk/` and `crates/voss-sdk`. npm (M6) distributes the same Python harness with a vendored interpreter. A separate Voss ADE desktop application integrates through the local protocol; the original in-repo app is frozen under `archive/voss-ade/` (`docs/architecture/0004-voss-ade-repository-split.md`).
+Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a local `voss serve` API (REST + SSE, `docs/protocol.md`), an opt-in Go TUI, and client SDKs in `sdk/` and `crates/voss-sdk`. npm (M6) distributes the same Python harness with a vendored interpreter. A separate Voss ADE desktop application integrates through the local protocol; the original in-repo app is frozen under `archive/voss-ade/` (`docs/architecture/0004-voss-ade-repository-split.md`).
 
 ## What is .voss
 
@@ -101,6 +101,21 @@ voss compile voss/harness/agent/
 ```bash
 pip install -e ".[dev]"
 ```
+
+## Go terminal client
+
+Textual remains the default. To try the Go client from a checkout:
+
+```bash
+(cd tui && go build -o voss-tui .)
+VOSS_USE_TUI=1 VOSS_TUI_BIN="$PWD/tui/voss-tui" voss
+```
+
+The npm platform packages include `voss-tui`; set `VOSS_USE_TUI=1` to opt in,
+or run `voss ui`. `/resume` opens a saved-session picker; `/resume <id-or-name>`
+and `voss ui resume <id-or-name>` resume directly. Earlier conversation context
+is restored on the server; replaying the old transcript is not yet supported.
+Use `/memory` for a workspace summary and `/recall <query> [--top N]` to search it.
 
 ## First run · `voss login`
 
