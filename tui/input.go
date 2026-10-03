@@ -78,14 +78,16 @@ type reverseSearch struct {
 	idx     int
 }
 
-// searchCorpus is the session's user messages, newest first, without repeats.
+// searchCorpus puts this session before saved prompts, newest first, without repeats.
 func (m chatModel) searchCorpus() []string {
 	var out []string
 	seen := map[string]bool{}
-	for i := len(m.sent) - 1; i >= 0; i-- {
-		if s := m.sent[i]; s != "" && !seen[s] {
-			seen[s] = true
-			out = append(out, s)
+	for _, entries := range [][]string{m.sent, m.history} {
+		for i := len(entries) - 1; i >= 0; i-- {
+			if s := entries[i]; s != "" && !seen[s] {
+				seen[s] = true
+				out = append(out, s)
+			}
 		}
 	}
 	return out

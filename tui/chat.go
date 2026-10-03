@@ -76,6 +76,8 @@ type chatModel struct {
 	search           reverseSearch
 	sent             []string
 	kills            killRing
+	history          []string
+	historyPath      string
 	quitting         bool
 	offline          bool
 }
@@ -407,6 +409,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if text == "" {
 			return m, nil
 		}
+		m.rememberPrompt(text)
 		m.pastes = nil
 		m.editor.Reset()
 		// Like Textual's input bar, ! and # lines run at once, even mid-turn.
