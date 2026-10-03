@@ -32,6 +32,14 @@ def resolve_api_key() -> tuple[str, Literal["env", "keychain"]] | None:
     return (value, "keychain") if value else None
 
 
+def bridge_judgments_env() -> None:
+    if is_killed() or os.environ.get(KEY_ENV, "").strip():
+        return
+    value = auth.load_provider_key(KEY_ENV)
+    if value:
+        os.environ[KEY_ENV] = value
+
+
 def make_client(api_key: str) -> JevClient:
     cfg = config.get_judgments_config()
     return JevClient(

@@ -212,6 +212,9 @@ def main(ctx: click.Context) -> None:
     Bare `voss` (no subcommand) drops into the agent REPL.
     Interactive commands: run `voss chat`, then /help
     """
+    from voss.harness.judgments import bridge_judgments_env
+
+    bridge_judgments_env()
     if ctx.invoked_subcommand is None:
         # H6.3: opt-in native client. Default stays the in-process Textual REPL
         # until the Rust client reaches parity; `VOSS_USE_TUI=1` (with the

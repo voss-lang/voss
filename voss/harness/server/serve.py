@@ -35,8 +35,10 @@ def _watch_stdin_eof() -> None:
 def run_server(host: str = "127.0.0.1", port: int = 0, token: str | None = None) -> None:
     import uvicorn
 
+    from ..judgments import bridge_judgments_env
     from .app import create_app
 
+    bridge_judgments_env()
     token = token or secrets.token_urlsafe(32)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
