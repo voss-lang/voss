@@ -128,6 +128,17 @@ def test_question_validation(factory, criteria):
         factory("question", criteria)
 
 
+@pytest.mark.parametrize("instructions", [None, True, 42])
+@pytest.mark.parametrize("factory,criteria", [
+    (j.ChoiceQuestion, {"one": None, "two": None}),
+    (j.ScoreQuestion, ["low", "high"]),
+    (j.NoulQuestion, None),
+])
+def test_question_rejects_invalid_instructions(factory, criteria, instructions):
+    with pytest.raises(ValueError, match="instructions must be a string, object, or array"):
+        factory(instructions, criteria)
+
+
 def test_questions_to_wire_and_structured_descriptions(questions):
     assert questions["pick"].to_wire() == {"type": "choice", "instructions": "Pick a team", "criteria": {"billing": None, "technical": "Bugs"}}
     assert questions["rating"].to_wire()["criteria"] == ["Calm", "Frustrated", "Angry"]
@@ -239,6 +250,19 @@ async def test_deadline_includes_backoff(client_factory, questions, elapsed, del
         await client.evaluate("state", questions)
     assert caught.value.outcome == "unavailable"
     assert client.calls_used == 1 and sleeps == []
+
+
+async def test_expired_deadline_blocks_dispatch(client_factory, questions):
+    times = iter([0.0, 5.0])
+
+    def handler(request):
+        pytest.fail("expired request must not dispatch")
+
+    client = client_factory(handler, clock=lambda: next(times))
+    with pytest.raises(j.JudgmentError, match="deadline exceeded") as caught:
+        await client.evaluate("state", questions)
+    assert caught.value.outcome == "unavailable"
+    assert caught.value.attempts == client.calls_used == client.spent_usd == 0
 
 
 async def test_deadline_bounds_slow_backoff(client_factory, questions):
