@@ -287,6 +287,31 @@ def test_typed_claude_model_switches_from_codex(env, monkeypatch) -> None:
     assert cfg["preferred_model"] == "claude-opus-5-5"
 
 
+def test_typed_model_provider_failure_preserves_selection(env, monkeypatch, capsys) -> None:
+    from dataclasses import replace
+
+    harness_config.set_preferred_model("claude-sonnet-5-5")
+    harness_config.set_preferred_auth("claude")
+    configure(default_model="claude-sonnet-5-5")
+    resolution = _codex_oauth_resolution()
+    resolution.codex_oauth = replace(resolution.codex_oauth, auth_mode=42)
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: resolution)
+    provider = ClaudeAgentProvider()
+    app = _FakeTUIApp()
+    app.model = "claude-sonnet-5-5"
+    ctx = _ctx(provider, app=app)
+
+    cli._build_slash_registry().dispatch(ctx, "/model gpt-6.1-sol")
+
+    assert ctx.provider is provider
+    assert get_config().default_model == "claude-sonnet-5-5"
+    assert app.model == ctx.record.model == "claude-sonnet-5-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "claude"
+    assert cfg["preferred_model"] == "claude-sonnet-5-5"
+    assert "model switch failed" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("source", ["none", "codex"])
 def test_typed_cross_provider_model_requires_subscription(env, monkeypatch, capsys, source) -> None:
     harness_config.set_preferred_model("claude-sonnet-5-5")
