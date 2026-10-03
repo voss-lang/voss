@@ -292,6 +292,20 @@ def _load_project_config(cwd) -> dict:
     return project if isinstance(project, dict) else {}
 
 
+def _load_judgments_enabled(cwd) -> bool:
+    """Load the optional `.voss/config.yml` judgments flag; never raises."""
+    from pathlib import Path
+
+    try:
+        import yaml
+
+        data = yaml.safe_load((Path(cwd) / ".voss" / "config.yml").read_text())
+    except Exception:
+        return False
+    section = data.get("judgments") if isinstance(data, dict) else None
+    return isinstance(section, dict) and section.get("enabled") is True
+
+
 def _detect_project_facts(cwd) -> dict:
     """Infer project facts from the filesystem (D-01 fallback probes)."""
     from pathlib import Path

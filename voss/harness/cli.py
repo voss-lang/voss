@@ -36,6 +36,7 @@ from .memory_store import MemoryStore, make_global_store
 from .memory_gateway import open_memory_store
 from .agent import Plan
 from .claims import claims_group
+from .judgments import judge_cmd
 from .net import NetSession
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
@@ -2938,6 +2939,7 @@ def _render_doctor_table(results) -> None:
 
 
 @click.command("doctor")
+@click.option("--live", is_flag=True, default=False, help="Also send one tiny real Jev request to verify TYPESAFE_API_KEY.")
 @click.option(
     "--cwd",
     "cwd_str",
@@ -2981,6 +2983,7 @@ def _render_doctor_table(results) -> None:
     help="Run only checks in the given category; repeatable.",
 )
 def doctor_cmd(
+    live: bool,
     cwd_str: str,
     do_fix: bool,
     assume_yes: bool,
@@ -3020,6 +3023,9 @@ def doctor_cmd(
             raise click.UsageError("no checks matched the given filters")
     else:
         results = diag.run_all_checks(cwd)
+
+    if live:
+        results.append(diag.check_judgments_live(cwd))
 
     if not as_json:
         _render_doctor_table(results)
@@ -5703,6 +5709,7 @@ AGENT_COMMANDS = (
     login_cmd,
     logout_cmd,
     doctor_cmd,
+    judge_cmd,
     sessions_cmd,
     review_cmd,
     jobs_cmd,

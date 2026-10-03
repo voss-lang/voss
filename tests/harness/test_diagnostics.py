@@ -218,7 +218,7 @@ class TestRegistry:
 class TestRunAllChecks:
     def test_returns_checks_in_display_order(self, tmp_path: Path):
         results = diag.run_all_checks(tmp_path)
-        assert len(results) == 16
+        assert len(results) == 17
         names = [c.name for c in results]
         assert names == [
             "python",
@@ -226,6 +226,7 @@ class TestRunAllChecks:
             "provider auth",
             "keyring",
             "codex auth",
+            "judgments",
             "git",
             "cwd writable",
             "config dirs",
@@ -378,6 +379,10 @@ class TestAggregateExitCode:
 
 
 def _patch_all_ok(monkeypatch):
+    monkeypatch.setattr(
+        diag, "check_judgments",
+        lambda _cwd: diag.Check("judgments", diag.CheckResult.OK, detail="project disabled"),
+    )
     monkeypatch.setattr(
         diag, "check_python_version",
         lambda: diag.Check("python", diag.CheckResult.OK, detail="3.13"),
@@ -532,7 +537,7 @@ class TestRunChecksFiltering:
     def test_filter_by_category(self, monkeypatch, tmp_path: Path):
         _patch_all_ok(monkeypatch)
         results = diag.run_checks(tmp_path, categories={diag.Category.AUTH})
-        assert [c.id for c in results] == ["provider-auth", "keyring", "codex-auth"]
+        assert [c.id for c in results] == ["provider-auth", "keyring", "codex-auth", "judgments"]
 
     def test_filter_intersection(self, monkeypatch, tmp_path: Path):
         _patch_all_ok(monkeypatch)
