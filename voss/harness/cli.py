@@ -1622,7 +1622,12 @@ def _build_slash_registry() -> SlashRegistry:
                         err=True,
                     )
                     return
-                provider = _build_provider_for_auth(res, announce=False)
+                try:
+                    provider = _build_provider_for_auth(res, announce=False)
+                except Exception as exc:  # noqa: BLE001
+                    configure(default_model=cfg.default_model)
+                    click.echo(f"  model switch failed: {exc}. Selection unchanged.", err=True)
+                    return
             configure(default_model=m.id)
             harness_config.set_preferred_model(m.id)
             harness_config.set_preferred_auth(target_auth)
