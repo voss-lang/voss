@@ -2939,6 +2939,7 @@ def _render_doctor_table(results) -> None:
 
 
 @click.command("doctor")
+@click.option("--live", is_flag=True, default=False, help="Also send one tiny real Jev request to verify TYPESAFE_API_KEY.")
 @click.option(
     "--cwd",
     "cwd_str",
@@ -2982,6 +2983,7 @@ def _render_doctor_table(results) -> None:
     help="Run only checks in the given category; repeatable.",
 )
 def doctor_cmd(
+    live: bool,
     cwd_str: str,
     do_fix: bool,
     assume_yes: bool,
@@ -3021,6 +3023,9 @@ def doctor_cmd(
             raise click.UsageError("no checks matched the given filters")
     else:
         results = diag.run_all_checks(cwd)
+
+    if live:
+        results.append(diag.check_judgments_live(cwd))
 
     if not as_json:
         _render_doctor_table(results)
