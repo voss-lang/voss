@@ -1596,12 +1596,9 @@ def _build_slash_registry() -> SlashRegistry:
         `/model auth` keeps the curated active-subscription picker for Claude
         Agent SDK / Codex ChatGPT backend. Bare in plain CLI: availability
         lines + the numbered curated list. With args: exact-id → prefix →
-        substring match against the curated list; no match falls back to the
-        raw set-anything behavior.
-
-        A pick takes effect immediately without a provider rebuild: every
-        turn passes get_config().default_model (cli.py turn dispatch) and
-        both subscription providers take the model id per stream() call.
+        substring match against the active subscription's curated list, then
+        the other subscription lists. Cross-provider picks switch auth too.
+        Unknown ids retain the raw set-anything behavior.
         """
         from . import config as harness_config
         from . import subscription_models as sub
@@ -1612,12 +1609,28 @@ def _build_slash_registry() -> SlashRegistry:
         app = getattr(getattr(ctx, "renderer", None), "app", None)
         in_tui = app is not None and app.__class__.__name__ == "VossTUIApp"
 
-        def _apply(m) -> None:
+        def _apply(m, target_auth=auth_mode) -> None:
+            provider = ctx.provider
+            if target_auth != auth_mode:
+                res = auth_mod.resolve(target_auth)
+                expected = "codex-oauth" if target_auth == "codex" else "claude-agent"
+                if res.source != expected:
+                    login = "codex login" if target_auth == "codex" else "claude /login"
+                    click.echo(
+                        f"  {m.id} needs {target_auth} subscription auth. "
+                        f"Run `{login}`, then retry /model. Selection unchanged.",
+                        err=True,
+                    )
+                    return
+                provider = _build_provider_for_auth(res, announce=False)
             configure(default_model=m.id)
             harness_config.set_preferred_model(m.id)
+            harness_config.set_preferred_auth(target_auth)
             _sync_model_selection(
                 ctx,
                 model=m.id,
+                provider=provider,
+                provider_label=_provider_label_for_runtime(provider),
                 toast=f"model: {m.label} · {m.id} (persisted)",
             )
             click.echo(f"  model: {m.id} (persisted)")
@@ -1682,9 +1695,18 @@ def _build_slash_registry() -> SlashRegistry:
 
         new_model = " ".join(args).strip()
         if auth_mode is not None:
+            target_auth = auth_mode
             matches = sub.match(auth_mode, new_model)
+            if not matches:
+                for mode in sub.SUBSCRIPTION_MODELS:
+                    if mode == auth_mode:
+                        continue
+                    matches = sub.match(mode, new_model)
+                    if matches:
+                        target_auth = mode
+                        break
             if len(matches) == 1:
-                _apply(matches[0])
+                _apply(matches[0], target_auth)
                 return
             if len(matches) > 1:
                 click.echo(

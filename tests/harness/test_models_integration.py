@@ -138,7 +138,9 @@ def test_switch_persists_and_records_recent(env) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-6.1-sol"])
-async def test_catalog_pick_uses_subscription_even_with_api_key(env, monkeypatch, model) -> None:
+@pytest.mark.parametrize("selection", ["catalog", "typed"])
+async def test_model_pick_uses_subscription_even_with_api_key(env, monkeypatch, model, selection) -> None:
+    from voss.harness.claude_agent_provider import ClaudeAgentProvider
     from voss.harness.providers import OpenAIOAuthProvider
 
     creds = auth.CodexCreds(None, "test-access", "test-refresh", "test-account", "ChatGPT")
@@ -150,8 +152,11 @@ async def test_catalog_pick_uses_subscription_even_with_api_key(env, monkeypatch
         "models": {model: {"id": model, "name": model, "tool_call": True}},
     }}
     monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(raw))
-    ctx = SimpleNamespace(provider=OpenAIOAuthProvider(creds))
-    cli._build_slash_registry().dispatch(ctx, f"/models set {model} openai")
+    ctx = SimpleNamespace(provider=(
+        OpenAIOAuthProvider(creds) if selection == "catalog" else ClaudeAgentProvider()
+    ))
+    command = f"/models set {model} openai" if selection == "catalog" else f"/model {model}"
+    cli._build_slash_registry().dispatch(ctx, command)
 
     assert isinstance(ctx.provider, OpenAIOAuthProvider)
     cfg = hconfig.load_harness_config()

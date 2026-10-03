@@ -245,6 +245,67 @@ def test_codex_substring_pick(env, query, model) -> None:
     assert harness_config.load_harness_config().get("preferred_model") == model
 
 
+@pytest.mark.parametrize("query,model", [
+    ("gpt-6.1-sol", "gpt-6.1-sol"),
+    ("astra", "gpt-6-astra"),
+])
+def test_typed_codex_model_switches_from_claude(env, monkeypatch, query, model) -> None:
+    from voss.harness.providers import OpenAIOAuthProvider
+
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
+    monkeypatch.setattr(cli, "_codex_default_model", lambda: "gpt-6-astra")
+    app = _FakeTUIApp()
+    ctx = _ctx(ClaudeAgentProvider(), app=app)
+
+    cli._build_slash_registry().dispatch(ctx, f"/model {query}")
+
+    assert isinstance(ctx.provider, OpenAIOAuthProvider)
+    assert get_config().default_model == model
+    assert app.provider == "Codex"
+    assert app.model == model
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "codex"
+    assert cfg["preferred_model"] == model
+
+
+def test_typed_claude_model_switches_from_codex(env, monkeypatch) -> None:
+    configure(default_model="gpt-6.1-sol")
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: SimpleNamespace(
+        source="claude-agent", cli_path=Path("/opt/bin/claude"),
+    ))
+    app = _FakeTUIApp()
+    ctx = _ctx(_codex_provider(), app=app)
+
+    cli._build_slash_registry().dispatch(ctx, "/model claude-opus-5-5")
+
+    assert isinstance(ctx.provider, ClaudeAgentProvider)
+    assert get_config().default_model == "claude-opus-5-5"
+    assert app.provider == "Anthropic"
+    assert app.model == "claude-opus-5-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "claude"
+    assert cfg["preferred_model"] == "claude-opus-5-5"
+
+
+@pytest.mark.parametrize("source", ["none", "codex"])
+def test_typed_cross_provider_model_requires_subscription(env, monkeypatch, capsys, source) -> None:
+    harness_config.set_preferred_model("claude-sonnet-5-5")
+    harness_config.set_preferred_auth("claude")
+    configure(default_model="claude-sonnet-5-5")
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: SimpleNamespace(source=source))
+    provider = ClaudeAgentProvider()
+    ctx = _ctx(provider)
+
+    cli._build_slash_registry().dispatch(ctx, "/model gpt-6.1-sol")
+
+    assert ctx.provider is provider
+    assert get_config().default_model == "claude-sonnet-5-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "claude"
+    assert cfg["preferred_model"] == "claude-sonnet-5-5"
+    assert "codex login" in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # TUI dispatch: auth picker vs catalog fallback
 # ---------------------------------------------------------------------------
