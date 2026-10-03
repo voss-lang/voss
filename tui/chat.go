@@ -97,8 +97,8 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 	surface := lipgloss.NewStyle().Background(col(palette.Surface))
 	state := textarea.StyleState{
 		Base:        surface,
-		Text:        surface.Foreground(col(palette.Text)),
-		CursorLine:  surface.Foreground(col(palette.Text)),
+		Text:        surface.Foreground(col(palette.InputText)),
+		CursorLine:  surface.Foreground(col(palette.InputText)),
 		Placeholder: surface.Foreground(col(palette.Dim)),
 		EndOfBuffer: surface,
 	}

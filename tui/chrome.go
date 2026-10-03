@@ -23,12 +23,8 @@ type sessionMeta struct {
 
 func col(c string) color.Color { return lipgloss.Color(c) }
 
-// Colours measured from the Textual TUI's output: the screen's default text
-// and the faint user text.
-const (
-	screenText = "#e0e0e0"
-	userText   = "#e1e1e1"
-)
+// Default screen text measured from the Textual TUI's output.
+const screenText = "#e0e0e0"
 
 // blend mixes fg over bg at alpha and rounds down, as Textual does for
 // `$accent 15%`.
