@@ -83,3 +83,20 @@ Run from the repository root with `python -m voss.eval.retrieval <command>`.
 ## Locked split
 
 Splits are assigned once, per group, when the dataset is frozen. After the freeze, nobody runs test-split metrics. The only test-split run is J3's comparison run, which uses `report --split test --locked-final`. The report command refuses `--split test` without `--locked-final`.
+
+## Frozen
+
+The dataset was frozen on 2026-10-03 with `python -m voss.eval.retrieval freeze` (seed 20261003). `freeze.json` records the split, the metric definitions, the J3 thresholds, and the SHA-256 of `corpus.json` and of every file under `queries/`, `baseline/`, and `labels/`. A default test fails if any of those files changes.
+
+Split: the 200 query groups are split 100 dev / 100 test (120 queries each), with 8 adversarial groups on each side and no ambiguous groups. Variants never cross the split. Within each kind, sorted group ids are shuffled with `random.Random(20261003)`; the kinds are concatenated in sorted order and assigned alternately dev, test.
+
+Frozen metrics:
+
+- nDCG@5: gain `2^g-1`, discount `1/log2(rank+1)`, IDCG over all labeled chunks of the query, including gold chunks outside the pool.
+- Relevant-file recall@5: files owning a chunk graded `directly_useful` or `necessary`, macro-averaged over scored queries with at least one relevant file.
+- Paired percentile bootstrap: B=10,000, seed 20261003, alpha 0.05, resampling whole groups.
+- Adversarial groups count in the gate and are reported separately. Ambiguous queries are excluded from the gate and listed.
+
+J3 thresholds: mean nDCG@5 gain >= 0.03, bootstrap 95% lower bound > 0, and recall@5 difference >= 0.
+
+The dev baseline report is `reports/baseline-dev.md` (`report --split dev`). Only J3's comparison run may use `report --split test --locked-final`. No other command or test reads test-split labels or computes a test-split metric.

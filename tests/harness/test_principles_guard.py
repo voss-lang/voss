@@ -153,12 +153,13 @@ _RUN_RECORD_FIELDS = {
     "iteration_total_completion_tokens", "skill_events", "scope_denials",
     "capability_invocations", "factory_fallbacks",
     "instructions_hash", "instructions_files",
+    "judgments_cost_usd", "judgment_receipts",
 }
 
 _SESSION_RECORD_FIELDS = {
     "id", "name", "cwd", "model", "started_at", "updated_at", "total_cost_usd",
     "turns", "runs", "parent_id", "parent_turn_index",
-    "instructions_hash", "instructions_files",
+    "instructions_hash", "instructions_files", "judgments_cost_usd",
 }
 
 _BUDGET_SCOPE_FIELDS = {

@@ -17,6 +17,7 @@ import tarfile
 import tempfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from voss.harness.code.index import build_index
@@ -708,6 +709,114 @@ def _check(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def _assign_splits(groups: dict[str, list[dict]], seed: int) -> dict[str, str]:
+    by_kind: defaultdict[str, list[str]] = defaultdict(list)
+    for group, rows in groups.items():
+        by_kind[rows[0]["kind"]].append(group)
+    rng = random.Random(seed)
+    order: list[str] = []
+    for kind in sorted(by_kind):
+        ids = sorted(by_kind[kind])
+        rng.shuffle(ids)
+        order += ids
+    return {group: SPLITS[i % 2] for i, group in enumerate(order)}
+
+
+def _structure(root: Path) -> dict[str, dict]:
+    counts = {}
+    for split in SPLITS:
+        dataset = load_dataset(root, split=split, locked_final=True)
+        missing = sorted(qid for qid in dataset.queries if qid not in dataset.pools)
+        if missing:
+            raise DatasetError(f"{split}: queries without a baseline pool: {missing}")
+        counts[split] = {
+            "groups": len(set(dataset.group_of.values())),
+            "queries": len(dataset.queries),
+            "adversarial_groups": len({dataset.group_of[qid] for qid in dataset.adversarial}),
+            "ambiguous_groups": len({dataset.group_of[qid] for qid in dataset.ambiguous}),
+        }
+    return counts
+
+
+def _sha256_files(root: Path) -> dict[str, str]:
+    paths = [root / "corpus.json"] + [
+        path for sub in ("queries", "baseline", "labels") for path in sorted((root / sub).rglob("*")) if path.is_file()
+    ]
+    return {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+
+
+def freeze(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    out = root / "freeze.json"
+    if out.exists():
+        print(f"{out} exists; the dataset is already frozen", file=sys.stderr)
+        return 1
+    flagged = [
+        f"{path.name}: {row['query_id']}/{row['chunk_id']}"
+        for path in sorted((root / "labels").glob("*.csv"))
+        for row in _read_labels(path)
+        if row["flag"] == "review"
+    ]
+    if flagged:
+        print("rows still flagged for review:\n" + "\n".join(flagged), file=sys.stderr)
+        return 1
+    query_files = sorted((root / "queries").glob("batch-*.jsonl"))
+    batches = [path.stem.removeprefix("batch-") for path in query_files]
+    if any(_check(argparse.Namespace(root=root, batch=batch)) for batch in batches):
+        print("batch check failed; nothing frozen", file=sys.stderr)
+        return 1
+    originals = {path: path.read_text() for path in query_files}
+    groups: dict[str, list[dict]] = {}
+    for path in query_files:
+        for row in _read_jsonl(path):
+            groups.setdefault(row["group"], []).append(row)
+    if len(groups) != args.expect_groups:
+        print(f"{len(groups)} groups, expected {args.expect_groups}; nothing frozen", file=sys.stderr)
+        return 1
+    split_of = _assign_splits(groups, args.seed)
+    for path in query_files:
+        rows = [{**row, "split": split_of[row["group"]]} for row in _read_jsonl(path)]
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    try:
+        counts = _structure(root)
+    except DatasetError:
+        for path, text in originals.items():
+            path.write_text(text)
+        raise
+    frozen = {
+        "frozen_at": datetime.now(timezone.utc).date().isoformat(),
+        "commit": json.loads((root / "corpus.json").read_text())["commit"],
+        "seed": args.seed,
+        "split_algorithm": (
+            "group kind = kind of the group's first query; for each kind in sorted order, sort group ids "
+            "and shuffle with one random.Random(seed); concatenate; assign alternately dev, test starting with dev"
+        ),
+        "splits": counts,
+        "metrics": {
+            "k": K,
+            "ndcg": {
+                "gain": "2^g-1",
+                "discount": "1/log2(rank+1)",
+                "idcg": "all labeled chunks of the query, including gold chunks outside the pool",
+            },
+            "recall": (
+                f"relevant-file recall@{K}: files owning a chunk graded directly_useful or necessary, "
+                "macro-averaged over scored queries with at least one relevant file"
+            ),
+            "bootstrap": {"method": "paired percentile", "b": BOOTSTRAP_B, "seed": BOOTSTRAP_SEED, "unit": "group", "alpha": ALPHA},
+            "ambiguous": "excluded from the gate and listed separately",
+            "adversarial": "counted in the gate and reported separately",
+        },
+        "thresholds": {"ndcg_gain_min": NDCG_GAIN_MIN, "ci": "lower bound > 0", "recall_drop_max": RECALL_DROP_MAX},
+        "files": _sha256_files(root),
+    }
+    out.write_text(json.dumps(frozen, indent=2) + "\n")
+    for split, split_counts in counts.items():
+        print(f"{split}: {split_counts['groups']} groups, {split_counts['queries']} queries")
+    print(f"wrote {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m voss.eval.retrieval")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -738,6 +847,11 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("--root", type=Path, default=DATASET_ROOT)
     check.add_argument("--batch", required=True)
     check.set_defaults(handler=_check)
+    freeze_parser = commands.add_parser("freeze", help="assign the locked dev/test split and write freeze.json")
+    freeze_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    freeze_parser.add_argument("--seed", type=int, default=BOOTSTRAP_SEED)
+    freeze_parser.add_argument("--expect-groups", type=int, default=200)
+    freeze_parser.set_defaults(handler=freeze)
     report = commands.add_parser("report", help="render the retrieval comparison report")
     report.add_argument("--root", type=Path, default=DATASET_ROOT)
     report.add_argument("--split", choices=SPLITS, default="dev")
