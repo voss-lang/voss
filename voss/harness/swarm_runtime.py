@@ -15,6 +15,7 @@ from .bos_decisions import (
     build_as_of,
     build_task_to_agent_record,
 )
+from .sandbox import scrubbed_env
 from .swarm_agents import is_native, resolve_agent_argv
 from .swarm_filebus import read_result_file, write_shared_context, write_task_file
 from .swarm_store import CANDIDATE_READY, DONE, Role, SwarmStore, Task
@@ -68,7 +69,7 @@ def subprocess_spawn(argv: list[str], cwd: Path) -> SpawnHandle:
     plain subprocess in its worktree. (The GUI/Tauri PTY backend is separate.)
     `shell=False` is implicit since argv is a list, so no shell-injection surface.
     """
-    proc = subprocess.Popen(argv, cwd=str(cwd))
+    proc = subprocess.Popen(argv, cwd=str(cwd), env=scrubbed_env())
     return _PopenHandle(proc)
 
 

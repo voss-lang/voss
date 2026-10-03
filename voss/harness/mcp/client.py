@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from voss.harness import lifecycle, telemetry
+from voss.harness.sandbox import scrubbed_env
 
 try:
     from voss.harness.mcp.config import McpConfigError, substitute_server
@@ -246,10 +247,10 @@ class McpClient:
             raise McpConfigError(f"unknown MCP server: {server_name!r}")
         return servers[server_name]
 
-    def _build_env(self, server: Any) -> dict[str, str] | None:
+    def _build_env(self, server: Any) -> dict[str, str]:
         allowlist = getattr(server, "env", None)
         if allowlist is None:
-            return None
+            return scrubbed_env()
         return {key: os.environ[key] for key in allowlist if key in os.environ}
 
     async def _stop_failed_launch(self, proc: asyncio.subprocess.Process) -> None:
