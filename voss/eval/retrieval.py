@@ -2,17 +2,27 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
+import hashlib
 import json
 import math
+import os
 import random
+import shutil
 import statistics
+import subprocess
 import sys
+import tarfile
+import tempfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from voss.harness.code.index import build_index
+from voss.harness.code.semantic_index import CodeIndex, _effective_embedding_model
 from voss.template_render import render_package_template
+from voss_runtime._config import configure, get_config
 
 GRADES = {"irrelevant": 0, "contextual": 1, "directly_useful": 2, "necessary": 3}
 RELEVANT_GRADE = 2
@@ -24,6 +34,14 @@ BOOTSTRAP_B = 10_000
 BOOTSTRAP_SEED = 20261003
 ALPHA = 0.05
 DATASET_ROOT = Path("evals/retrieval")
+PINNED_COMMIT = "c1a27046aef3096e460b1c24b59d8066e5c2f792"
+EXCLUDED_PATHS = ("tests/code_recall/test_golden_queries.py",)
+LABEL_FIELDS = (
+    "query_id", "chunk_id", "path", "line_start", "line_end", "text_sha",
+    "source", "grade", "confidence", "flag", "note",
+)
+PREVIEW_LINES = 8
+PREVIEW_WIDTH = 100
 
 SPLITS = ("dev", "test")
 SOURCES = ("pool", "gold")
@@ -372,9 +390,354 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
+def materialize(commit: str = PINNED_COMMIT) -> Path:
+    repo = Path(__file__).resolve().parents[2]
+    probe = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "-e", f"{commit}^{{commit}}"], capture_output=True
+    )
+    if probe.returncode:
+        raise DatasetError("pinned commit not available; fetch origin/master")
+    dest = Path(tempfile.gettempdir()) / f"voss-retrieval-{commit[:12]}"
+    if (dest / ".complete").exists():
+        return dest
+    staging = Path(tempfile.mkdtemp(prefix=f"{dest.name}.", dir=dest.parent))
+    try:
+        proc = subprocess.Popen(
+            ["git", "-C", str(repo), "archive", "--format=tar", commit], stdout=subprocess.PIPE
+        )
+        with tarfile.open(fileobj=proc.stdout, mode="r|") as archive:
+            archive.extractall(staging, filter=_data_or_skip)
+        if proc.wait():
+            raise DatasetError(f"git archive {commit} failed")
+        (staging / ".complete").touch()
+        shutil.rmtree(dest, ignore_errors=True)
+        staging.rename(dest)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    return dest
+
+
+def _data_or_skip(member: tarfile.TarInfo, dest: str) -> tarfile.TarInfo | None:
+    try:
+        return tarfile.data_filter(member, dest)
+    except tarfile.FilterError:
+        return None
+
+
+@contextlib.contextmanager
+def _local_embedding_config():
+    saved = {key: os.environ.get(key) for key in ("XDG_CONFIG_HOME", "OPENAI_API_KEY")}
+    previous = get_config().default_embedding_model
+    with tempfile.TemporaryDirectory() as config_home:
+        os.environ["XDG_CONFIG_HOME"] = config_home
+        os.environ.pop("OPENAI_API_KEY", None)
+        configure(default_embedding_model=get_config().local_embedding_model)
+        try:
+            yield
+        finally:
+            configure(default_embedding_model=previous)
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+
+def _text_sha(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+def _chunks(index: CodeIndex) -> dict[str, tuple[str, int, int, str]]:
+    return {cid: (rel, start, end, text) for cid, text, rel, start, end in index._bm25_chunks}
+
+
+def _entry(chunk_id: str, chunk: tuple[str, int, int, str]) -> dict:
+    path, start, end, text = chunk
+    return {"chunk_id": chunk_id, "path": path, "line_start": start, "line_end": end, "text_sha": _text_sha(text)}
+
+
+def chunk_map(corpus_dir: Path) -> dict[str, tuple[str, int, int, str]]:
+    build_index(Path(corpus_dir))
+    index = CodeIndex(corpus_dir)
+    index._ensure_bm25()
+    return _chunks(index)
+
+
+def build_pools(corpus_dir: Path, queries: list[dict], *, require_vector: bool = True) -> list[dict]:
+    corpus_dir = Path(corpus_dir)
+    with _local_embedding_config():
+        build_index(corpus_dir)
+        index = CodeIndex(corpus_dir)
+        if require_vector and index._maybe_semantic() is None:
+            raise DatasetError("vector backend unavailable; baseline requires BM25+vector ranking")
+        index.build(session_id="retrieval-baseline")
+        chunks = _chunks(index)
+        model = _effective_embedding_model()
+        rows = []
+        for query in queries:
+            hits = [
+                hit for hit in index.query(query["text"], top_k=POOL_SIZE)
+                if chunks[hit.locator][0] not in EXCLUDED_PATHS
+            ]
+            bm25 = [
+                hit.locator for hit in index._bm25_query(query["text"], POOL_SIZE)
+                if chunks[hit.locator][0] not in EXCLUDED_PATHS
+            ]
+            rows.append({
+                "query_id": query["id"],
+                "embedding_model": model,
+                "pool": [
+                    {"rank": rank, **_entry(hit.locator, chunks[hit.locator]), "score": hit.score}
+                    for rank, hit in enumerate(hits, start=1)
+                ],
+                "bm25": bm25,
+            })
+    return rows
+
+
+def _pinned_chunks() -> dict[str, tuple[str, int, int, str]]:
+    return chunk_map(materialize(PINNED_COMMIT))
+
+
+def _batch_file(root: Path, kind: str, batch: str) -> Path:
+    return Path(root) / kind / f"batch-{batch}.{'csv' if kind == 'labels' else 'jsonl'}"
+
+
+def _read_labels(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    with path.open(newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _write_labels(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=LABEL_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _label_row(query_id: str, entry: dict, source: str) -> dict:
+    return {
+        "query_id": query_id, **{field: entry[field] for field in LABEL_FIELDS[1:6]},
+        "source": source, "grade": "", "confidence": "", "flag": "none", "note": "",
+    }
+
+
+def _pool(root: Path, batch: str, query_id: str) -> list[dict]:
+    for row in _read_jsonl(_batch_file(root, "baseline", batch)):
+        if row["query_id"] == query_id:
+            return sorted(row["pool"], key=lambda entry: entry["rank"])
+    raise DatasetError(f"{query_id}: no baseline pool in batch {batch}")
+
+
+def _preview(text: str) -> list[str]:
+    return [line[:PREVIEW_WIDTH] for line in text.splitlines() if line.strip()][:PREVIEW_LINES]
+
+
+def _parse_grade(token: str) -> dict:
+    low = token.endswith("?")
+    digit = token[:-1] if low else token
+    if digit not in ("0", "1", "2", "3"):
+        raise DatasetError(f"bad grade {token!r}; use 0-3 with an optional ? suffix")
+    return {
+        "grade": list(GRADES)[int(digit)],
+        "confidence": "low" if low else "high",
+        "flag": "review" if low else "none",
+    }
+
+
+def _baseline(args: argparse.Namespace) -> int:
+    out = _batch_file(args.root, "baseline", args.batch)
+    if out.exists() and not args.force:
+        print(f"{out} exists; pass --force to rebuild", file=sys.stderr)
+        return 2
+    queries = _read_jsonl(_batch_file(args.root, "queries", args.batch))
+    rows = build_pools(materialize(PINNED_COMMIT), queries)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    labels_path = _batch_file(args.root, "labels", args.batch)
+    labels = _read_labels(labels_path)
+    seen = {(row["query_id"], row["chunk_id"]) for row in labels}
+    added = [
+        _label_row(row["query_id"], entry, "pool")
+        for row in rows
+        for entry in row["pool"]
+        if (row["query_id"], entry["chunk_id"]) not in seen
+    ]
+    _write_labels(labels_path, labels + added)
+    print(f"{len(rows)} queries pooled; {len(added)} label rows added")
+    return 0
+
+
+def _pool_cmd(args: argparse.Namespace) -> int:
+    chunks = _pinned_chunks()
+    if args.full:
+        if args.full not in chunks:
+            raise DatasetError(f"unknown chunk {args.full}")
+        print(chunks[args.full][3])
+        return 0
+    if args.path:
+        found = sorted(cid for cid, chunk in chunks.items() if chunk[0] == args.path)
+        if not found:
+            raise DatasetError(f"no chunks for {args.path} at the pinned commit")
+        for cid in found:
+            print(f"{cid} {chunks[cid][1]}-{chunks[cid][2]}")
+        return 0
+    if not (args.batch and args.query):
+        raise DatasetError("pool needs --batch and --query, --full, or --path")
+    texts = {row["id"]: row["text"] for row in _read_jsonl(_batch_file(args.root, "queries", args.batch))}
+    grades = {
+        row["chunk_id"]: row["grade"]
+        for row in _read_labels(_batch_file(args.root, "labels", args.batch))
+        if row["query_id"] == args.query
+    }
+    print(texts[args.query])
+    for entry in _pool(args.root, args.batch, args.query):
+        cid = entry["chunk_id"]
+        print(f"{entry['rank']}. {cid} {entry['path']}:{entry['line_start']}-{entry['line_end']} [{grades.get(cid) or '-'}]")
+        for line in _preview(chunks[cid][3]):
+            print(f"    {line}")
+    return 0
+
+
+def _grade(args: argparse.Namespace) -> int:
+    path = _batch_file(args.root, "labels", args.batch)
+    rows = _read_labels(path)
+    mine = {row["chunk_id"]: row for row in rows if row["query_id"] == args.query}
+    pool = _pool(args.root, args.batch, args.query)
+    updates: dict[str, dict] = {}
+    if args.grades is not None:
+        tokens = args.grades.split()
+        if len(tokens) != len(pool):
+            raise DatasetError(f"{args.query}: {len(tokens)} grades for {len(pool)} pool rows")
+        updates = {entry["chunk_id"]: _parse_grade(token) for entry, token in zip(pool, tokens)}
+        missing = [cid for cid in updates if cid not in mine]
+        if missing:
+            raise DatasetError(f"{args.query}: no label rows for {missing}; run baseline first")
+    new_rows = []
+    if args.extra:
+        chunks = _pinned_chunks()
+        for item in args.extra:
+            chunk_id, _, token = item.rpartition("=")
+            if chunk_id not in chunks:
+                raise DatasetError(f"unknown chunk {chunk_id}")
+            updates[chunk_id] = _parse_grade(token)
+            if chunk_id not in mine:
+                mine[chunk_id] = _label_row(args.query, _entry(chunk_id, chunks[chunk_id]), "gold")
+                new_rows.append(mine[chunk_id])
+    for chunk_id, values in updates.items():
+        mine[chunk_id].update(values)
+    if args.ambiguous:
+        for row in mine.values():
+            row["flag"] = "ambiguous"
+    _write_labels(path, rows + new_rows)
+    print(f"{args.query}: {len(updates)} rows graded")
+    return 0
+
+
+def _review(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    texts = {row["id"]: row["text"] for path in sorted((root / "queries").glob("*.jsonl")) for row in _read_jsonl(path)}
+    lines = [
+        "# Retrieval labels to review",
+        "",
+        "| batch | rows | graded | flagged | ambiguous queries |",
+        "|---|---|---|---|---|",
+    ]
+    flagged: defaultdict[str, list[tuple[Path, dict]]] = defaultdict(list)
+    for path in sorted((root / "labels").glob("*.csv")):
+        rows = _read_labels(path)
+        graded = sum(1 for row in rows if row["grade"])
+        review = [row for row in rows if row["flag"] == "review"]
+        ambiguous = len({row["query_id"] for row in rows if row["flag"] == "ambiguous"})
+        lines.append(f"| {path.stem.removeprefix('batch-')} | {len(rows)} | {graded} | {len(review)} | {ambiguous} |")
+        for row in review:
+            flagged[row["query_id"]].append((path, row))
+    lines.append("")
+    if not flagged:
+        lines.append("No rows need review.")
+    else:
+        chunks = _pinned_chunks()
+        lines.append("For each row: edit the named labels CSV, set grade, then flag=reviewed (or flag=ambiguous).")
+        for qid in sorted(flagged):
+            lines += ["", f"## {qid}", "", f"> {texts[qid]}"]
+            for path, row in flagged[qid]:
+                lines += [
+                    "",
+                    f"- `{row['chunk_id']}` {row['path']}:{row['line_start']}-{row['line_end']}; "
+                    f"proposed `{row['grade']}`; edit `{path.relative_to(root)}`",
+                    "",
+                    "```",
+                    *_preview(chunks[row["chunk_id"]][3]),
+                    "```",
+                ]
+    (root / "REVIEW.md").write_text("\n".join(lines) + "\n")
+    print(f"{sum(len(rows) for rows in flagged.values())} rows need review")
+    return 0
+
+
+def _check(args: argparse.Namespace) -> int:
+    rows = _read_labels(_batch_file(args.root, "labels", args.batch))
+    chunks = _pinned_chunks()
+    vocab = (("source", SOURCES), ("grade", ("", *GRADES)), ("confidence", CONFIDENCES), ("flag", FLAGS))
+    problems = []
+    for row in rows:
+        where = f"{row['query_id']}/{row['chunk_id']}"
+        problems += [f"{where}: bad {field} {row[field]!r}" for field, allowed in vocab if row[field] not in allowed]
+        if not row["grade"]:
+            problems.append(f"{where}: ungraded")
+        chunk = chunks.get(row["chunk_id"])
+        if chunk is None:
+            problems.append(f"{where}: chunk missing at the pinned commit")
+        elif _text_sha(chunk[3]) != row["text_sha"]:
+            problems.append(f"{where}: text_sha mismatch")
+    labeled = {(row["query_id"], row["chunk_id"]) for row in rows}
+    pools = {row["query_id"]: row["pool"] for row in _read_jsonl(_batch_file(args.root, "baseline", args.batch))}
+    for query in _read_jsonl(_batch_file(args.root, "queries", args.batch)):
+        if query["id"] not in pools:
+            problems.append(f"{query['id']}: no baseline pool")
+    for qid, pool in pools.items():
+        problems += [
+            f"{qid}/{entry['chunk_id']}: pool chunk has no label row"
+            for entry in pool
+            if (qid, entry["chunk_id"]) not in labeled
+        ]
+    print("\n".join(problems) or f"batch {args.batch}: {len(rows)} rows ok")
+    return 1 if problems else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m voss.eval.retrieval")
     commands = parser.add_subparsers(dest="command", required=True)
+    baseline = commands.add_parser("baseline", help="compute baseline pools at the pinned commit")
+    baseline.add_argument("--root", type=Path, default=DATASET_ROOT)
+    baseline.add_argument("--batch", required=True)
+    baseline.add_argument("--force", action="store_true")
+    baseline.set_defaults(handler=_baseline)
+    pool = commands.add_parser("pool", help="show a query's pool for grading")
+    pool.add_argument("--root", type=Path, default=DATASET_ROOT)
+    pool.add_argument("--batch")
+    pool.add_argument("--query")
+    pool.add_argument("--full", metavar="CHUNK_ID")
+    pool.add_argument("--path", metavar="FILE")
+    pool.set_defaults(handler=_pool_cmd)
+    grade = commands.add_parser("grade", help="record grades for a query's pool")
+    grade.add_argument("--root", type=Path, default=DATASET_ROOT)
+    grade.add_argument("--batch", required=True)
+    grade.add_argument("--query", required=True)
+    grade.add_argument("--grades")
+    grade.add_argument("--extra", action="append", default=[], metavar="CHUNK_ID=G")
+    grade.add_argument("--ambiguous", action="store_true")
+    grade.set_defaults(handler=_grade)
+    review = commands.add_parser("review", help="write REVIEW.md with flagged rows")
+    review.add_argument("--root", type=Path, default=DATASET_ROOT)
+    review.set_defaults(handler=_review)
+    check = commands.add_parser("check", help="check a batch for ungraded rows and drift")
+    check.add_argument("--root", type=Path, default=DATASET_ROOT)
+    check.add_argument("--batch", required=True)
+    check.set_defaults(handler=_check)
     report = commands.add_parser("report", help="render the retrieval comparison report")
     report.add_argument("--root", type=Path, default=DATASET_ROOT)
     report.add_argument("--split", choices=SPLITS, default="dev")
@@ -384,7 +747,11 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--out", type=Path)
     report.set_defaults(handler=_report)
     args = parser.parse_args(argv)
-    return args.handler(args)
+    try:
+        return args.handler(args)
+    except DatasetError as exc:
+        print(exc, file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
