@@ -565,7 +565,7 @@ def test_stored_observe_events_validate_against_shared_bos_envelope():
     _enroll()
     c = _client()
     c.post("/observe/events", json={"event": _completed("bos-shared", ["pnpm", "test"], 1)}, headers=_auth())
-    schema = json.loads((Path(__file__).resolve().parents[3] / ".planning/schemas/bos-events.schema.json").read_text())
+    schema = json.loads((Path(__file__).resolve().parents[3] / "contracts/bos-events.schema.json").read_text())
     validator = Draft202012Validator(schema)
     with ObserveStore(REPO) as store:
         for row in store.list_events():

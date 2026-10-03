@@ -7,12 +7,7 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn fixture_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join(".planning/codex-fixtures/codex-cli-chatgpt-success.json")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex-cli-chatgpt-success.json")
 }
 
 fn last_user_message(body: &Value) -> String {
@@ -38,7 +33,7 @@ async fn replay_codex_fixture_projection() {
     let fixture_file = fixture_path();
     assert!(
         fixture_file.exists(),
-        "no fixture at {}; run .planning/CODEX-OAUTH-PLAN.md Phase A first",
+        "missing replay fixture at {}",
         fixture_file.display()
     );
     let fixture: Value =

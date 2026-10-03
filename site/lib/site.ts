@@ -26,12 +26,10 @@ export const site = {
     "/security",
     "/privacy",
     "/disclosure",
-    "/roadmap",
     "/orchestration",
     "/audit",
   ] as const,
   repoUrl: "https://github.com/voss-lang/voss",
-  prdUrl: "https://github.com/voss-lang/voss/blob/master/PRD.md",
   // Public Mintlify docs (repo voss-lang/voss, site/docs, branch master).
   docsUrl: "https://docs.tryvoss.dev",
   install: {

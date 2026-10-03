@@ -1,6 +1,6 @@
 """
 BOS5 outcome/reward contract-validation suite (13 checks, ACC-01..ACC-07).
-Loads contracts/outcomes.schema.json + .planning/schemas/examples/outcome*.json
+Loads contracts/outcomes.schema.json + tests/fixtures/outcomes/outcome*.json
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO / "contracts" / "outcomes.schema.json"
-EXAMPLES_DIR = REPO / ".planning" / "schemas" / "examples"
+EXAMPLES_DIR = REPO / "tests" / "fixtures" / "outcomes"
 DOC_PATH = REPO / "docs" / "BOS5-OUTCOME-REWARD-SPEC.md"
 DECISION_SCHEMAS = [
     REPO / "contracts" / "decisions.schema.json",

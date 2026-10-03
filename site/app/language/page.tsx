@@ -166,11 +166,6 @@ export default async function LanguagePage() {
                     <ArrowRight />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href={site.prdUrl} target="_blank" rel="noreferrer">
-                    PRD
-                  </Link>
-                </Button>
               </div>
             </div>
             <div
@@ -286,11 +281,6 @@ export default async function LanguagePage() {
                 <Link href="/orchestration">
                   See it orchestrate
                   <ArrowRight />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg">
-                <Link href={site.prdUrl} target="_blank" rel="noreferrer">
-                  PRD
                 </Link>
               </Button>
             </div>
