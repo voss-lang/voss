@@ -1,6 +1,13 @@
 package main
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+
+	tea "charm.land/bubbletea/v2"
+)
 
 type killRing struct {
 	items             []string
@@ -50,4 +57,47 @@ func (m *chatModel) yankKill(cycle bool) {
 	m.editor.InsertString(k.items[k.index])
 	k.end = m.cursorOffset()
 	k.lastKey = "alt+y"
+}
+
+type editorDoneMsg struct {
+	text string
+	err  error
+}
+
+func promptEditor(ctx context.Context, cwd, text string) (*exec.Cmd, tea.ExecCallback, error) {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	argv, err := shlexSplit(editor)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(argv) == 0 {
+		return nil, nil, fmt.Errorf("EDITOR is empty")
+	}
+	f, err := os.CreateTemp("", "voss-prompt-*.md")
+	if err != nil {
+		return nil, nil, err
+	}
+	_, writeErr := f.WriteString(text)
+	closeErr := f.Close()
+	if writeErr != nil || closeErr != nil {
+		os.Remove(f.Name())
+		if writeErr != nil {
+			return nil, nil, writeErr
+		}
+		return nil, nil, closeErr
+	}
+	c := exec.CommandContext(ctx, argv[0], append(argv[1:], f.Name())...)
+	c.Dir = cwd
+	done := func(err error) tea.Msg {
+		defer os.Remove(f.Name())
+		if err != nil {
+			return editorDoneMsg{err: err}
+		}
+		data, err := os.ReadFile(f.Name())
+		return editorDoneMsg{text: string(data), err: err}
+	}
+	return c, done, nil
 }

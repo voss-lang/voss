@@ -250,6 +250,16 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.add(output(msg.stdout, msg.stderr)...)
 		return m, nil
 
+	case editorDoneMsg:
+		if msg.err != nil {
+			m.add(roleBlock("error", "editor: "+msg.err.Error()))
+		} else {
+			m.editor.SetValue(msg.text)
+			m.pastes = nil
+			m.kills.lastKey = ""
+		}
+		return m, nil
+
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
@@ -369,6 +379,14 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "alt+y":
 		m.yankKill(lastEdit == "alt+y")
 		return m, nil
+
+	case "ctrl+g":
+		c, done, err := promptEditor(m.ctx, m.cwd, m.expandPastes(m.editor.Value()))
+		if err != nil {
+			m.add(roleBlock("error", "editor: "+err.Error()))
+			return m, nil
+		}
+		return m, tea.ExecProcess(c, done)
 
 	case "ctrl+o":
 		m.toggleAllCards()
