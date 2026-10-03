@@ -28,6 +28,7 @@ var slashCommands = []slashCommand{
 	{"/exit", "leave the REPL (also Ctrl-D)", []string{"/quit"}},
 	{"/help", "show this list", nil},
 	{"/mode", "plan | edit | auto; auto requires --confirm", nil},
+	{"/resume", "resume a saved session by id/name, or choose from a list", nil},
 }
 
 // helpGroups follows _print_slash_help; commands in no group go under Other.
@@ -138,6 +139,20 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		return costCommand(m.ctx, m.client, m.sessionID, m.turn.model, args)
 	case "/diff":
 		return diffCommand(m.ctx, m.cwd, args)
+	case "/resume":
+		if len(args) > 1 {
+			m.add(output("", "usage: /resume [session-id-or-name]")...)
+			return nil
+		}
+		if len(args) == 1 {
+			return m.resumeSession(args[0])
+		}
+		m.resuming = true
+		client, ctx, cwd := m.client, m.ctx, m.cwd
+		return func() tea.Msg {
+			sessions, err := client.ListSavedSessions(ctx, cwd)
+			return resumeListMsg{sessions, err}
+		}
 	case "/doctor":
 		return doctorCommand(m.ctx, m.client, m.cwd, args)
 	}
