@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from voss.harness.audit.load import (
+    _load_judgments_file,
     _load_review_sidecars,
     _load_run_final_file,
     load_audit_snapshot,
@@ -197,4 +198,5 @@ def build_audit_report(
         calibration=calibration or _empty_calibration(),
         sections_missing=tuple(sections_missing),
         unsupported_claims=unsupported,
+        judgments=_load_judgments_file(run_dir),
     )

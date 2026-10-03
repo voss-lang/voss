@@ -155,6 +155,23 @@ def _decision_body(report: AuditReport) -> list[str]:
     return [_NONE]
 
 
+def _judgments_body(report: AuditReport) -> list[str]:
+    data = report.judgments
+    lines: list[str] = []
+    for r in sorted(data["receipts"], key=lambda r: r["call_id"]):
+        cost = "unknown" if r["cost_usd"] is None else f"${r['cost_usd']:.6f}"
+        lines.append(
+            f"- {r['call_id'][:12]} {r['purpose']} {r['status']} "
+            f"model={r['model_returned'] or r['model_requested']} attempts={r['attempts']} "
+            f"cost={cost} held=${r['held_usd']:.6f} latency={r['latency_ms']:.0f}ms"
+        )
+    lines.append(
+        f"- total observed ${data['judgments_cost_usd']:.6f}, "
+        f"held ${data['held_usd']:.6f}, calls {len(data['receipts'])}"
+    )
+    return lines
+
+
 def _section_body(report: AuditReport, num: int) -> list[str]:
     # Explicitly-missing sections render _none_
     missing_key = _MISSING_KEY.get(num)
@@ -180,10 +197,13 @@ def _section_body(report: AuditReport, num: int) -> list[str]:
 
 
 def _audit_sections(report: AuditReport) -> list[dict]:
-    return [
+    sections = [
         {"num": num, "name": name, "body": _section_body(report, num)}
         for num, name in _SECTIONS
     ]
+    if report.judgments is not None:
+        sections.append({"num": 16, "name": "Judgments", "body": _judgments_body(report)})
+    return sections
 
 
 def render_markdown(report: AuditReport) -> str:
