@@ -149,6 +149,8 @@ class RunRecord:
     factory_fallbacks: list[dict] = field(default_factory=list)
     instructions_hash: str = ""
     instructions_files: list[str] = field(default_factory=list)
+    judgments_cost_usd: float = 0.0
+    judgment_receipts: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.exit_reason is not None and self.exit_reason not in EXIT_REASONS:
@@ -174,6 +176,7 @@ class SessionRecord:
     parent_turn_index: Optional[int] = None
     instructions_hash: str = ""
     instructions_files: list[str] = field(default_factory=list)
+    judgments_cost_usd: float = 0.0
 
     @classmethod
     def new(cls, *, cwd: Path, model: str, name: str = "") -> "SessionRecord":
@@ -225,6 +228,9 @@ def session_path(session_id: str, cwd: Optional[Path] = None) -> Path:
 def save(record: SessionRecord, history: EpisodicMemory) -> Path:
     record.updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     record.turns = history.last(10_000)  # full transcript
+    record.judgments_cost_usd = sum(
+        float(r.get("judgments_cost_usd", 0.0) or 0.0) for r in record.runs
+    )
     cwd = Path(record.cwd)
     path = _sessions_dir(cwd) / f"{record.id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)

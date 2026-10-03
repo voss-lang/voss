@@ -37,6 +37,7 @@ class TestSchemaAllowlist:
             "parent_id", "parent_turn_index",
             # S0.5 instruction-file bundle identity (paths + hash only, never text).
             "instructions_hash", "instructions_files",
+            "judgments_cost_usd",
         }
         assert set(data.keys()) == expected
 
@@ -125,9 +126,10 @@ class TestRunRecordRedaction:
             "factory_fallbacks",
             # S0.5: instruction bundle identity (paths + hash, never file text).
             "instructions_hash", "instructions_files",
+            "judgments_cost_usd", "judgment_receipts",
         }
         assert set(asdict(rec).keys()) == expected
-        assert len(dataclasses.fields(RunRecord)) == 27
+        assert len(dataclasses.fields(RunRecord)) == 29
 
     def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
         record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")
