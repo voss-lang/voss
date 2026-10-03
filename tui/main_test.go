@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	voss "github.com/vosslang/voss/sdk/go"
 )
 
 func TestParseArgsAcceptsFlagsEitherSideOfCommand(t *testing.T) {
@@ -168,5 +171,38 @@ func TestInterruptExitsQuietly(t *testing.T) {
 	}
 	if errOut.Len() != 0 {
 		t.Fatalf("stderr = %q, want nothing", errOut.String())
+	}
+}
+
+func TestConnectUsesDispatcherPythonWithoutVossOnPath(t *testing.T) {
+	root, _ := filepath.Abs("..")
+	python := filepath.Join(root, ".venv", "bin", "python")
+	if _, err := os.Stat(python); err != nil {
+		t.Skip("no repo Python environment")
+	}
+	t.Setenv("VOSS_SERVER_PYTHON", python)
+	t.Setenv("VOSS_BIN", "")
+	t.Setenv("PYTHONPATH", root)
+	t.Setenv("VOSS_SERVE_FAKE_TURN", "1")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cwd := t.TempDir()
+	client, err := connect(ctx, options{cwd: cwd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if _, err := client.OpenSession(ctx, voss.SessionOptions{Cwd: cwd}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConnectPreservesExplicitServerOverride(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing-voss")
+	t.Setenv("VOSS_SERVER_PYTHON", "unused-python")
+	t.Setenv("VOSS_BIN", missing)
+	_, err := connect(context.Background(), options{cwd: t.TempDir()})
+	if err == nil || !strings.Contains(err.Error(), "missing-voss") {
+		t.Fatalf("VOSS_BIN override was not used: %v", err)
 	}
 }

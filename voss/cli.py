@@ -214,12 +214,12 @@ def main(ctx: click.Context) -> None:
     """
     if ctx.invoked_subcommand is None:
         # H6.3: opt-in native client. Default stays the in-process Textual REPL
-        # until the Rust client reaches parity; `VOSS_USE_TUI=1` (with the
+        # until the Go client reaches parity; `VOSS_USE_TUI=1` (with the
         # binary installed) execs voss-tui for bare `voss`.
         if _should_use_native_tui():
             binary = _find_voss_tui()
             if binary:
-                os.execvp(binary, [binary])
+                os.execvpe(binary, [binary], {**os.environ, "VOSS_SERVER_PYTHON": sys.executable})
         _run_inprocess_chat(ctx)
 
 
@@ -258,10 +258,10 @@ def _run_inprocess_chat(ctx: click.Context) -> None:
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def ui_cmd(ctx: click.Context, args: tuple[str, ...]) -> None:
-    """Launch the native Rust terminal client (voss-tui).
+    """Launch the Go terminal client (voss-tui).
 
     Forwards extra arguments to voss-tui. Falls back to the in-process REPL
-    when the binary isn't installed. Install it (cargo-dist / brew) or point
+    when the binary isn't installed. Build it from tui/ or point
     VOSS_TUI_BIN at the binary.
     """
     binary = _find_voss_tui()
@@ -273,7 +273,7 @@ def ui_cmd(ctx: click.Context, args: tuple[str, ...]) -> None:
         )
         _run_inprocess_chat(ctx)
         return
-    os.execvp(binary, [binary, *args])
+    os.execvpe(binary, [binary, *args], {**os.environ, "VOSS_SERVER_PYTHON": sys.executable})
 
 
 @main.command("compile")

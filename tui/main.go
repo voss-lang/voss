@@ -169,6 +169,9 @@ func connect(ctx context.Context, o options) (*voss.Client, error) {
 	if o.attach != "" {
 		return voss.AttachClient(o.attach, o.token), nil
 	}
+	if python := os.Getenv("VOSS_SERVER_PYTHON"); python != "" && os.Getenv("VOSS_BIN") == "" {
+		return voss.Spawn(ctx, voss.LaunchOptions{Executable: python, Args: []string{"-P", "-m", "voss.cli"}, Cwd: o.cwd})
+	}
 	return voss.Spawn(ctx, voss.LaunchOptions{Cwd: o.cwd})
 }
 

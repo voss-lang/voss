@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+
+import pytest
 from click.testing import CliRunner
 
 import voss.cli as vcli
@@ -32,15 +35,17 @@ def test_ui_execs_binary_when_found(monkeypatch):
     monkeypatch.setattr(vcli, "_find_voss_tui", lambda: "/fake/voss-tui")
     captured = {}
 
-    def fake_exec(path, argv):
+    def fake_exec(path, argv, env):
         captured["path"] = path
         captured["argv"] = argv
+        captured["env"] = env
         raise SystemExit(0)
 
-    monkeypatch.setattr(vcli.os, "execvp", fake_exec)
+    monkeypatch.setattr(vcli.os, "execvpe", fake_exec)
     CliRunner().invoke(vcli.main, ["ui", "--cwd", "."])
     assert captured["path"] == "/fake/voss-tui"
     assert captured["argv"] == ["/fake/voss-tui", "--cwd", "."]
+    assert captured["env"]["VOSS_SERVER_PYTHON"] == sys.executable
 
 
 def test_ui_falls_back_when_missing(monkeypatch):
@@ -51,9 +56,9 @@ def test_ui_falls_back_when_missing(monkeypatch):
     )
 
     def no_exec(*a, **k):
-        raise AssertionError("execvp must not run when binary is missing")
+        raise AssertionError("execvpe must not run when binary is missing")
 
-    monkeypatch.setattr(vcli.os, "execvp", no_exec)
+    monkeypatch.setattr(vcli.os, "execvpe", no_exec)
     result = CliRunner().invoke(vcli.main, ["ui"])
     assert calls["n"] == 1
     assert "voss-tui not found" in result.output
@@ -66,3 +71,27 @@ def test_should_use_native_tui_flag(monkeypatch):
     assert vcli._should_use_native_tui() is False
     monkeypatch.delenv("VOSS_USE_TUI", raising=False)
     assert vcli._should_use_native_tui() is False
+
+
+@pytest.mark.parametrize("flag,native", [("1", True), ("0", False), (None, False)])
+def test_bare_voss_keeps_textual_default_and_passes_python_to_go(monkeypatch, flag, native):
+    if flag is None:
+        monkeypatch.delenv("VOSS_USE_TUI", raising=False)
+    else:
+        monkeypatch.setenv("VOSS_USE_TUI", flag)
+    monkeypatch.setenv("VOSS_BIN", "/custom/server")
+    monkeypatch.setattr(vcli, "_find_voss_tui", lambda: "/fake/voss-tui")
+    calls = []
+
+    def fake_exec(path, argv, env):
+        calls.append("native")
+        assert argv == [path]
+        assert env["VOSS_SERVER_PYTHON"] == sys.executable
+        assert env["VOSS_BIN"] == "/custom/server"
+        raise SystemExit(0)
+
+    monkeypatch.setattr(vcli.os, "execvpe", fake_exec)
+    monkeypatch.setattr(vcli, "_run_inprocess_chat", lambda ctx: calls.append("textual"))
+    result = CliRunner().invoke(vcli.main, [])
+    assert result.exit_code == 0, result.output
+    assert calls == ["native" if native else "textual"]
