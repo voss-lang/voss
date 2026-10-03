@@ -1,0 +1,88 @@
+# {{ title }}
+
+> Scope: metrics describe ranking of a fixed candidate pool, not complete user tasks.
+
+## Dataset
+
+- split: `{{ split }}`
+- commit: `{{ commit }}`
+- queries: {{ n_queries }} in {{ n_groups }} groups ({{ n_scored }} scored)
+
+## Ranking metrics
+
+{% if ranking %}
+| metric | value |
+|--------|------:|
+{% for label, value in ranking %}
+| {{ label }} | {{ value }} |
+{% endfor %}
+{% else %}
+no scored queries
+{% endif %}
+{% if gate %}
+
+- gate: **{{ "PASS" if gate.passed else "FAIL" }}** (mean nDCG@5 gain >= {{ gate.thresholds.ndcg_gain_min }}, 95% CI lower bound > 0, recall@5 drop <= {{ gate.thresholds.recall_drop_max }}; B={{ gate.thresholds.b }}, seed={{ gate.thresholds.seed }}, alpha={{ gate.thresholds.alpha }})
+{% endif %}
+
+## Adversarial subset
+
+- adversarial queries: {{ n_adversarial }}
+{% if adversarial %}
+
+| metric | value |
+|--------|------:|
+{% for label, value in adversarial %}
+| {{ label }} | {{ value }} |
+{% endfor %}
+{% endif %}
+
+## Ambiguous
+
+- excluded from gate: {{ ambiguous | length }}
+{% for qid in ambiguous %}
+- `{{ qid }}`
+{% endfor %}
+
+## Calibration
+
+n/a: retrieval labels carry no probabilities
+
+## Errors and fallbacks
+
+{% if receipts.has_receipts %}
+{% for status, count in receipts.statuses %}
+- status {{ status }}: {{ count }}
+{% endfor %}
+{% for reason, count in receipts.fallbacks %}
+- fallback {{ reason }}: {{ count }}
+{% endfor %}
+{% else %}
+no judgments
+{% endif %}
+
+## Cost
+
+{% if receipts.has_receipts %}
+- observed: {{ receipts.cost_observed }}
+- held: {{ receipts.cost_held }}
+{% else %}
+no judgments
+{% endif %}
+
+## Latency
+
+{% if receipts.has_receipts %}
+- p50: {{ receipts.latency_p50 }}
+- p95: {{ receipts.latency_p95 }}
+{% else %}
+no judgments
+{% endif %}
+
+## Model and rubric
+
+{% if receipts.has_receipts %}
+- model: `{{ receipts.model }}`
+- rubric: `{{ receipts.rubric }}`
+{% else %}
+no judgments
+{% endif %}
