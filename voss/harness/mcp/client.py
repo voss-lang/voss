@@ -72,7 +72,7 @@ class McpClient:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                cwd=str(Path(server.cwd).expanduser() if server.cwd else self._cwd),
+                cwd=str(self._cwd / Path(server.cwd).expanduser() if server.cwd else self._cwd),
                 env=env,
             )
         try:

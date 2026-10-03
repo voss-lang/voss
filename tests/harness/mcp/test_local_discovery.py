@@ -130,6 +130,24 @@ def mock_project(tmp_path):
     write(tmp_path / ".agents/skills/review/SKILL.md", "---\nname: review\ndescription: Review changes\n---\nRead the diff.")
 
 
+@pytest.mark.asyncio
+async def test_server_cwd_is_relative_to_selected_project(tmp_path):
+    mock_project(tmp_path)
+    directory = tmp_path / "server-dir"
+    directory.mkdir()
+    script = tmp_path / "mcp_server.py"
+    script.write_text("import os\n" + MOCK_SERVER_SRC.replace('"mock-result"', 'os.getcwd()'))
+    config = load_mcp_config(tmp_path)
+    config.servers["local"].cwd = "server-dir"
+    client = McpClient(config)
+    client.set_cwd(tmp_path)
+    try:
+        result = await client.call_tool("local", "read_text_file", {})
+        assert result["content"][0]["text"] == str(directory)
+    finally:
+        await client.aclose()
+
+
 def test_cli_tools_work_across_turn_event_loops(tmp_path, monkeypatch):
     from voss.harness.cli import _run_turn_with_teardown
     from voss.harness.tools import make_toolset
