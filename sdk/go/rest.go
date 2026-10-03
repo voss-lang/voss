@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 // SessionInfo is a live session (GET /session, GET /session/:id).
@@ -48,6 +49,35 @@ type DoctorReport struct {
 	DefaultModel string        `json:"default_model"`
 	ExitCode     int           `json:"exit_code"`
 	Checks       []DoctorCheck `json:"checks"`
+}
+
+// MemoryReport is the read-only workspace summary and optional recall results.
+type MemoryReport struct {
+	Summary string      `json:"summary"`
+	Hits    []MemoryHit `json:"hits"`
+}
+
+type MemoryHit struct {
+	Source  string  `json:"source"`
+	Locator string  `json:"locator"`
+	Score   float64 `json:"score"`
+	Excerpt string  `json:"excerpt"`
+}
+
+// Memory reads GET /memory. An empty query returns only the summary.
+func (c *Client) Memory(ctx context.Context, cwd, query string, topK int) (MemoryReport, error) {
+	params := url.Values{"cwd": {cwd}}
+	if query != "" {
+		params.Set("q", query)
+	}
+	if topK > 0 {
+		params.Set("top_k", strconv.Itoa(topK))
+	}
+	var out MemoryReport
+	if err := c.getJSON(ctx, "/memory?"+params.Encode(), http.StatusOK, &out); err != nil {
+		return MemoryReport{}, err
+	}
+	return out, nil
 }
 
 // SessionOptions are the POST /session fields; empty strings take the server's

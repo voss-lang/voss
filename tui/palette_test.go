@@ -17,7 +17,7 @@ func TestRankCommandsLikeTextual(t *testing.T) {
 	if got := rankCommands("/d", names, nil); !reflect.DeepEqual(got, []string{"/diff", "/doctor", "/mode"}) {
 		t.Fatalf("/d = %v", got)
 	}
-	if got := rankCommands("/o", names, nil); !reflect.DeepEqual(got, []string{"/cost", "/doctor", "/mode"}) {
+	if got := rankCommands("/o", names, nil); !reflect.DeepEqual(got, []string{"/cost", "/doctor", "/mode", "/memory"}) {
 		t.Fatalf("/o = %v; position of the match, then name", got)
 	}
 	if got := rankCommands("", names, []string{"/mode", "/gone"}); got[0] != "/mode" || got[1] != "/cost" {
