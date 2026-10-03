@@ -10,7 +10,6 @@ import {
   Info,
   Layers3,
   Mail,
-  Map,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
@@ -120,12 +119,6 @@ export default function Footer() {
                   Disclosure
                 </Link>
               </Button>
-              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
-                <Link href="/roadmap">
-                  <Map />
-                  Roadmap
-                </Link>
-              </Button>
             </div>
           </div>
           <div>
@@ -135,13 +128,6 @@ export default function Footer() {
                 <TrackedOutboundLink href={site.repoUrl} analyticsTarget="github">
                   <GitBranch />
                   GitHub
-                  <ArrowUpRight />
-                </TrackedOutboundLink>
-              </Button>
-              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
-                <TrackedOutboundLink href={site.prdUrl} analyticsTarget="prd">
-                  <BookOpenText />
-                  PRD
                   <ArrowUpRight />
                 </TrackedOutboundLink>
               </Button>

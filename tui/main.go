@@ -150,7 +150,15 @@ func runChat(ctx context.Context, client *voss.Client, o options) error {
 	if ct := os.Getenv("COLORTERM"); ct == "truecolor" || ct == "24bit" {
 		opts = append(opts, tea.WithColorProfile(colorprofile.TrueColor))
 	}
-	_, err = tea.NewProgram(newChatModel(ctx, client, meta, events), opts...).Run()
+	m := newChatModel(ctx, client, meta, events)
+	home, historyErr := os.UserHomeDir()
+	if historyErr == nil {
+		historyErr = m.loadHistory(filepath.Join(home, ".config", "voss", "tui-history"))
+	}
+	if historyErr != nil {
+		m.add(roleBlock("warning", "prompt history: "+historyErr.Error()))
+	}
+	_, err = tea.NewProgram(m, opts...).Run()
 	return err
 }
 

@@ -75,6 +75,9 @@ type chatModel struct {
 	pastes           map[string]string
 	search           reverseSearch
 	sent             []string
+	kills            killRing
+	history          []string
+	historyPath      string
 	quitting         bool
 	offline          bool
 }
@@ -249,10 +252,21 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.add(output(msg.stdout, msg.stderr)...)
 		return m, nil
 
+	case editorDoneMsg:
+		if msg.err != nil {
+			m.add(roleBlock("error", "editor: "+msg.err.Error()))
+		} else {
+			m.editor.SetValue(msg.text)
+			m.pastes = nil
+			m.kills.lastKey = ""
+		}
+		return m, nil
+
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
 	case tea.PasteMsg:
+		m.kills.lastKey = ""
 		if m.search.active || m.navMode {
 			return m, nil
 		}
@@ -269,6 +283,8 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
+	lastEdit := m.kills.lastKey
+	m.kills.lastKey = ""
 
 	if p := m.turn.permission; p != nil && key != "ctrl+c" {
 		choices := map[string]string{"a": "a", "A": "A", "d": "d", "esc": "d"}
@@ -358,6 +374,22 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+	case "ctrl+k", "ctrl+u", "ctrl+w", "alt+d":
+		cmd := m.killText(msg, lastEdit != "" && lastEdit != "alt+y")
+		return m, cmd
+
+	case "alt+y":
+		m.yankKill(lastEdit == "alt+y")
+		return m, nil
+
+	case "ctrl+g":
+		c, done, err := promptEditor(m.ctx, m.cwd, m.expandPastes(m.editor.Value()))
+		if err != nil {
+			m.add(roleBlock("error", "editor: "+err.Error()))
+			return m, nil
+		}
+		return m, tea.ExecProcess(c, done)
+
 	case "ctrl+o":
 		m.toggleAllCards()
 		return m, nil
@@ -377,6 +409,8 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if text == "" {
 			return m, nil
 		}
+		m.rememberPrompt(text)
+		m.pastes = nil
 		m.editor.Reset()
 		// Like Textual's input bar, ! and # lines run at once, even mid-turn.
 		if cmd, ok := strings.CutPrefix(text, "!"); ok {

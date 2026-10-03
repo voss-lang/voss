@@ -40,10 +40,6 @@
       {
         "label": "Language",
         "href": "/language/overview"
-      },
-      {
-        "label": "Roadmap",
-        "href": "/roadmap/v0-1"
       }
     ],
     "primary": {
@@ -160,8 +156,7 @@
       {
         "group": "Trust",
         "pages": [
-          "security/overview",
-          "roadmap/v0-1"
+          "security/overview"
         ]
       },
       {

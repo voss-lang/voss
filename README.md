@@ -88,7 +88,7 @@ voss compile samples/classify.voss
 voss do "summarize this repo"
 ```
 
-Core harness commands: `voss doctor`, `voss do`, `voss chat`, `voss edit`, `voss sessions`, `voss resume` (see [.planning/HARNESS-PLAN.md](.planning/HARNESS-PLAN.md) §2.2 for the full surface).
+Core harness commands: `voss doctor`, `voss do`, `voss chat`, `voss edit`, `voss sessions`, `voss resume` (see the [CLI reference](https://docs.tryvoss.dev/reference/cli) for the full surface).
 
 Optionally opt into the compiled harness with `VOSS_HARNESS=compiled` by populating the local harness cache after install. The default Python harness path works without this step.
 
@@ -101,10 +101,6 @@ voss compile voss/harness/agent/
 ```bash
 pip install -e ".[dev]"
 ```
-
-### Roadmap notes
-
-`npm i -g @vosslang/cli` ships v0.1 with M6 (the npm wrapper bundles a pinned Python 3.12 + the v0.1 wheel; `pip install voss` remains supported). Homebrew distribution stays deferred until dogfood signals demand it.
 
 ## First run · `voss login`
 
@@ -190,9 +186,6 @@ Live mode runs nightly in CI; stub mode runs on every PR.
 
 ## Project Docs
 
-- [PRD.md](PRD.md) — full language specification
+- [Language documentation](https://docs.tryvoss.dev/language/overview) — language overview and constructs
 - [docs/sdk.md](docs/sdk.md) — embedding Voss in Python apps: `voss_runtime` + `voss.harness` public API contract
 - [docs/voss-vs-python.md](docs/voss-vs-python.md) — side-by-side .voss vs raw Python with LOC counts
-- [.planning/PROJECT.md](.planning/PROJECT.md) — core value, constraints
-- [.planning/REQUIREMENTS.md](.planning/REQUIREMENTS.md) — RUN/GRAM/ANLY/GEN/CLI requirements
-- [.planning/ROADMAP.md](.planning/ROADMAP.md) — seven-phase delivery plan (M0–M6)

@@ -256,8 +256,7 @@ that convenience lives in the TUI, not the SDK.
 ## Known gaps (closing in M7)
 
 These are public-API-shaped holes today. They are scoped to formal v0.1
-phase **M7 — SDK Polish** (see `.planning/ROADMAP.md` §"Phase M7: SDK
-Polish" and `.planning/REQUIREMENTS.md` SDK-01..05). When M7 ships, the
+phase **M7 — SDK Polish**. When M7 ships, the
 items below will be promoted into `voss.harness.__all__` /
 `voss_runtime.__all__` and this list will shrink to zero.
 

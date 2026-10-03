@@ -42,8 +42,7 @@ site/
 │   ├── language/           # .voss workflow-control docs
 │   ├── guides/             # Task-oriented workflows
 │   ├── reference/          # CLI/config/troubleshooting reference
-│   ├── security/           # Trust and execution model
-│   └── roadmap/            # v0.1 M-phase roadmap
+│   └── security/           # Trust and execution model
 ├── lib/site.ts             # Strings: tagline, repo URL, version
 ├── public/logo.svg         # Fallback Voss mark
 └── next.config.ts          # static export config
