@@ -42,6 +42,9 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `POST` | `/session` | Create session. Body `{parentID?, title?}` | `{id}` |
 | `GET` | `/session` | List sessions | `[SessionInfo]` |
 | `GET` | `/session/:id` | Session detail | `SessionInfo` |
+| `GET` | `/session/:id/history` | Active conversation in chronological order | `{v:1, turns:[{role,content}]}` |
+| `POST` | `/session/:id/clear` | Drop active conversation memory; `409` while busy | `204` |
+| `GET` | `/sessions/saved?cwd=...` | Saved session metadata, including `first_task` | `{v:1, sessions:[...]}` |
 | `DELETE` | `/session/:id` | Delete session + data | `204` |
 | `POST` | `/session/:id/message` | Enqueue a user turn (async) | `202 {status:"accepted"}` |
 | `GET` | `/session/:id/events` | SSE event stream for the session | `text/event-stream` |
@@ -152,6 +155,15 @@ The agent's `PermissionGate` blocks on a decision whenever a mutating/shell/netw
 ## 10. Session persistence
 
 On turn completion the server calls `session_store.save(record, history)` → `<cwd>/.voss/sessions/<id>.json` (mode 0600). Session id = `uuid4().hex[:12]`. Resume rehydrates `SessionInfo` + `EpisodicMemory`; the M2 fix (H4.2) forwards **all** prior runs and widens the in-turn history window (was `history.last(6)` / `runs[-1]` only).
+
+After opening a resumed session, clients can fetch `/session/:id/history` before
+opening the event stream. The response contains only user, assistant, and system
+messages; tool payloads and run metadata are excluded. `first_task` in saved-session
+listings is the first user message, limited to 60 characters, or `(empty)`.
+
+`/session/:id/clear` matches the CLI's `/clear`: it clears active episodic memory
+and pending resume context. It leaves the visible transcript, run records, costs,
+and saved file intact. The next completed turn saves the new conversation history.
 
 ## 11. Worked sequence (one turn)
 

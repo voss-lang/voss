@@ -55,7 +55,7 @@ func (m *chatModel) selectModel(selection voss.ModelSelection) tea.Cmd {
 	}
 }
 
-func (m *chatModel) restoreModelQueue() {
+func (m *chatModel) restoreQueuedInput() {
 	if len(m.queue) > 0 {
 		m.editor.SetValue(strings.TrimSpace(strings.Join(append(m.queue, m.editor.Value()), "\n")))
 		m.queue = nil
@@ -140,7 +140,7 @@ func (m chatModel) modelSelected(msg modelSelectedMsg) (tea.Model, tea.Cmd) {
 	m.selecting = false
 	if msg.err != nil {
 		m.add(output("", "model switch: "+errText(msg.err))...)
-		m.restoreModelQueue()
+		m.restoreQueuedInput()
 		return m, nil
 	}
 	m.turn.model, m.provider, m.auth = msg.info.Model, msg.info.Provider, msg.info.Auth

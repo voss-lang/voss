@@ -602,6 +602,29 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HistoryTurn": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "HistoryTurn",
+        "type": "object"
+      },
       "InstructionsOverflow": {
         "properties": {
           "budget": {
@@ -1195,6 +1218,27 @@
           "type"
         ],
         "title": "ServerConnected",
+        "type": "object"
+      },
+      "SessionHistory": {
+        "properties": {
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryTurn"
+            },
+            "title": "Turns",
+            "type": "array"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "turns"
+        ],
+        "title": "SessionHistory",
         "type": "object"
       },
       "SessionIdle": {
@@ -2549,6 +2593,38 @@
         "summary": "Abort"
       }
     },
+    "/session/{session_id}/clear": {
+      "post": {
+        "operationId": "clear_history_session__session_id__clear_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear History"
+      }
+    },
     "/session/{session_id}/cost": {
       "get": {
         "operationId": "cost_session__session_id__cost_get",
@@ -2630,6 +2706,45 @@
           }
         },
         "summary": "Events"
+      }
+    },
+    "/session/{session_id}/history": {
+      "get": {
+        "operationId": "session_history_session__session_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session History"
       }
     },
     "/session/{session_id}/message": {

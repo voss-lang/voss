@@ -178,6 +178,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/session/{session_id}/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear History */
+        post: operations["clear_history_session__session_id__clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/session/{session_id}/cost": {
         parameters: {
             query?: never;
@@ -204,6 +221,23 @@ export interface paths {
         };
         /** Events */
         get: operations["events_session__session_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/{session_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Session History */
+        get: operations["session_history_session__session_id__history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -626,6 +660,16 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HistoryTurn */
+        HistoryTurn: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant" | "system";
+        };
         /** InstructionsOverflow */
         InstructionsOverflow: {
             /**
@@ -918,6 +962,16 @@ export interface components {
              * @enum {string}
              */
             type: "server.connected";
+            /**
+             * V
+             * @default 1
+             */
+            v: number;
+        };
+        /** SessionHistory */
+        SessionHistory: {
+            /** Turns */
+            turns: components["schemas"]["HistoryTurn"][];
             /**
              * V
              * @default 1
@@ -1769,6 +1823,35 @@ export interface operations {
             };
         };
     };
+    clear_history_session__session_id__clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cost_session__session_id__cost_get: {
         parameters: {
             query?: never;
@@ -1821,6 +1904,37 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                     "text/event-stream": components["schemas"]["EventEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_history_session__session_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionHistory"];
                 };
             };
             /** @description Validation Error */

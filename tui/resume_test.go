@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	voss "github.com/vosslang/voss/sdk/go"
@@ -39,8 +41,10 @@ func resumeServer(t *testing.T) (*fakeServer, *voss.Client) {
 		switch {
 		case r.URL.Path == "/sessions/saved":
 			_ = json.NewEncoder(w).Encode(map[string]any{"sessions": []voss.SavedSession{
-				{Id: "sess-1", Name: "current"}, {Id: "saved", Name: "previous session"},
+				{Id: "sess-1", Name: "current"}, {Id: "saved", Name: "previous session", FirstTask: "fix the parser"},
 			}})
+		case strings.HasSuffix(r.URL.Path, "/history"):
+			_, _ = w.Write([]byte(`{"turns":[{"role":"user","content":"fix the parser"},{"role":"assistant","content":"Use a token stream."}]}`))
 		case strings.HasSuffix(r.URL.Path, "/events"):
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.(http.Flusher).Flush()
@@ -86,6 +90,12 @@ func TestResumeOpensSavedContextAndCancelsStream(t *testing.T) {
 	if len(requests) != 1 || requests[0].body["resume"] != "saved name" || conn.meta.ID != "saved" || conn.meta.Model != "saved-model" {
 		t.Fatalf("resume = %+v, meta = %+v", requests, conn.meta)
 	}
+	m := newChatModel(ctx, client, conn.meta, conn.events)
+	m.replayHistory(conn.history)
+	if len(m.blocks) != 2 || m.blocks[0].kind != blockUser || m.blocks[1].kind != blockAssistant ||
+		m.lastResponse != "Use a token stream." || len(m.sent) != 1 || m.sent[0] != "fix the parser" || m.turn.busy {
+		t.Fatalf("saved messages were not restored: %+v", m.blocks)
+	}
 }
 
 func TestQueuedResumeSwitchesBeforeSendingAndIgnoresOldStream(t *testing.T) {
@@ -101,8 +111,11 @@ func TestQueuedResumeSwitchesBeforeSendingAndIgnoresOldStream(t *testing.T) {
 	d.m.queue = []string{"/resume saved", "what did we decide?"}
 	d.send(eventMsg{voss.SessionIdle{}})
 	d.until("resumed message", func() bool { return len(f.requestsTo("/message")) == 1 })
-	if !cancelled || d.m.sessionID != "saved" || d.m.lastResponse != "" {
+	if !cancelled || d.m.sessionID != "saved" || d.m.lastResponse != "Use a token stream." {
 		t.Fatalf("old session not cleared: id=%s cancelled=%v", d.m.sessionID, cancelled)
+	}
+	if !strings.Contains(d.transcript(), "fix the parser") || !strings.Contains(d.transcript(), "Use a token stream.") {
+		t.Fatal("resumed transcript missing")
 	}
 	sent := f.requestsTo("/message")[0]
 	if sent.path != "/session/saved/message" || text(sent) != "what did we decide?" || sent.body["mode"] != "edit" {
@@ -147,7 +160,85 @@ func TestResumePickerFiltersAndSelectsSavedSession(t *testing.T) {
 		t.Fatal("empty picker submitted a prompt")
 	}
 	d.m.editor.Reset()
-	d.send(tea.KeyPressMsg{Code: 'p', Text: "previous"})
+	d.send(tea.KeyPressMsg{Code: 'p', Text: "parser"})
+	if len(d.m.pal.labels) != 1 || !strings.Contains(d.m.pal.labels[0], "fix the parser") {
+		t.Fatal("picker did not search or show the first prompt")
+	}
 	d.press("enter")
 	d.until("selected session", func() bool { return d.m.sessionID == "saved" })
+}
+
+func TestResumeHistoryFailureKeepsActiveTranscript(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/session":
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"saved","resumed":true}`))
+		case "/session/saved":
+			_, _ = w.Write([]byte(`{"id":"saved"}`))
+		case "/session/saved/history":
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"detail":"history unavailable"}`))
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	events := make(chan voss.TypedEvent)
+	defer close(events)
+	d := newDriver(t, voss.AttachClient(srv.URL, "test"), events)
+	d.m.add(assistantBlock("keep this answer"))
+	d.m.queue = []string{"/resume saved", "follow up"}
+	d.run(d.m.drain())
+	d.until("history error", func() bool { return strings.Contains(d.transcript(), "history unavailable") })
+	if d.m.sessionID != "sess-1" || !strings.Contains(d.transcript(), "keep this answer") || !strings.Contains(d.m.editor.Value(), "follow up") {
+		t.Fatal("history failure replaced the active session or lost input")
+	}
+}
+
+func TestClearWaitsBeforeSendingQueuedPrompt(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/session/sess-1/clear" && r.Method == http.MethodPost {
+			close(started)
+			<-release
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+	defer close(release)
+	events := make(chan voss.TypedEvent)
+	defer close(events)
+	d := newDriver(t, voss.AttachClient(srv.URL, "test"), events)
+	d.m.add(assistantBlock("visible answer"))
+	d.typeText("/clear")
+	d.press("enter")
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("clear request never started")
+	}
+	d.typeText("fresh prompt")
+	d.press("enter")
+	if !d.m.clearing || d.m.turn.busy || len(d.m.queue) != 1 {
+		t.Fatal("prompt sent before clear completed")
+	}
+	release <- struct{}{}
+	d.until("clear then prompt", func() bool { return !d.m.clearing && d.m.turn.busy })
+	if len(d.m.queue) != 0 || !strings.Contains(d.transcript(), "visible answer") || !strings.Contains(d.transcript(), "episodic memory cleared.") {
+		t.Fatal("clear erased the display or failed to drain input")
+	}
+}
+
+func TestClearFailureRestoresQueuedInput(t *testing.T) {
+	d := newDriver(t, nil, nil)
+	d.m.clearing = true
+	d.m.queue = []string{"follow up"}
+	d.m.editor.SetValue("draft")
+	d.send(clearHistoryMsg{"sess-1", errors.New("clear unavailable")})
+	if d.m.clearing || d.m.turn.busy || len(d.m.queue) != 0 || d.m.editor.Value() != "follow up\ndraft" || !strings.Contains(d.transcript(), "clear unavailable") {
+		t.Fatal("failed clear discarded or sent queued input")
+	}
 }

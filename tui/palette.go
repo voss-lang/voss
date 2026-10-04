@@ -200,11 +200,11 @@ func (m *chatModel) syncPalette() {
 		m.pal = picker{kind: paletteSession}
 		query := strings.ToLower(strings.TrimSpace(text))
 		for _, s := range m.savedSessions {
-			if s.Id == m.sessionID || !strings.Contains(strings.ToLower(s.Id+" "+s.Name), query) {
+			if s.Id == m.sessionID || !strings.Contains(strings.ToLower(s.Id+" "+s.Name+" "+s.FirstTask), query) {
 				continue
 			}
 			m.pal.names = append(m.pal.names, s.Id)
-			m.pal.labels = append(m.pal.labels, s.Id+"  "+s.Name+"  "+s.UpdatedAt)
+			m.pal.labels = append(m.pal.labels, s.Id+"  "+s.Name+"  "+strings.Join(strings.Fields(s.FirstTask), " ")+"  "+s.UpdatedAt)
 		}
 	case strings.HasPrefix(text, "/"):
 		names := rankCommands(text, commandNames(), m.recentCommands)

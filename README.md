@@ -115,7 +115,9 @@ The npm platform packages include `voss-tui`. Use `VOSS_USE_TUI=0 voss` for
 Textual; it also remains the fallback when the Go binary is missing. `voss ui`
 launches Go explicitly. `/resume` opens a saved-session picker; `/resume <id-or-name>`
 and `voss ui resume <id-or-name>` resume directly. Earlier conversation context
-is restored on the server; replaying the old transcript is not yet supported.
+is restored on the server, and saved messages appear in the transcript. The picker
+shows and searches each session's first prompt. `/clear` drops active conversation
+memory while keeping the visible transcript. Saved history updates on the next turn.
 Use `/memory` for a workspace summary and `/recall <query> [--top N]` to search it.
 Use `/model` (or `/models`) to search models and `/auth` to choose Claude, Codex,
 or API authentication. `/model gpt-6.1-sol` and `/auth claude` switch directly.

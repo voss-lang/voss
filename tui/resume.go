@@ -11,9 +11,10 @@ import (
 )
 
 type sessionConnection struct {
-	meta   sessionMeta
-	events <-chan voss.TypedEvent
-	cancel context.CancelFunc
+	meta    sessionMeta
+	events  <-chan voss.TypedEvent
+	cancel  context.CancelFunc
+	history []voss.HistoryTurn
 }
 
 type sessionEventMsg struct {
@@ -31,6 +32,11 @@ type resumeListMsg struct {
 	err      error
 }
 
+type clearHistoryMsg struct {
+	id  string
+	err error
+}
+
 func openChatSession(ctx context.Context, client *voss.Client, o options) (sessionConnection, error) {
 	s, err := client.OpenSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model, Auth: o.auth, Resume: o.resume})
 	if err != nil {
@@ -39,6 +45,13 @@ func openChatSession(ctx context.Context, client *voss.Client, o options) (sessi
 	info, err := client.GetSession(ctx, s.Id)
 	if err != nil {
 		return sessionConnection{}, fmt.Errorf("read session: %w", err)
+	}
+	var history []voss.HistoryTurn
+	if s.Resumed {
+		history, err = client.GetHistory(ctx, s.Id)
+		if err != nil {
+			return sessionConnection{}, fmt.Errorf("read session history: %w", err)
+		}
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
 	events, err := client.Events(streamCtx, s.Id)
@@ -52,8 +65,23 @@ func openChatSession(ctx context.Context, client *voss.Client, o options) (sessi
 			Provider: sessionProvider(info, s.Auth), Auth: s.Auth, Git: gitSummary(info.Cwd),
 			Resume: resumeRow(info.Cwd, s.Id, time.Now()),
 		},
-		events: events, cancel: cancel,
+		events: events, cancel: cancel, history: history,
 	}, nil
+}
+
+func (m *chatModel) replayHistory(history []voss.HistoryTurn) {
+	for _, t := range history {
+		switch t.Role {
+		case voss.User:
+			m.add(userBlock(t.Content))
+			m.sent = append(m.sent, t.Content)
+		case voss.Assistant:
+			m.add(assistantBlock(t.Content))
+			m.lastResponse = t.Content
+		case voss.System:
+			m.add(roleBlock("system", t.Content))
+		}
+	}
 }
 
 func sessionProvider(info voss.SessionInfo, auth string) string {

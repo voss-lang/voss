@@ -28,6 +28,27 @@ func (e BudgetUpdatedUnit) Valid() bool {
 	}
 }
 
+// Defines values for HistoryTurnRole.
+const (
+	Assistant HistoryTurnRole = "assistant"
+	System    HistoryTurnRole = "system"
+	User      HistoryTurnRole = "user"
+)
+
+// Valid indicates whether the value is a known member of the HistoryTurnRole enum.
+func (e HistoryTurnRole) Valid() bool {
+	switch e {
+	case Assistant:
+		return true
+	case System:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ModelChoiceAuth.
 const (
 	ModelChoiceAuthApi    ModelChoiceAuth = "api"
@@ -195,6 +216,15 @@ type HTTPValidationError struct {
 	Detail *[]ValidationError `json:"detail,omitempty"`
 }
 
+// HistoryTurn defines model for HistoryTurn.
+type HistoryTurn struct {
+	Content string          `json:"content"`
+	Role    HistoryTurnRole `json:"role"`
+}
+
+// HistoryTurnRole defines model for HistoryTurn.Role.
+type HistoryTurnRole string
+
 // InstructionsOverflow defines model for InstructionsOverflow.
 type InstructionsOverflow struct {
 	Budget             *int      `json:"budget,omitempty"`
@@ -341,6 +371,12 @@ type RoleSpec struct {
 type ServerConnected struct {
 	Type string `json:"type"`
 	V    *int   `json:"v,omitempty"`
+}
+
+// SessionHistory defines model for SessionHistory.
+type SessionHistory struct {
+	Turns []HistoryTurn `json:"turns"`
+	V     *int          `json:"v,omitempty"`
 }
 
 // SessionIdle defines model for SessionIdle.

@@ -27,6 +27,7 @@ type SavedSession struct {
 	UpdatedAt    string  `json:"updated_at"`
 	TotalCostUsd float64 `json:"total_cost_usd"`
 	Turns        int     `json:"turns"`
+	FirstTask    string  `json:"first_task"`
 }
 
 // CostInfo is the cost rollup (GET /session/:id/cost).
@@ -153,6 +154,20 @@ func (c *Client) GetSession(ctx context.Context, id string) (SessionInfo, error)
 		return SessionInfo{}, err
 	}
 	return out, nil
+}
+
+// GetHistory returns conversation messages in their original order.
+func (c *Client) GetHistory(ctx context.Context, id string) ([]HistoryTurn, error) {
+	var out SessionHistory
+	if err := c.getJSON(ctx, "/session/"+url.PathEscape(id)+"/history", http.StatusOK, &out); err != nil {
+		return nil, err
+	}
+	return out.Turns, nil
+}
+
+// ClearHistory drops active conversation memory; saved sessions are written on turn completion.
+func (c *Client) ClearHistory(ctx context.Context, id string) error {
+	return c.sendJSON(ctx, http.MethodPost, "/session/"+url.PathEscape(id)+"/clear", nil, nil, http.StatusNoContent)
 }
 
 // DeleteSession removes a session. DELETE /session/:id -> 204 No Content.
