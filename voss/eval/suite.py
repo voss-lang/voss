@@ -58,6 +58,8 @@ class TaskSpec(BaseModel):
     ] = "internal"
     target_file: str | None = None  # required by cli:edit driver; None for all other surfaces
     permission_choice: Literal["a", "A", "d"] = "a"  # serve-only; default Allow; "d" = Deny
+    corpus: Literal["pinned"] | None = None
+    recall: Literal["off", "shadow", "active"] | None = None
 
 
 def load_task(task_dir: Path) -> TaskSpec:
