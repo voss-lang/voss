@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,9 @@ var slashCommands = []slashCommand{
 	{"/exit", "leave the REPL (also Ctrl-D)", []string{"/quit"}},
 	{"/help", "show this list", nil},
 	{"/mode", "plan | edit | auto; auto requires --confirm", nil},
+	{"/memory", "summarize current memory store", nil},
+	{"/recall", "search memory: /recall <query> [--top N]", nil},
+	{"/resume", "resume a saved session by id/name, or choose from a list", nil},
 }
 
 // helpGroups follows _print_slash_help; commands in no group go under Other.
@@ -136,12 +140,79 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		m.add(output(m.setMode(args))...)
 	case "/cost":
 		return costCommand(m.ctx, m.client, m.sessionID, m.turn.model, args)
+	case "/memory", "/recall":
+		return memoryCommand(m.ctx, m.client, m.cwd, cmd.name, args)
 	case "/diff":
 		return diffCommand(m.ctx, m.cwd, args)
+	case "/resume":
+		if len(args) > 1 {
+			m.add(output("", "usage: /resume [session-id-or-name]")...)
+			return nil
+		}
+		if len(args) == 1 {
+			return m.resumeSession(args[0])
+		}
+		m.resuming = true
+		client, ctx, cwd := m.client, m.ctx, m.cwd
+		return func() tea.Msg {
+			sessions, err := client.ListSavedSessions(ctx, cwd)
+			return resumeListMsg{sessions, err}
+		}
 	case "/doctor":
 		return doctorCommand(m.ctx, m.client, m.cwd, args)
 	}
 	return nil
+}
+
+func memoryCommand(ctx context.Context, client *voss.Client, cwd, name string, args []string) tea.Cmd {
+	return func() tea.Msg {
+		usage := "usage: /memory"
+		if name == "/recall" {
+			usage = "usage: /recall <query> [--top N] (1–50; --source is not supported by voss serve)"
+		}
+		if name == "/memory" && len(args) > 0 {
+			return slashOutputMsg{stderr: usage}
+		}
+		top := 5
+		var words []string
+		for i := 0; i < len(args); i++ {
+			if args[i] == "--top" && i+1 < len(args) {
+				i++
+				n, err := strconv.Atoi(args[i])
+				if err != nil || n < 1 || n > 50 {
+					return slashOutputMsg{stderr: usage}
+				}
+				top = n
+			} else if strings.HasPrefix(args[i], "--") {
+				return slashOutputMsg{stderr: usage}
+			} else {
+				words = append(words, args[i])
+			}
+		}
+		query := strings.TrimSpace(strings.Join(words, " "))
+		if name == "/recall" && query == "" {
+			return slashOutputMsg{stderr: usage}
+		}
+		report, err := client.Memory(ctx, cwd, query, top)
+		if err != nil {
+			return errMsg{name, err}
+		}
+		if name == "/memory" {
+			return slashOutputMsg{stdout: report.Summary}
+		}
+		if len(report.Hits) == 0 {
+			return slashOutputMsg{stdout: "(no hits)"}
+		}
+		var lines []string
+		for _, hit := range report.Hits {
+			lines = append(lines, fmt.Sprintf("[%s] %s  (score %.2f)", hit.Source, hit.Locator, hit.Score))
+			excerpt := []rune(strings.ReplaceAll(hit.Excerpt, "\n", " "))
+			if len(excerpt) > 0 {
+				lines = append(lines, "  "+string(excerpt[:min(len(excerpt), 160)]))
+			}
+		}
+		return slashOutputMsg{stdout: strings.Join(lines, "\n")}
+	}
 }
 
 // setMode follows the CLI's /mode and returns what it prints.

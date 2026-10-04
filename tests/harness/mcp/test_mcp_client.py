@@ -129,6 +129,21 @@ async def test_lazy_launch(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_server_notifications_do_not_replace_rpc_responses(tmp_path: Path) -> None:
+    source = MOCK_SERVER_SRC.replace(
+        'sys.stdout.write(json.dumps(resp) + "\\n")',
+        'sys.stdout.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/message"}) + "\\n" + json.dumps(resp) + "\\n")',
+    )
+    client = _client_for_server(tmp_path, _write_mock_server(tmp_path, source))
+    try:
+        assert len(await client.list_tools("mock")) == 2
+        result = await client.call_tool("mock", "read_text_file", {})
+        assert result["content"][0]["text"] == "mock-result"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_sigterm_reap(tmp_path: Path) -> None:
     script = _write_mock_server(tmp_path)
     client = _client_for_server(tmp_path, script)

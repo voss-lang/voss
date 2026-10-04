@@ -28,6 +28,7 @@ const (
 	paletteNone paletteKind = iota
 	paletteSlash
 	paletteMention
+	paletteSession
 )
 
 type picker struct {
@@ -191,6 +192,16 @@ func (m *chatModel) syncPalette() {
 	switch {
 	case m.search.active || m.paletteDismissed:
 		m.pal = picker{}
+	case prev.kind == paletteSession:
+		m.pal = picker{kind: paletteSession}
+		query := strings.ToLower(strings.TrimSpace(text))
+		for _, s := range m.savedSessions {
+			if s.Id == m.sessionID || !strings.Contains(strings.ToLower(s.Id+" "+s.Name), query) {
+				continue
+			}
+			m.pal.names = append(m.pal.names, s.Id)
+			m.pal.labels = append(m.pal.labels, s.Id+"  "+s.Name+"  "+s.UpdatedAt)
+		}
 	case strings.HasPrefix(text, "/"):
 		names := rankCommands(text, commandNames(), m.recentCommands)
 		m.pal = picker{kind: paletteSlash, names: names}
@@ -236,6 +247,9 @@ func contains(list []string, s string) bool {
 func paletteBox(p picker, width int) string {
 	bg := palette.Surface
 	empty := "no matching commands"
+	if p.kind == paletteSession {
+		bg, empty = palette.Raised, "no saved sessions match (Esc to close)"
+	}
 	if p.kind == paletteMention {
 		bg, empty = palette.Raised, "no matching files"
 	}

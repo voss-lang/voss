@@ -4,7 +4,7 @@
 
 **Created:** 2026-06-02 (H0.1)
 **History:** Contract LOCKED for H1–H6. Changes require a version bump (`v` field) + migration note.
-**Consumers:** Python server (`voss serve`, H1) · Rust client (`voss-tui`, H2) · future web/VSCode/SDK clients.
+**Consumers:** Python server (`voss serve`, H1) · Go client (`voss-tui`) · future web/VSCode/SDK clients.
 **Source of truth for shapes:** existing `JsonRenderer` (`voss/harness/render.py:485-568`) + OpenCode `packages/sdk/js/src/gen/types.gen.ts` (mirrored where applicable). Voss diverges only by **adding** part/event/gate types — never overloading existing ones, so an unmodified OpenCode-style client degrades gracefully.
 
 This document is the wire contract. The server emits exactly these shapes; the client deserializes exactly these shapes; a parity test (H3.3) fails CI on drift.

@@ -22,7 +22,7 @@ class _Host(App):
     def compose(self) -> ComposeResult:
         return []
 
-    def open(self, current="claude-sonnet-4-5", models=CLAUDE):
+    def open(self, current="claude-sonnet-5-5", models=CLAUDE):
         def _cb(value):
             self.picked = value
 
@@ -42,7 +42,7 @@ def _row_text(item) -> str:
 async def test_rows_render_numbered_with_current_check() -> None:
     app = _Host()
     async with app.run_test() as pilot:
-        app.open(current="claude-sonnet-4-5")
+        app.open(current="claude-sonnet-5-5")
         await pilot.pause()
         rows = list(app.query_one("#auth-picker-list").children)
         assert len(rows) == len(CLAUDE)
@@ -68,33 +68,33 @@ async def test_initial_highlight_is_current() -> None:
 async def test_enter_selects_highlighted() -> None:
     app = _Host()
     async with app.run_test() as pilot:
-        app.open(current="claude-sonnet-4-5")
+        app.open(current="claude-sonnet-5-5")
         await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
     assert app.picked is not None
-    assert app.picked.id == "claude-sonnet-4-5"
+    assert app.picked.id == "claude-sonnet-5-5"
 
 
 @pytest.mark.asyncio
 async def test_jk_moves_then_enter_selects() -> None:
     app = _Host()
     async with app.run_test() as pilot:
-        app.open(current="claude-sonnet-4-5")
+        app.open(current="claude-sonnet-5-5")
         await pilot.pause()
         await pilot.press("j")  # → row 2 (opus)
         await pilot.press("j")  # → row 3 (fable)
         await pilot.press("k")  # ← row 2 (opus)
         await pilot.press("enter")
         await pilot.pause()
-    assert app.picked.id == "claude-opus-4-8"
+    assert app.picked.id == "claude-opus-5-5"
 
 
 @pytest.mark.asyncio
 async def test_digit_quick_pick() -> None:
     app = _Host()
     async with app.run_test() as pilot:
-        app.open(current="claude-sonnet-4-5")
+        app.open(current="claude-sonnet-5-5")
         await pilot.pause()
         await pilot.press("4")
         await pilot.pause()
@@ -105,7 +105,7 @@ async def test_digit_quick_pick() -> None:
 async def test_out_of_range_digit_is_ignored() -> None:
     app = _Host()
     async with app.run_test() as pilot:
-        app.open(current="gpt-5.5", models=CODEX)
+        app.open(current="gpt-6-astra", models=CODEX)
         await pilot.pause()
         await pilot.press("9")  # outside the Codex row count
         await pilot.pause()
@@ -119,15 +119,15 @@ async def test_out_of_range_digit_is_ignored() -> None:
 async def test_codex_list_variant() -> None:
     app = _Host()
     async with app.run_test() as pilot:
-        app.open(current="gpt-5.5", models=CODEX)
+        app.open(current="gpt-6-astra", models=CODEX)
         await pilot.pause()
         rows = list(app.query_one("#auth-picker-list").children)
         assert len(rows) == len(CODEX)
-        assert "gpt-5.5" in _row_text(rows[0])
+        assert "gpt-6-astra" in _row_text(rows[0])
         assert glyphs.CHECK in _row_text(rows[0])
         await pilot.press("3")
         await pilot.pause()
-    assert app.picked.id == "gpt-5.4-mini"
+    assert app.picked.id == "gpt-6-luna"
 
 
 @pytest.mark.asyncio

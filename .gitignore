@@ -35,6 +35,7 @@ crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap.new
 .vercel
 .env*.local
 npm/platforms/*/python/
+npm/platforms/*/bin/
 
 # Claude Code / GSD local install (runtime-generated, not source).
 .claude/
@@ -77,3 +78,4 @@ site-redesign-ledger.html
 # Go TUI build output
 /tui/tui
 /tui/voss-tui-go
+/tui/voss-tui

@@ -4,17 +4,19 @@ import "os"
 
 // palette mirrors voss/harness/tui/palette.py; theme_test.go fails on any drift.
 var palette = struct {
-	Accent, Dim, Good, Warn, Error, Bg, Surface, Raised, Text string
+	Accent, Dim, Good, Warn, Error, Bg, Surface, Raised, Text, InputText, OutputText string
 }{
-	Accent:  "#ff5b1f",
-	Dim:     "#888888",
-	Good:    "#5FD75F",
-	Warn:    "#FFD75F",
-	Error:   "#FF5F5F",
-	Bg:      "#121212",
-	Surface: "#1c1c1c",
-	Raised:  "#262626",
-	Text:    "#dadada",
+	Accent:     "#ff5b1f",
+	Dim:        "#888888",
+	Good:       "#5FD75F",
+	Warn:       "#FFD75F",
+	Error:      "#FF5F5F",
+	Bg:         "#121212",
+	Surface:    "#1c1c1c",
+	Raised:     "#262626",
+	Text:       "#dadada",
+	InputText:  "#ffffff",
+	OutputText: "#e6e6e6",
 }
 
 // glyphSet mirrors voss/harness/tui/glyphs.py. Field names are the Python

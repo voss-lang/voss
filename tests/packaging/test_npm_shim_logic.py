@@ -5,9 +5,11 @@ These tests pin the static guarantees of `npm/bin/voss.js` so that
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -91,3 +93,46 @@ def test_shim_maps_sigint_to_130():
     assert has_literal or has_arithmetic, (
         "SIGINT→130 mapping not found in shim"
     )
+
+
+@pytest.mark.parametrize("platform,arch,binary", [
+    ("darwin", "arm64", "voss-tui"),
+    ("linux", "x64", "voss-tui"),
+    ("linux", "arm64", "voss-tui"),
+    ("win32", "x64", "voss-tui.exe"),
+])
+@pytest.mark.parametrize("override", [None, "/custom/tui"])
+def test_shim_passes_bundled_tui_without_changing_opt_in(tmp_path, platform, arch, binary, override):
+    probe = tmp_path / "probe.js"
+    probe.write_text("""
+const vm = require('vm');
+const fs = require('fs');
+const path = require('path');
+const [source, platform, arch, override] = process.argv.slice(2);
+const env = override ? {VOSS_TUI_BIN: override} : {};
+let captured;
+const fakeRequire = name => {
+  if (name === 'path') return path;
+  if (name === 'fs') return {existsSync: p => !p.endsWith(path.join('voss', 'cli.py'))};
+  if (name === 'child_process') return {spawnSync: (exe, args, opts) => {
+    captured = {exe, args, tui: opts.env.VOSS_TUI_BIN, optIn: opts.env.VOSS_USE_TUI};
+    return {status: 0};
+  }};
+  throw new Error(name);
+};
+fakeRequire.resolve = () => '/pkg/package.json';
+vm.runInNewContext(fs.readFileSync(source, 'utf8'), {
+  require: fakeRequire, __dirname: '/cli/bin',
+  process: {platform, arch, env, argv: ['node', 'voss.js'], stderr: {write: () => {}},
+    exit: code => {throw new Error('exit ' + code);}},
+});
+console.log(JSON.stringify(captured));
+""")
+    result = subprocess.run(
+        ["node", str(probe), str(SHIM_PATH), platform, arch, override or ""],
+        capture_output=True, text=True, check=True, timeout=10,
+    )
+    captured = json.loads(result.stdout)
+    assert captured["tui"] == (override or str(Path("/pkg") / "bin" / binary))
+    assert "optIn" not in captured
+    assert captured["args"][:3] == ["-P", "-m", "voss.cli"]

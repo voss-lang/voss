@@ -45,7 +45,7 @@ code = [
     "ast-grep-cli>=0.42,<0.43",
 ]
 # REST+SSE harness server (HYBRID-REFACTOR-PLAN H1). Hosts the existing
-# agent loop over HTTP+SSE so a thin Rust client (voss-tui) can drive it.
+# agent loop over HTTP+SSE so a thin Go client (voss-tui) can drive it.
 # Optional: the in-process Textual/plain harness does not need these.
 server = [
     "fastapi>=0.136",

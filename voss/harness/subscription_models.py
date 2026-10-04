@@ -27,27 +27,24 @@ class SubscriptionModel:
     recommended: bool = False
 
 
-# Auth mode → curated models, in picker order. Claude ids track the ones the
-# harness already pins (cli.py boot snap, config.py role aliases); Codex ids
-# are the gpt-5.x set the ChatGPT backend serves (providers.py:475 — older
-# gpt-5/gpt-5-codex ids 400).
+# Auth mode → curated models, with current generations first.
 SUBSCRIPTION_MODELS: dict[str, tuple[SubscriptionModel, ...]] = {
     "claude": (
         SubscriptionModel(
-            "claude-sonnet-4-5",
-            "Sonnet 4.5",
+            "claude-sonnet-5-5",
+            "Sonnet 5.5",
             "Balanced speed and capability · everyday default",
             recommended=True,
         ),
         SubscriptionModel(
-            "claude-opus-4-8",
-            "Opus 4.8",
-            "Most capable · hard, multi-step work",
+            "claude-opus-5-5",
+            "Opus 5.5",
+            "Complex reasoning and multi-step work",
         ),
         SubscriptionModel(
-            "claude-fable-5",
-            "Fable 5",
-            "Latest frontier generation",
+            "claude-fable-5-1",
+            "Fable 5.1",
+            "Frontier reasoning",
         ),
         SubscriptionModel(
             "claude-haiku-4-5",
@@ -57,25 +54,25 @@ SUBSCRIPTION_MODELS: dict[str, tuple[SubscriptionModel, ...]] = {
     ),
     "codex": (
         SubscriptionModel(
-            "gpt-5.5",
-            "GPT-5.5",
-            "Flagship · the Codex backend default",
+            "gpt-6-astra",
+            "GPT-6 Astra",
+            "Complex reasoning and coding",
             recommended=True,
         ),
         SubscriptionModel(
-            "gpt-5.4",
-            "GPT-5.4",
-            "Strong general-purpose Codex model",
+            "gpt-6.1-sol",
+            "GPT-6.1 Sol",
+            "Balanced capability and cost",
         ),
         SubscriptionModel(
-            "gpt-5.4-mini",
-            "GPT-5.4 mini",
-            "Smaller and faster · light tasks",
+            "gpt-6-luna",
+            "GPT-6 Luna",
+            "Fast, focused tasks",
         ),
         SubscriptionModel(
-            "gpt-5.3-codex-spark",
-            "GPT-5.3 Codex Spark",
-            "Fast coding-specialized model",
+            "gpt-5.5",
+            "GPT-5.5",
+            "Previous generation",
         ),
     ),
 }

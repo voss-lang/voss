@@ -153,7 +153,7 @@ def test_match_precedence_exact_then_prefix_then_substring() -> None:
     # exact id wins even though it is also a prefix of nothing else
     assert [m.id for m in match("codex", "gpt-5.5")] == ["gpt-5.5"]
     # unique prefix
-    assert [m.id for m in match("claude", "claude-opus")] == ["claude-opus-4-8"]
+    assert [m.id for m in match("claude", "claude-opus")] == ["claude-opus-5-5"]
     # ambiguous prefix returns all candidates
     assert len(match("claude", "claude")) == len(SUBSCRIPTION_MODELS["claude"])
     # substring
@@ -168,6 +168,7 @@ def test_match_precedence_exact_then_prefix_then_substring() -> None:
 
 
 def test_plain_bare_lists_curated_numbered_with_active_marked(env, capsys) -> None:
+    configure(default_model="claude-sonnet-5-5")
     registry = cli._build_slash_registry()
     handled = registry.dispatch(_ctx(ClaudeAgentProvider()), "/model")
     assert handled is True
@@ -179,19 +180,19 @@ def test_plain_bare_lists_curated_numbered_with_active_marked(env, capsys) -> No
         assert f"{i}. {m.id}" in out
     from voss.harness.tui import glyphs
 
-    assert f"claude-sonnet-4-5 {glyphs.CHECK}" in out
+    assert f"claude-sonnet-5-5 {glyphs.CHECK}" in out
     assert "select: /model <id>" in out
 
 
-def test_plain_bare_codex_lists_gpt5(env, capsys) -> None:
+def test_plain_bare_codex_lists_current_models_before_older_models(env, capsys) -> None:
     configure(default_model="gpt-5.5")
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(_codex_provider()), "/model")
     out = capsys.readouterr().out
-    assert "1. gpt-5.5" in out
-    assert "2. gpt-5.4" in out
-    assert "3. gpt-5.4-mini" in out
-    assert "4. gpt-5.3-codex-spark" in out
+    assert "1. gpt-6-astra" in out
+    assert "2. gpt-6.1-sol" in out
+    assert "3. gpt-6-luna" in out
+    assert "4. gpt-5.5" in out
 
 
 def test_plain_bare_no_subscription_keeps_old_dump(env, capsys) -> None:
@@ -210,9 +211,9 @@ def test_plain_bare_no_subscription_keeps_old_dump(env, capsys) -> None:
 def test_unambiguous_prefix_applies_and_persists(env) -> None:
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(ClaudeAgentProvider()), "/model claude-opus")
-    assert get_config().default_model == "claude-opus-4-8"
+    assert get_config().default_model == "claude-opus-5-5"
     cfg = harness_config.load_harness_config()
-    assert cfg.get("preferred_model") == "claude-opus-4-8"
+    assert cfg.get("preferred_model") == "claude-opus-5-5"
 
 
 def test_ambiguous_query_does_not_change_model(env, capsys) -> None:
@@ -231,11 +232,103 @@ def test_unknown_id_falls_back_to_raw_set(env) -> None:
     assert cfg.get("preferred_model") == "my-custom-model"
 
 
-def test_codex_substring_pick(env) -> None:
+@pytest.mark.parametrize("query,model", [
+    ("astra", "gpt-6-astra"),
+    ("sol", "gpt-6.1-sol"),
+    ("luna", "gpt-6-luna"),
+])
+def test_codex_substring_pick(env, query, model) -> None:
     configure(default_model="gpt-5.5")
     registry = cli._build_slash_registry()
-    registry.dispatch(_ctx(_codex_provider()), "/model mini")
-    assert get_config().default_model == "gpt-5.4-mini"
+    registry.dispatch(_ctx(_codex_provider()), f"/model {query}")
+    assert get_config().default_model == model
+    assert harness_config.load_harness_config().get("preferred_model") == model
+
+
+@pytest.mark.parametrize("query,model", [
+    ("gpt-6.1-sol", "gpt-6.1-sol"),
+    ("astra", "gpt-6-astra"),
+])
+def test_typed_codex_model_switches_from_claude(env, monkeypatch, query, model) -> None:
+    from voss.harness.providers import OpenAIOAuthProvider
+
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
+    monkeypatch.setattr(cli, "_codex_default_model", lambda: "gpt-6-astra")
+    app = _FakeTUIApp()
+    ctx = _ctx(ClaudeAgentProvider(), app=app)
+
+    cli._build_slash_registry().dispatch(ctx, f"/model {query}")
+
+    assert isinstance(ctx.provider, OpenAIOAuthProvider)
+    assert get_config().default_model == model
+    assert app.provider == "Codex"
+    assert app.model == model
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "codex"
+    assert cfg["preferred_model"] == model
+
+
+def test_typed_claude_model_switches_from_codex(env, monkeypatch) -> None:
+    configure(default_model="gpt-6.1-sol")
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: SimpleNamespace(
+        source="claude-agent", cli_path=Path("/opt/bin/claude"),
+    ))
+    app = _FakeTUIApp()
+    ctx = _ctx(_codex_provider(), app=app)
+
+    cli._build_slash_registry().dispatch(ctx, "/model claude-opus-5-5")
+
+    assert isinstance(ctx.provider, ClaudeAgentProvider)
+    assert get_config().default_model == "claude-opus-5-5"
+    assert app.provider == "Anthropic"
+    assert app.model == "claude-opus-5-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "claude"
+    assert cfg["preferred_model"] == "claude-opus-5-5"
+
+
+def test_typed_model_provider_failure_preserves_selection(env, monkeypatch, capsys) -> None:
+    from dataclasses import replace
+
+    harness_config.set_preferred_model("claude-sonnet-5-5")
+    harness_config.set_preferred_auth("claude")
+    configure(default_model="claude-sonnet-5-5")
+    resolution = _codex_oauth_resolution()
+    resolution.codex_oauth = replace(resolution.codex_oauth, auth_mode=42)
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: resolution)
+    provider = ClaudeAgentProvider()
+    app = _FakeTUIApp()
+    app.model = "claude-sonnet-5-5"
+    ctx = _ctx(provider, app=app)
+
+    cli._build_slash_registry().dispatch(ctx, "/model gpt-6.1-sol")
+
+    assert ctx.provider is provider
+    assert get_config().default_model == "claude-sonnet-5-5"
+    assert app.model == ctx.record.model == "claude-sonnet-5-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "claude"
+    assert cfg["preferred_model"] == "claude-sonnet-5-5"
+    assert "model switch failed" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("source", ["none", "codex"])
+def test_typed_cross_provider_model_requires_subscription(env, monkeypatch, capsys, source) -> None:
+    harness_config.set_preferred_model("claude-sonnet-5-5")
+    harness_config.set_preferred_auth("claude")
+    configure(default_model="claude-sonnet-5-5")
+    monkeypatch.setattr(auth_mod, "resolve", lambda pref: SimpleNamespace(source=source))
+    provider = ClaudeAgentProvider()
+    ctx = _ctx(provider)
+
+    cli._build_slash_registry().dispatch(ctx, "/model gpt-6.1-sol")
+
+    assert ctx.provider is provider
+    assert get_config().default_model == "claude-sonnet-5-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "claude"
+    assert cfg["preferred_model"] == "claude-sonnet-5-5"
+    assert "codex login" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -257,13 +350,13 @@ def test_tui_model_auth_opens_auth_picker_and_pick_applies(env) -> None:
     # simulate the user picking opus in the modal
     opus = SUBSCRIPTION_MODELS["claude"][1]
     callback(opus)
-    assert get_config().default_model == "claude-opus-4-8"
-    assert app.model == "claude-opus-4-8"  # live status source updated
+    assert get_config().default_model == "claude-opus-5-5"
+    assert app.model == "claude-opus-5-5"  # live status source updated
     cfg = harness_config.load_harness_config()
-    assert cfg.get("preferred_model") == "claude-opus-4-8"
+    assert cfg.get("preferred_model") == "claude-opus-5-5"
     # esc → None must be a no-op
     callback(None)
-    assert get_config().default_model == "claude-opus-4-8"
+    assert get_config().default_model == "claude-opus-5-5"
 
 
 def test_tui_bare_model_opens_catalog_under_codex_auth(env, monkeypatch) -> None:
@@ -336,6 +429,31 @@ def test_auth_slash_switches_current_session_and_persists(env, monkeypatch) -> N
     assert app.model == "gpt-5.5"
     cfg = harness_config.load_harness_config()
     assert cfg.get("auth") == "codex"
+
+
+def test_tui_catalog_openai_pick_keeps_subscription_and_labels_codex(env, monkeypatch) -> None:
+    from voss.harness.providers import OpenAIOAuthProvider
+
+    monkeypatch.setattr(auth_mod, "load_codex", lambda: _codex_oauth_resolution().codex_oauth)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog({"openai": {
+        "name": "OpenAI", "env": ["OPENAI_API_KEY"],
+        "models": {"gpt-6.1-sol": {"id": "gpt-6.1-sol", "name": "GPT-6.1 Sol"}},
+    }}))
+    app = _FakeTUIApp()
+    ctx = _ctx(_codex_provider(), app=app)
+    cli._build_slash_registry().dispatch(ctx, "/model")
+    screen, callback = app.pushed[0]
+
+    callback(screen._groups[0].models[0])
+
+    assert isinstance(ctx.provider, OpenAIOAuthProvider)
+    assert app.provider == "Codex"
+    assert app.model == "gpt-6.1-sol"
+    cfg = harness_config.load_harness_config()
+    assert cfg["auth"] == "codex"
+    assert cfg["preferred_model"] == "gpt-6.1-sol"
+    assert "preferred_provider" not in cfg
 
 
 def test_tui_api_key_auth_falls_back_to_catalog_modal(env, monkeypatch) -> None:

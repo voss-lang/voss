@@ -51,7 +51,7 @@ from ..swarm_store import (
     SwarmStore,
     build_ownership_policy,
 )
-from ..tools import attach_memory_tools, make_toolset
+from ..tools import attach_memory_tools, attach_mcp_tools, make_toolset
 from ..memory_gateway import open_memory_store
 from ..memory_store import MemoryStore
 from . import events as E
@@ -350,9 +350,11 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             session.task = None
         return
 
+    mcp_client = None
     try:
         renderer.show_user(text)
         tools = make_toolset(session.cwd, renderer=renderer)
+        mcp_client = await attach_mcp_tools(tools, session.cwd)
         if session.memory_store is None:
             session.memory_store = open_memory_store(session.cwd)
         memory_kwargs = {}
@@ -449,6 +451,8 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         renderer.stream_delta(f"\n[error: {e}]\n")
         renderer.finalize_stream(role="system", confidence=None, cost_usd=None)
     finally:
+        if mcp_client is not None:
+            await mcp_client.aclose()
         try:
             session_store.save(session.record, session.history)
         except Exception:
