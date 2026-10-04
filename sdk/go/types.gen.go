@@ -28,6 +28,48 @@ func (e BudgetUpdatedUnit) Valid() bool {
 	}
 }
 
+// Defines values for ModelChoiceAuth.
+const (
+	ModelChoiceAuthApi    ModelChoiceAuth = "api"
+	ModelChoiceAuthClaude ModelChoiceAuth = "claude"
+	ModelChoiceAuthCodex  ModelChoiceAuth = "codex"
+)
+
+// Valid indicates whether the value is a known member of the ModelChoiceAuth enum.
+func (e ModelChoiceAuth) Valid() bool {
+	switch e {
+	case ModelChoiceAuthApi:
+		return true
+	case ModelChoiceAuthClaude:
+		return true
+	case ModelChoiceAuthCodex:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ModelSelectionBodyAuth.
+const (
+	ModelSelectionBodyAuthApi    ModelSelectionBodyAuth = "api"
+	ModelSelectionBodyAuthClaude ModelSelectionBodyAuth = "claude"
+	ModelSelectionBodyAuthCodex  ModelSelectionBodyAuth = "codex"
+)
+
+// Valid indicates whether the value is a known member of the ModelSelectionBodyAuth enum.
+func (e ModelSelectionBodyAuth) Valid() bool {
+	switch e {
+	case ModelSelectionBodyAuthApi:
+		return true
+	case ModelSelectionBodyAuthClaude:
+		return true
+	case ModelSelectionBodyAuthCodex:
+		return true
+	default:
+		return false
+	}
+}
+
 // Alternative defines model for Alternative.
 type Alternative struct {
 	Probability float32 `json:"probability"`
@@ -173,6 +215,37 @@ type MessagePart struct {
 	Text *string `json:"text,omitempty"`
 	Type *string `json:"type,omitempty"`
 }
+
+// ModelCatalog defines model for ModelCatalog.
+type ModelCatalog struct {
+	Models  []ModelChoice `json:"models"`
+	V       *int          `json:"v,omitempty"`
+	Warning string        `json:"warning"`
+}
+
+// ModelChoice defines model for ModelChoice.
+type ModelChoice struct {
+	Auth          ModelChoiceAuth `json:"auth"`
+	Connected     bool            `json:"connected"`
+	Id            string          `json:"id"`
+	Name          string          `json:"name"`
+	Provider      string          `json:"provider"`
+	ProviderLabel string          `json:"provider_label"`
+	Recommended   bool            `json:"recommended"`
+}
+
+// ModelChoiceAuth defines model for ModelChoice.Auth.
+type ModelChoiceAuth string
+
+// ModelSelectionBody defines model for ModelSelectionBody.
+type ModelSelectionBody struct {
+	Auth     *ModelSelectionBodyAuth `json:"auth,omitempty"`
+	Model    *string                 `json:"model,omitempty"`
+	Provider *string                 `json:"provider,omitempty"`
+}
+
+// ModelSelectionBodyAuth defines model for ModelSelectionBody.Auth.
+type ModelSelectionBodyAuth string
 
 // ObserveEnrollmentPatch defines model for ObserveEnrollmentPatch.
 type ObserveEnrollmentPatch struct {
@@ -500,6 +573,9 @@ type CreateSessionSessionPostJSONRequestBody = CreateSessionBody
 
 // PostMessageSessionSessionIdMessagePostJSONRequestBody defines body for PostMessageSessionSessionIdMessagePost for application/json ContentType.
 type PostMessageSessionSessionIdMessagePostJSONRequestBody = MessageBody
+
+// SelectModelSessionSessionIdModelPostJSONRequestBody defines body for SelectModelSessionSessionIdModelPost for application/json ContentType.
+type SelectModelSessionSessionIdModelPostJSONRequestBody = ModelSelectionBody
 
 // ReplyPermissionSessionSessionIdPermissionPostJSONRequestBody defines body for ReplyPermissionSessionSessionIdPermissionPost for application/json ContentType.
 type ReplyPermissionSessionSessionIdPermissionPostJSONRequestBody = PermissionReply

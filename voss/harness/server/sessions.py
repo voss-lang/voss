@@ -50,10 +50,12 @@ class ServerSession:
     # Tasks assigned by orchestraotr per init sys prompt
     swarm_policy: Any = None
     memory_store: Any = None
+    auth: str = ""
+    switching: bool = False
 
     @property
     def busy(self) -> bool:
-        return self.task is not None and not self.task.done()
+        return self.switching or (self.task is not None and not self.task.done())
 
 
 class SessionManager:

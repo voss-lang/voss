@@ -674,6 +674,120 @@
         "title": "MessagePart",
         "type": "object"
       },
+      "ModelCatalog": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelChoice"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "warning": {
+            "title": "Warning",
+            "type": "string"
+          }
+        },
+        "required": [
+          "models",
+          "warning"
+        ],
+        "title": "ModelCatalog",
+        "type": "object"
+      },
+      "ModelChoice": {
+        "properties": {
+          "auth": {
+            "enum": [
+              "claude",
+              "codex",
+              "api"
+            ],
+            "title": "Auth",
+            "type": "string"
+          },
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_label": {
+            "title": "Provider Label",
+            "type": "string"
+          },
+          "recommended": {
+            "title": "Recommended",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "provider_label",
+          "auth",
+          "connected",
+          "recommended"
+        ],
+        "title": "ModelChoice",
+        "type": "object"
+      },
+      "ModelSelectionBody": {
+        "properties": {
+          "auth": {
+            "anyOf": [
+              {
+                "enum": [
+                  "claude",
+                  "codex",
+                  "api"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth"
+          },
+          "model": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "title": "ModelSelectionBody",
+        "type": "object"
+      },
       "ObserveEnrollmentPatch": {
         "properties": {
           "analysis": {
@@ -1997,6 +2111,24 @@
         "summary": "Get Memory"
       }
     },
+    "/models": {
+      "get": {
+        "operationId": "list_models_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Models"
+      }
+    },
     "/observe/context": {
       "get": {
         "operationId": "observe_context_observe_context_get",
@@ -2549,6 +2681,57 @@
           }
         },
         "summary": "Post Message"
+      }
+    },
+    "/session/{session_id}/model": {
+      "post": {
+        "operationId": "select_model_session__session_id__model_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelSelectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Select Model Session  Session Id  Model Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Model"
       }
     },
     "/session/{session_id}/permission": {
