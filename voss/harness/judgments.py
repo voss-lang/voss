@@ -12,11 +12,14 @@ import click
 
 from voss_runtime.judgments import (
     KEY_ENV, KILLED_MESSAGE, MISSING_KEY_MESSAGE, ChoiceQuestion, ChoiceResult, JevClient, JudgmentError,
-    JudgmentResult, NoulQuestion, Question, ScoreQuestion, ScoreResult, is_killed, question_from_wire,
+    JudgmentLedger, JudgmentResult, NoulQuestion, Question, ScoreQuestion, ScoreResult, is_killed, question_from_wire,
 )
 
 from . import auth, config
-from .conventions import _load_judgments_enabled
+from .conventions import _load_judgments_code_recall, _load_judgments_enabled
+
+CODE_RECALL_MODES = ("off", "shadow", "active")
+
 
 def judgments_state(cwd) -> Literal["killed", "disabled", "enabled"]:
     if is_killed():
@@ -40,12 +43,18 @@ def bridge_judgments_env() -> None:
         os.environ[KEY_ENV] = value
 
 
-def make_client(api_key: str) -> JevClient:
+def code_recall_mode(cwd) -> Literal["off", "shadow", "active"]:
+    if judgments_state(cwd) != "enabled" or resolve_api_key() is None:
+        return "off"
+    return _load_judgments_code_recall(cwd)
+
+
+def make_client(api_key: str, *, timeout_ms: int | None = None, ledger: JudgmentLedger | None = None) -> JevClient:
     cfg = config.get_judgments_config()
     return JevClient(
-        api_key, model=cfg["model"], timeout_ms=cfg["timeout_ms"],
+        api_key, model=cfg["model"], timeout_ms=cfg["timeout_ms"] if timeout_ms is None else timeout_ms,
         max_request_bytes=cfg["max_request_bytes"], max_calls=cfg["max_calls_per_turn"],
-        max_cost_usd=cfg["max_cost_usd"],
+        max_cost_usd=cfg["max_cost_usd"], ledger=ledger,
     )
 
 
