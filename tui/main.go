@@ -18,7 +18,7 @@ import (
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
-const usage = `usage: voss-tui [--attach URL --token TOKEN] [--cwd DIR] [--model MODEL] [command]
+const usage = `usage: voss-tui [--attach URL --token TOKEN] [--cwd DIR] [--model MODEL] [--auth AUTH] [command]
 
 Without a command, opens a chat session.
 
@@ -37,6 +37,7 @@ type options struct {
 	token  string
 	cwd    string
 	model  string
+	auth   string
 	cmd    string
 	resume string
 }
@@ -50,6 +51,7 @@ func parseArgs(args []string) (options, error) {
 	fs.StringVar(&o.token, "token", o.token, "")
 	fs.StringVar(&o.cwd, "cwd", ".", "")
 	fs.StringVar(&o.model, "model", "", "")
+	fs.StringVar(&o.auth, "auth", "", "")
 	if err := fs.Parse(args); err != nil {
 		return o, err
 	}

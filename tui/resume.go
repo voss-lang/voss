@@ -32,7 +32,7 @@ type resumeListMsg struct {
 }
 
 func openChatSession(ctx context.Context, client *voss.Client, o options) (sessionConnection, error) {
-	s, err := client.OpenSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model, Resume: o.resume})
+	s, err := client.OpenSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model, Auth: o.auth, Resume: o.resume})
 	if err != nil {
 		return sessionConnection{}, fmt.Errorf("open session: %w", err)
 	}
@@ -49,11 +49,18 @@ func openChatSession(ctx context.Context, client *voss.Client, o options) (sessi
 	return sessionConnection{
 		meta: sessionMeta{
 			ID: s.Id, Cwd: info.Cwd, Model: info.Model,
-			Provider: providerLabel(s.Auth), Git: gitSummary(info.Cwd),
+			Provider: sessionProvider(info, s.Auth), Auth: s.Auth, Git: gitSummary(info.Cwd),
 			Resume: resumeRow(info.Cwd, s.Id, time.Now()),
 		},
 		events: events, cancel: cancel,
 	}, nil
+}
+
+func sessionProvider(info voss.SessionInfo, auth string) string {
+	if info.Provider != "" {
+		return info.Provider
+	}
+	return providerLabel(auth)
 }
 
 func (m *chatModel) resumeSession(id string) tea.Cmd {

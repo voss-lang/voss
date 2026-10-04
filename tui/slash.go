@@ -29,6 +29,8 @@ var slashCommands = []slashCommand{
 	{"/exit", "leave the REPL (also Ctrl-D)", []string{"/quit"}},
 	{"/help", "show this list", nil},
 	{"/mode", "plan | edit | auto; auto requires --confirm", nil},
+	{"/model", "choose a model: /model [name]", []string{"/models"}},
+	{"/auth", "choose authentication: /auth [claude|codex|api]", nil},
 	{"/memory", "summarize current memory store", nil},
 	{"/recall", "search memory: /recall <query> [--top N]", nil},
 	{"/resume", "resume a saved session by id/name, or choose from a list", nil},
@@ -42,7 +44,7 @@ var helpGroups = []struct {
 	{"Editing", []string{"/diff", "/apply", "/discard"}},
 	{"Session", []string{"/resume", "/budget", "/cost", "/clear", "/save-session"}},
 	{"Insight", []string{"/why", "/probable", "/btrace", "/vdiff", "/tools", "/analyze"}},
-	{"Control", []string{"/help", "/exit", "/mode", "/model"}},
+	{"Control", []string{"/help", "/exit", "/mode", "/model", "/auth"}},
 }
 
 func commandNames() []string {
@@ -138,6 +140,8 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		m.add(output(helpText(), "")...)
 	case "/mode":
 		m.add(output(m.setMode(args))...)
+	case "/model", "/auth":
+		return m.modelCommand(cmd.name, args)
 	case "/cost":
 		return costCommand(m.ctx, m.client, m.sessionID, m.turn.model, args)
 	case "/memory", "/recall":
