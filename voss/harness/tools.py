@@ -13,7 +13,7 @@ from typing import Any
 from voss_runtime import ToolDescriptor, tool
 
 from .net import NetSession
-from .sandbox import jail_path, shell_allowed, split_command, SandboxError
+from .sandbox import jail_path, scrubbed_env, shell_allowed, split_command, SandboxError
 from .tui.widgets.diff_modal import Hunk
 from .memory_store import MemoryStore
 
@@ -394,6 +394,7 @@ def make_toolset(
                 cwd=str(cwd),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                env=scrubbed_env(),
             )
             try:
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
@@ -1024,6 +1025,7 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
             cwd=str(cwd),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=scrubbed_env(),
         )
     except OSError as e:
         return f"<error: {e}>"

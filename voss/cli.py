@@ -212,6 +212,9 @@ def main(ctx: click.Context) -> None:
     Bare `voss` (no subcommand) drops into the agent REPL.
     Interactive commands: run `voss chat`, then /help
     """
+    from voss.harness.judgments import bridge_judgments_env
+
+    bridge_judgments_env()
     if ctx.invoked_subcommand is None:
         if _should_use_native_tui():
             binary = _find_voss_tui()

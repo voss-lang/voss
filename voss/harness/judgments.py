@@ -11,22 +11,12 @@ from typing import Literal
 import click
 
 from voss_runtime.judgments import (
-    ChoiceQuestion, ChoiceResult, JevClient, JudgmentError, JudgmentResult,
-    NoulQuestion, Question, ScoreQuestion, ScoreResult,
+    KEY_ENV, KILLED_MESSAGE, MISSING_KEY_MESSAGE, ChoiceQuestion, ChoiceResult, JevClient, JudgmentError,
+    JudgmentResult, NoulQuestion, Question, ScoreQuestion, ScoreResult, is_killed, question_from_wire,
 )
 
 from . import auth, config
 from .conventions import _load_judgments_enabled
-
-KILL_ENV = "VOSS_JUDGMENTS"
-KEY_ENV = "TYPESAFE_API_KEY"
-MISSING_KEY_MESSAGE = "TYPESAFE_API_KEY not set (env or keychain)"
-KILLED_MESSAGE = "judgments disabled by VOSS_JUDGMENTS=off"
-
-
-def is_killed() -> bool:
-    return os.environ.get(KILL_ENV, "").strip().lower() in {"off", "0", "false"}
-
 
 def judgments_state(cwd) -> Literal["killed", "disabled", "enabled"]:
     if is_killed():
@@ -40,6 +30,14 @@ def resolve_api_key() -> tuple[str, Literal["env", "keychain"]] | None:
         return value, "env"
     value = auth.load_provider_key(KEY_ENV)
     return (value, "keychain") if value else None
+
+
+def bridge_judgments_env() -> None:
+    if is_killed() or os.environ.get(KEY_ENV, "").strip():
+        return
+    value = auth.load_provider_key(KEY_ENV)
+    if value:
+        os.environ[KEY_ENV] = value
 
 
 def make_client(api_key: str) -> JevClient:
@@ -91,19 +89,9 @@ def load_request_file(path: Path) -> tuple[object, dict[str, Question]]:
         raise ValueError("questions must be a non-empty object")
     questions = {}
     for qid, question in raw.items():
-        if not qid or not isinstance(question, dict) or "instructions" not in question:
+        if not qid:
             raise ValueError("each question needs an ID and instructions")
-        kind = question.get("type")
-        instructions = question["instructions"]
-        criteria = question.get("criteria")
-        if kind == "choice":
-            questions[qid] = ChoiceQuestion(instructions, criteria)
-        elif kind == "score":
-            questions[qid] = ScoreQuestion(instructions, criteria)
-        elif kind == "noul":
-            questions[qid] = NoulQuestion(instructions, criteria)
-        else:
-            raise ValueError("question type must be choice, score, or noul")
+        questions[qid] = question_from_wire(question)
     return data["state"], questions
 
 

@@ -71,12 +71,18 @@ def _bootstrap_runtime_config() -> None:
     Out-of-range / malformed values fall back to the dataclass defaults
     with a RuntimeWarning (see voss.harness.config getters).
     """
-    from .config import get_allow_net, get_max_iterations, get_max_parallel_reads
+    from .config import get_allow_net, get_judgments_config, get_max_iterations, get_max_parallel_reads
 
+    cfg = get_judgments_config()
     configure(
         max_iterations=get_max_iterations(),
         max_parallel_reads=get_max_parallel_reads(),
         allow_net=get_allow_net(),
+        judgments_model=cfg["model"],
+        judgments_timeout_ms=cfg["timeout_ms"],
+        judgments_max_calls_per_turn=cfg["max_calls_per_turn"],
+        judgments_max_request_bytes=cfg["max_request_bytes"],
+        judgments_max_cost_usd=cfg["max_cost_usd"],
     )
 
 
@@ -1279,6 +1285,13 @@ def _build_slash_registry() -> SlashRegistry:
             )
         else:
             click.echo(f"session cost: ${ctx.total_cost:.4f}")
+        judgments = sum(
+            float(r.get("judgments_cost_usd", 0.0) or 0.0) for r in ctx.record.runs
+        )
+        if judgments > 0:
+            click.echo(
+                f"  judgments: ${judgments:.4f} · total: ${ctx.total_cost + judgments:.4f}"
+            )
         # V18 VOPT-05 (D-01/D-03): one labeled savings line from the session
         # ledger. Silent when no ledger (short runs / --no-pack feels like
         # nothing changed); a malformed ledger never breaks /cost.

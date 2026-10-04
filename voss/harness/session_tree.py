@@ -25,6 +25,7 @@ __all__ = [
     "export_tree",
     "finalize_node",
     "mutate_envelope",
+    "write_judgments_sidecar",
 ]
 
 
@@ -107,6 +108,22 @@ def _write_node_file(node: SessionTreeNode, cwd: Path) -> Path:
     path = cwd / ".voss" / "sessions" / node.root_id / f"{node.id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(node.to_dict(), indent=2))
+    path.chmod(0o600)
+    return path
+
+
+def write_judgments_sidecar(cwd: Path, root_id: str, ledger) -> Path | None:
+    if not ledger.receipts:
+        return None
+    path = cwd / ".voss" / "sessions" / root_id / "judgments.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "judgments_cost_usd": ledger.observed_usd,
+        "held_usd": ledger.held_usd,
+        "receipts": [asdict(r) for r in ledger.receipts],
+    }
+    path.write_text(json.dumps(payload, indent=2))
     path.chmod(0o600)
     return path
 

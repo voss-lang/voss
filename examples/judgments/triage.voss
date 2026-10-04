@@ -1,0 +1,11 @@
+use voss_runtime::judge
+
+fn triage(text: string) -> string {
+    let res = judge(text, {"route": {"type": "choice", "instructions": "Which support queue should handle this request?", "criteria": {"billing": "Payment, refund, or invoice issue.", "other": "Anything else."}}})
+    let p: probable<string> = res.answers["route"].to_probable()
+    if p @ p >= 0.80 {
+        return p.value
+    } else {
+        return "unknown"
+    }
+}

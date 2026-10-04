@@ -763,8 +763,9 @@ def create_app(token: str | None = None) -> FastAPI:
     def cost(session_id: str) -> dict:
         s = _require(session_id)
         runs = s.record.runs
-        total = sum(float(r.get("cost_usd", 0.0) or 0.0) for r in runs)
-        return {"v": 1, "total_usd": total, "turns": len(runs)}
+        chat = sum(float(r.get("cost_usd", 0.0) or 0.0) for r in runs)
+        judgments = sum(float(r.get("judgments_cost_usd", 0.0) or 0.0) for r in runs)
+        return {"v": 1, "total_usd": chat + judgments, "judgments_usd": judgments, "turns": len(runs)}
 
     @app.post("/session/{session_id}/permission")
     def reply_permission(session_id: str, body: PermissionReply) -> dict:

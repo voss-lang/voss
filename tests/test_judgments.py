@@ -253,7 +253,7 @@ async def test_deadline_includes_backoff(client_factory, questions, elapsed, del
 
 
 async def test_expired_deadline_blocks_dispatch(client_factory, questions):
-    times = iter([0.0, 5.0])
+    times = iter([0.0, 5.0, 5.0])
 
     def handler(request):
         pytest.fail("expired request must not dispatch")
