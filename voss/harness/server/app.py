@@ -14,7 +14,7 @@ from concurrent.futures import Future
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
@@ -489,6 +489,16 @@ class PermissionReply(BaseModel):
     choice: str  # a | A | d  (or y | n for scope)
 
 
+class HistoryTurn(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str
+
+
+class SessionHistory(BaseModel):
+    v: int = 1
+    turns: list[HistoryTurn]
+
+
 # swarm
 
 
@@ -763,6 +773,7 @@ def create_app(token: str | None = None) -> FastAPI:
                     "updated_at": r.updated_at,
                     "total_cost_usd": r.total_cost_usd,
                     "turns": len(r.turns),
+                    "first_task": r.first_task(),
                 }
                 for r in records
             ],
@@ -776,6 +787,23 @@ def create_app(token: str | None = None) -> FastAPI:
             "title": s.title, "busy": s.busy, "auth": s.auth,
             "provider": model_selection.provider_label(s.provider, s.auth),
         }
+
+    @app.get("/session/{session_id}/history", response_model=SessionHistory)
+    async def session_history(session_id: str) -> SessionHistory:
+        s = _require(session_id)
+        return SessionHistory(turns=[
+            HistoryTurn(role=t.role, content=t.content)
+            for t in s.history.turns if t.role in ("user", "assistant", "system")
+        ])
+
+    @app.post("/session/{session_id}/clear", status_code=204, response_class=Response)
+    async def clear_history(session_id: str) -> Response:
+        s = _require(session_id)
+        if s.busy:
+            raise HTTPException(409, "a turn or model switch is already running")
+        s.history = EpisodicMemory(capacity=40)
+        s.prior_context = None
+        return Response(status_code=204)
 
     @app.get("/models", response_model=model_selection.ModelCatalog)
     def list_models():
