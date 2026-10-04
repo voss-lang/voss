@@ -42,6 +42,7 @@ type chatModel struct {
 	events        <-chan voss.TypedEvent
 	cancelStream  context.CancelFunc
 	resuming      bool
+	clearing      bool
 	savedSessions []voss.SavedSession
 	selecting     bool
 	modelChoices  []voss.ModelChoice
@@ -173,7 +174,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selecting = false
 		if msg.err != nil {
 			m.add(output("", "models: "+errText(msg.err))...)
-			m.restoreModelQueue()
+			m.restoreQueuedInput()
 			return m, nil
 		}
 		m.modelChoices = msg.catalog.Models
@@ -202,6 +203,19 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncPalette()
 		return m, nil
 
+	case clearHistoryMsg:
+		if msg.id != m.sessionID {
+			return m, nil
+		}
+		m.clearing = false
+		if msg.err != nil {
+			m.add(output("", "clear: "+errText(msg.err))...)
+			m.restoreQueuedInput()
+			return m, nil
+		}
+		m.add(output("episodic memory cleared.", "")...)
+		return m, m.drain()
+
 	case resumeMsg:
 		m.resuming = false
 		if msg.err != nil {
@@ -223,6 +237,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.follow = true
 		m.tickGen++
 		m.mentionFiles = nil
+		m.replayHistory(msg.conn.history)
 		m.add(roleBlock("system", "resumed: "+meta.ID))
 		return m, tea.Batch(waitEvent(m.events), m.drain())
 
@@ -382,7 +397,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if m.pal.kind == paletteModel || m.pal.kind == paletteAuth {
 				m.pal, m.paletteDismissed = picker{}, true
 				m.editor.Reset()
-				m.restoreModelQueue()
+				m.restoreQueuedInput()
 				return m, nil
 			}
 			wasSession := m.pal.kind == paletteSession
@@ -509,7 +524,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if m.turn.busy || m.resuming || m.selecting {
+		if m.turn.busy || m.resuming || m.selecting || m.clearing {
 			m.queue = append(m.queue, text)
 			return m, nil
 		}
@@ -545,7 +560,7 @@ func (m *chatModel) dispatch(text string) tea.Cmd {
 // order until a line starts the next turn.
 func (m *chatModel) drain() tea.Cmd {
 	var cmds []tea.Cmd
-	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting &&
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing &&
 		m.pal.kind != paletteSession && m.pal.kind != paletteModel && m.pal.kind != paletteAuth {
 		text := m.queue[0]
 		m.queue = m.queue[1:]

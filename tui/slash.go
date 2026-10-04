@@ -23,6 +23,7 @@ type slashCommand struct {
 }
 
 var slashCommands = []slashCommand{
+	{"/clear", "drop episodic memory", nil},
 	{"/cost", "session cost so far ([--by-model | --by-tool])", nil},
 	{"/diff", "show working-tree diff: /diff [--staged] [<path>]", nil},
 	{"/doctor", "run health checks (diagnose-only; repairs via `voss doctor --fix`)", nil},
@@ -144,6 +145,16 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		return m.modelCommand(cmd.name, args)
 	case "/cost":
 		return costCommand(m.ctx, m.client, m.sessionID, m.turn.model, args)
+	case "/clear":
+		if len(args) > 0 {
+			m.add(output("", "usage: /clear")...)
+			return nil
+		}
+		m.clearing = true
+		client, ctx, id := m.client, m.ctx, m.sessionID
+		return func() tea.Msg {
+			return clearHistoryMsg{id, client.ClearHistory(ctx, id)}
+		}
 	case "/memory", "/recall":
 		return memoryCommand(m.ctx, m.client, m.cwd, cmd.name, args)
 	case "/diff":

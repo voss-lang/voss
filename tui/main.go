@@ -156,6 +156,7 @@ func runChat(ctx context.Context, client *voss.Client, o options) error {
 	}
 	m := newChatModel(ctx, client, conn.meta, conn.events)
 	m.cancelStream = conn.cancel
+	m.replayHistory(conn.history)
 	if o.resume != "" {
 		m.add(roleBlock("system", "resumed: "+conn.meta.ID))
 	}
