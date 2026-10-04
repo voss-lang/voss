@@ -18,7 +18,7 @@ const ctxCells = 4
 
 // sessionMeta is what the chrome shows about the session before any turn runs.
 type sessionMeta struct {
-	ID, Cwd, Provider, Model, Git, Resume string
+	ID, Cwd, Provider, Model, Git, Resume, Auth string
 }
 
 func col(c string) color.Color { return lipgloss.Color(c) }

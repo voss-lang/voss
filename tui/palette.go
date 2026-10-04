@@ -29,6 +29,8 @@ const (
 	paletteSlash
 	paletteMention
 	paletteSession
+	paletteModel
+	paletteAuth
 )
 
 type picker struct {
@@ -192,6 +194,8 @@ func (m *chatModel) syncPalette() {
 	switch {
 	case m.search.active || m.paletteDismissed:
 		m.pal = picker{}
+	case prev.kind == paletteModel || prev.kind == paletteAuth:
+		m.syncModelPalette(prev.kind, text)
 	case prev.kind == paletteSession:
 		m.pal = picker{kind: paletteSession}
 		query := strings.ToLower(strings.TrimSpace(text))
@@ -249,6 +253,9 @@ func paletteBox(p picker, width int) string {
 	empty := "no matching commands"
 	if p.kind == paletteSession {
 		bg, empty = palette.Raised, "no saved sessions match (Esc to close)"
+	}
+	if p.kind == paletteModel || p.kind == paletteAuth {
+		bg, empty = palette.Raised, "no matching choices (Esc to close)"
 	}
 	if p.kind == paletteMention {
 		bg, empty = palette.Raised, "no matching files"

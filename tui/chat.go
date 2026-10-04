@@ -36,12 +36,15 @@ type chatModel struct {
 	sessionID     string
 	cwd           string
 	provider      string
+	auth          string
 	git           string
 	home          [][2]string
 	events        <-chan voss.TypedEvent
 	cancelStream  context.CancelFunc
 	resuming      bool
 	savedSessions []voss.SavedSession
+	selecting     bool
+	modelChoices  []voss.ModelChoice
 
 	turn     turn
 	mode     string
@@ -110,6 +113,7 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 		sessionID: meta.ID,
 		cwd:       meta.Cwd,
 		provider:  meta.Provider,
+		auth:      meta.Auth,
 		git:       meta.Git,
 		home:      homeRows(meta),
 		events:    events,
@@ -162,6 +166,23 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case modelListMsg:
+		if msg.id != m.sessionID {
+			return m, nil
+		}
+		m.selecting = false
+		if msg.err != nil {
+			m.add(output("", "models: "+errText(msg.err))...)
+			m.restoreModelQueue()
+			return m, nil
+		}
+		m.modelChoices = msg.catalog.Models
+		m.add(output("", msg.catalog.Warning)...)
+		m.pal = picker{kind: msg.kind}
+		m.syncPalette()
+		return m, nil
+	case modelSelectedMsg:
+		return m.modelSelected(msg)
 	case sessionEventMsg:
 		if msg.events != m.events {
 			return m, nil
@@ -191,6 +212,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		meta := msg.conn.meta
 		m.sessionID, m.cwd, m.provider, m.git = meta.ID, meta.Cwd, meta.Provider, meta.Git
+		m.auth = meta.Auth
 		m.events, m.cancelStream = msg.conn.events, msg.conn.cancel
 		m.home = homeRows(meta)
 		m.turn = turn{model: meta.Model}
@@ -357,6 +379,12 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.pal.idx = min(m.pal.idx+1, max(len(m.pal.names)-1, 0))
 			return m, nil
 		case "esc":
+			if m.pal.kind == paletteModel || m.pal.kind == paletteAuth {
+				m.pal, m.paletteDismissed = picker{}, true
+				m.editor.Reset()
+				m.restoreModelQueue()
+				return m, nil
+			}
 			wasSession := m.pal.kind == paletteSession
 			m.pal, m.paletteDismissed = picker{}, true
 			if wasSession {
@@ -367,7 +395,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if len(m.pal.names) > 0 {
 				return m.choosePalette()
 			}
-			if m.pal.kind == paletteSession {
+			if m.pal.kind == paletteSession || m.pal.kind == paletteModel || m.pal.kind == paletteAuth {
 				return m, nil
 			}
 			m.pal = picker{}
@@ -481,7 +509,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if m.turn.busy || m.resuming {
+		if m.turn.busy || m.resuming || m.selecting {
 			m.queue = append(m.queue, text)
 			return m, nil
 		}
@@ -517,7 +545,8 @@ func (m *chatModel) dispatch(text string) tea.Cmd {
 // order until a line starts the next turn.
 func (m *chatModel) drain() tea.Cmd {
 	var cmds []tea.Cmd
-	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && m.pal.kind != paletteSession {
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting &&
+		m.pal.kind != paletteSession && m.pal.kind != paletteModel && m.pal.kind != paletteAuth {
 		text := m.queue[0]
 		m.queue = m.queue[1:]
 		cmds = append(cmds, m.dispatch(text))
@@ -595,6 +624,9 @@ func (m chatModel) bottom() string {
 		return paletteBox(m.pal, m.width) + "\n" + inputBox(m.width, m.editorView(), !m.navMode)
 	}
 	out := statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git)
+	if m.selecting {
+		out += "\n  loading model controls…"
+	}
 	if len(m.queue) > 0 {
 		out += "\n" + queueChip(m.queue, m.width)
 	}
@@ -613,6 +645,9 @@ func (m chatModel) editorView() string {
 		return surface.Foreground(col(palette.Text)).Render(line)
 	}
 	if m.editor.Value() == "" {
+		if m.pal.kind == paletteModel || m.pal.kind == paletteAuth {
+			return surface.Foreground(col(palette.Dim)).Render("type to filter · ↑/↓ move · enter select · esc cancel")
+		}
 		return surface.Foreground(col(palette.Dim)).Render(m.editor.Placeholder)
 	}
 	return m.editor.View()
@@ -720,6 +755,9 @@ func nonEmpty(parts ...string) []string {
 
 // choosePalette runs the highlighted command or inserts the highlighted path.
 func (m chatModel) choosePalette() (tea.Model, tea.Cmd) {
+	if m.pal.kind == paletteModel || m.pal.kind == paletteAuth {
+		return m.chooseModel()
+	}
 	name := m.pal.names[m.pal.idx]
 	if m.pal.kind == paletteSession {
 		m.pal = picker{}
@@ -742,7 +780,7 @@ func (m chatModel) choosePalette() (tea.Model, tea.Cmd) {
 	m.recentCommands = append([]string{name}, m.recentCommands...)[:min(len(m.recentCommands)+1, 10)]
 	m.editor.Reset()
 	line := "/" + strings.TrimLeft(name, "/")
-	if m.turn.busy || m.resuming {
+	if m.turn.busy || m.resuming || m.selecting {
 		m.queue = append(m.queue, line)
 		return m, nil
 	}

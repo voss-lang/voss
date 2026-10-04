@@ -55,6 +55,7 @@ from ..tools import attach_memory_tools, attach_mcp_tools, make_toolset
 from ..memory_gateway import open_memory_store
 from ..memory_store import MemoryStore
 from . import events as E
+from . import models as model_selection
 from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
 
@@ -661,16 +662,41 @@ def create_app(token: str | None = None) -> FastAPI:
         auth_pref = body.auth
         if auth_pref == "auto":
             auth_pref = os.environ.get("VOSS_SERVE_DEFAULT_AUTH", "auto")
-        res, provider = _resolve_provider(auth_pref)
-        if provider is None:
-            raise HTTPException(400, f"no usable credentials ({res.detail})")
+        saved = {} if os.environ.get("VOSS_SERVE_FAKE_TURN") else harness_config.load_harness_config()
+        record = None
         if body.resume:
             try:
                 record, history = session_store.load(body.resume, cwd)
             except FileNotFoundError:
                 raise HTTPException(404, f"no saved session {body.resume!r}")
-            except ValueError as exc:  # ambiguous id
+            except ValueError as exc:
                 raise HTTPException(409, str(exc))
+            if record.model_auth:
+                saved = {
+                    "preferred_model": record.model, "auth": record.model_auth,
+                    "preferred_provider": record.model_provider,
+                }
+        restore_selection = (
+            auth_pref == "auto" and not body.model and (not record or record.model_auth)
+            and not os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
+            and saved.get("auth") in ("claude", "codex", "api")
+            and saved.get("preferred_model")
+        )
+        selected = None
+        try:
+            if restore_selection:
+                selected = model_selection.restore(
+                    saved["preferred_model"], saved["auth"], saved.get("preferred_provider"),
+                )
+                res = auth_mod.Resolution(source=selected.source, detail="saved selection")
+                provider = selected.provider
+            else:
+                res, provider = _resolve_provider(auth_pref)
+        except Exception:
+            raise HTTPException(400, "Could not initialize the selected provider. Check your local login or use --auth.") from None
+        if provider is None:
+            raise HTTPException(400, f"no usable credentials ({res.detail})")
+        if record:
             # forward ALL prior runs as prior context (consumed on turn 1)
             s = mgr.adopt(
                 record=record,
@@ -678,6 +704,8 @@ def create_app(token: str | None = None) -> FastAPI:
                 provider=provider,
                 prior_context=record.runs or None,
             )
+            if selected:
+                s.model = selected.model
             # Twin of the create snap: a saved record may carry a model (e.g.
             # the old default) that the Codex backend 400s on. Snap the
             # EFFECTIVE session model only `record.model` stays intact so
@@ -687,10 +715,14 @@ def create_app(token: str | None = None) -> FastAPI:
                 s.model
             ):
                 s.model = _codex_session_model()
+            if res.source == "claude-agent" and not s.model.startswith("claude-"):
+                s.model = model_selection.SUBSCRIPTION_MODELS["claude"][0].id
+            s.auth = res.source
             return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
         model = (
-            body.model
+            (selected.model if selected else body.model)
             or os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
+            or saved.get("preferred_model")
             or get_config().default_model
         )
         # codex-oauth: snap a model the backend does not serve to Codex's own
@@ -698,7 +730,13 @@ def create_app(token: str | None = None) -> FastAPI:
         # mirrors cli.py:686-687 without the global configure mutation)
         if res.source == "codex-oauth" and not auth_mod.is_codex_backend_model(model):
             model = _codex_session_model()
+        if res.source == "claude-agent" and not model.startswith("claude-"):
+            model = model_selection.SUBSCRIPTION_MODELS["claude"][0].id
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
+        s.auth = res.source
+        if selected:
+            s.record.model_auth = selected.choice.auth
+            s.record.model_provider = selected.choice.provider if selected.choice.auth == "api" else None
         return {"v": 1, "id": s.id, "auth": res.source, "resumed": False}
 
     @app.get("/session")
@@ -733,7 +771,43 @@ def create_app(token: str | None = None) -> FastAPI:
     @app.get("/session/{session_id}")
     def get_session(session_id: str) -> dict:
         s = _require(session_id)
-        return {"v": 1, "id": s.id, "cwd": str(s.cwd), "model": s.model, "title": s.title, "busy": s.busy}
+        return {
+            "v": 1, "id": s.id, "cwd": str(s.cwd), "model": s.model,
+            "title": s.title, "busy": s.busy, "auth": s.auth,
+            "provider": model_selection.provider_label(s.provider, s.auth),
+        }
+
+    @app.get("/models", response_model=model_selection.ModelCatalog)
+    def list_models():
+        return model_selection.catalog()
+
+    @app.post("/session/{session_id}/model")
+    async def select_model(session_id: str, body: model_selection.ModelSelectionBody) -> dict:
+        s = _require(session_id)
+        if s.busy:
+            raise HTTPException(409, "a turn or model switch is already running")
+        if not body.model.strip() and not body.auth:
+            raise HTTPException(422, "model or auth is required")
+        s.switching = True
+        try:
+            selected = await asyncio.to_thread(model_selection.prepare, body, s.model)
+            if mgr.get(session_id) is not s:
+                raise HTTPException(409, "session changed during model selection")
+            choice = selected.choice
+            harness_config.set_preferred_selection(
+                choice.id, choice.auth, choice.provider if choice.auth == "api" else None,
+            )
+            s.provider, s.model, s.auth = selected.provider, selected.model, selected.source
+            s.record.model = selected.model
+            s.record.model_auth = choice.auth
+            s.record.model_provider = choice.provider if choice.auth == "api" else None
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+        except OSError:
+            raise HTTPException(500, "Could not save the model selection. Selection unchanged.") from None
+        finally:
+            s.switching = False
+        return get_session(session_id)
 
     @app.delete("/session/{session_id}", status_code=204, response_class=Response)
     def delete_session(session_id: str) -> Response:

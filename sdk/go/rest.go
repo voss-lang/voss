@@ -9,11 +9,13 @@ import (
 
 // SessionInfo is a live session (GET /session, GET /session/:id).
 type SessionInfo struct {
-	Id    string `json:"id"`
-	Cwd   string `json:"cwd"`
-	Model string `json:"model"`
-	Title string `json:"title"`
-	Busy  bool   `json:"busy"`
+	Id       string `json:"id"`
+	Cwd      string `json:"cwd"`
+	Model    string `json:"model"`
+	Title    string `json:"title"`
+	Busy     bool   `json:"busy"`
+	Auth     string `json:"auth"`
+	Provider string `json:"provider"`
 }
 
 // SavedSession is a persisted session (GET /sessions/saved).

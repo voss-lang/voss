@@ -177,6 +177,8 @@ class SessionRecord:
     instructions_hash: str = ""
     instructions_files: list[str] = field(default_factory=list)
     judgments_cost_usd: float = 0.0
+    model_auth: str = ""
+    model_provider: str | None = None
 
     @classmethod
     def new(cls, *, cwd: Path, model: str, name: str = "") -> "SessionRecord":

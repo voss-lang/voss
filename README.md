@@ -117,7 +117,12 @@ launches Go explicitly. `/resume` opens a saved-session picker; `/resume <id-or-
 and `voss ui resume <id-or-name>` resume directly. Earlier conversation context
 is restored on the server; replaying the old transcript is not yet supported.
 Use `/memory` for a workspace summary and `/recall <query> [--top N]` to search it.
-Model/auth menus and the full slash-command set are still available through Textual.
+Use `/model` (or `/models`) to search models and `/auth` to choose Claude, Codex,
+or API authentication. `/model gpt-6.1-sol` and `/auth claude` switch directly.
+Subscription choices reuse your local Claude/Codex login; API choices require a
+configured key. Successful switches update the footer and persist across launches
+and saved-session resumes. `voss ui --auth codex` overrides auth for a launch.
+The remaining slash commands are available through Textual.
 
 ## Local MCP servers and skills
 

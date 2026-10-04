@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Models */
+        get: operations["list_models_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/observe/context": {
         parameters: {
             query?: never;
@@ -206,6 +223,23 @@ export interface paths {
         put?: never;
         /** Post Message */
         post: operations["post_message_session__session_id__message_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/{session_id}/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Select Model */
+        post: operations["select_model_session__session_id__model_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -639,6 +673,50 @@ export interface components {
              * @default text
              */
             type: string;
+        };
+        /** ModelCatalog */
+        ModelCatalog: {
+            /** Models */
+            models: components["schemas"]["ModelChoice"][];
+            /**
+             * V
+             * @default 1
+             */
+            v: number;
+            /** Warning */
+            warning: string;
+        };
+        /** ModelChoice */
+        ModelChoice: {
+            /**
+             * Auth
+             * @enum {string}
+             */
+            auth: "claude" | "codex" | "api";
+            /** Connected */
+            connected: boolean;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Provider */
+            provider: string;
+            /** Provider Label */
+            provider_label: string;
+            /** Recommended */
+            recommended: boolean;
+        };
+        /** ModelSelectionBody */
+        ModelSelectionBody: {
+            /** Auth */
+            auth?: ("claude" | "codex" | "api") | null;
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /** Provider */
+            provider?: string | null;
         };
         /** ObserveEnrollmentPatch */
         ObserveEnrollmentPatch: {
@@ -1329,6 +1407,26 @@ export interface operations {
             };
         };
     };
+    list_models_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCatalog"];
+                };
+            };
+        };
+    };
     observe_context_observe_context_get: {
         parameters: {
             query: {
@@ -1753,6 +1851,43 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_model_session__session_id__model_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelSelectionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

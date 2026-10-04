@@ -14,13 +14,13 @@ import (
 
 func TestRankCommandsLikeTextual(t *testing.T) {
 	names := commandNames()
-	if got := rankCommands("/d", names, nil); !reflect.DeepEqual(got, []string{"/diff", "/doctor", "/mode"}) {
+	if got := rankCommands("/d", names, nil); !reflect.DeepEqual(got, []string{"/diff", "/doctor", "/mode", "/model"}) {
 		t.Fatalf("/d = %v", got)
 	}
-	if got := rankCommands("/o", names, nil); !reflect.DeepEqual(got, []string{"/cost", "/doctor", "/mode", "/memory"}) {
+	if got := rankCommands("/o", names, nil); !reflect.DeepEqual(got, []string{"/cost", "/doctor", "/mode", "/model", "/memory"}) {
 		t.Fatalf("/o = %v; position of the match, then name", got)
 	}
-	if got := rankCommands("", names, []string{"/mode", "/gone"}); got[0] != "/mode" || got[1] != "/cost" {
+	if got := rankCommands("", names, []string{"/mode", "/gone"}); got[0] != "/mode" || got[1] != "/auth" {
 		t.Fatalf("empty query = %v; recent first, then alphabetical", got)
 	}
 	if got := rankCommands("/mode edit", names, nil); len(got) != 0 {
@@ -77,7 +77,7 @@ func TestSlashPaletteRunsTheHighlightedCommand(t *testing.T) {
 	d.send(windowSize(80, 24))
 
 	d.typeText("/d")
-	if d.m.pal.kind != paletteSlash || !reflect.DeepEqual(d.m.pal.names, []string{"/diff", "/doctor", "/mode"}) {
+	if d.m.pal.kind != paletteSlash || !reflect.DeepEqual(d.m.pal.names, []string{"/diff", "/doctor", "/mode", "/model"}) {
 		t.Fatalf("palette = %+v", d.m.pal)
 	}
 	box := ansi.Strip(d.m.bottom())
@@ -95,7 +95,7 @@ func TestSlashPaletteRunsTheHighlightedCommand(t *testing.T) {
 	d.press("backspace")
 	d.typeText("he")
 	d.press("enter")
-	if !strings.Contains(d.transcript(), "\n  \n  Control\n    /help  show this list") || d.m.editor.Value() != "" {
+	if !strings.Contains(d.transcript(), "\n  \n  Control\n    /help   show this list") || d.m.editor.Value() != "" {
 		t.Fatalf("/help via the palette:\n%s", d.transcript())
 	}
 	if d.m.recentCommands[0] != "/help" {

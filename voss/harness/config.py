@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import math
 import re
+import tempfile
 import tomllib
 import warnings
 from pathlib import Path
@@ -771,8 +772,14 @@ def _write_harness(updates: dict[str, str | None]) -> Path:
     else:
         new_text = new_block
 
-    p.write_text(new_text)
-    p.chmod(0o600)
+    with tempfile.NamedTemporaryFile(mode="w", dir=p.parent, delete=False) as tmp:
+        temporary = Path(tmp.name)
+        try:
+            tmp.write(new_text)
+            tmp.close()
+            temporary.replace(p)
+        finally:
+            temporary.unlink(missing_ok=True)
     return p
 
 
@@ -787,6 +794,13 @@ def set_preferred_auth(pref: str) -> Path:
     explicit --auth is given (e.g. "codex" so plain `voss chat` uses the
     subscription regardless of exported API-key env vars)."""
     return _write_harness({"auth": pref})
+
+
+def set_preferred_selection(model: str, auth: str, provider: str | None) -> Path:
+    """Persist the model and credential route as one configuration update."""
+    return _write_harness({
+        "preferred_model": model, "auth": auth, "preferred_provider": provider,
+    })
 
 
 def set_preferred_routed(model_id: str, provider_id: str) -> Path:
