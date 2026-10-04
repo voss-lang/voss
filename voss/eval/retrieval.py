@@ -500,6 +500,33 @@ def _pinned_chunks() -> dict[str, tuple[str, int, int, str]]:
     return chunk_map(materialize(PINNED_COMMIT))
 
 
+def divergence(index, queries: dict[str, dict]) -> list[str]:
+    return sorted(
+        qid for qid, row in queries.items()
+        if [hit.locator for hit in index.query(row["text"], top_k=K)]
+        != [hit.locator for hit in index.query(row["text"], top_k=POOL_SIZE)[:K]]
+    )
+
+
+def _divergence(args: argparse.Namespace) -> int:
+    dataset = load_dataset(args.root, split="dev")
+    corpus = materialize(PINNED_COMMIT)
+    with _local_embedding_config():
+        build_index(corpus)
+        index = CodeIndex(corpus)
+        if index._maybe_semantic() is None:
+            raise DatasetError("vector backend unavailable; divergence needs BM25+vector ranking")
+        index.build(session_id="retrieval-divergence")
+        differing = divergence(index, dataset.queries)
+    print(
+        f"{len(differing)}/{len(dataset.queries)} dev queries differ between "
+        f"query(top_k=5) and query(top_k=15)[:5]"
+    )
+    for qid in differing:
+        print(qid)
+    return 0
+
+
 def _batch_file(root: Path, kind: str, batch: str) -> Path:
     return Path(root) / kind / f"batch-{batch}.{'csv' if kind == 'labels' else 'jsonl'}"
 
@@ -860,6 +887,11 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--receipts", type=Path)
     report.add_argument("--out", type=Path)
     report.set_defaults(handler=_report)
+    divergence_parser = commands.add_parser(
+        "divergence", help="count dev queries where query(top_k=5) differs from the pool's top 5"
+    )
+    divergence_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    divergence_parser.set_defaults(handler=_divergence)
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
