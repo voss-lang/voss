@@ -160,6 +160,7 @@ _SESSION_RECORD_FIELDS = {
     "id", "name", "cwd", "model", "started_at", "updated_at", "total_cost_usd",
     "turns", "runs", "parent_id", "parent_turn_index",
     "instructions_hash", "instructions_files", "judgments_cost_usd",
+    "model_auth", "model_provider",
 }
 
 _BUDGET_SCOPE_FIELDS = {

@@ -69,6 +69,8 @@ def test_pre_judgments_session_loads_with_empty_receipts(tmp_path):
     (sessions / "abc123def456.json").write_text(json.dumps(old))
     record, _ = session_store.load("abc123def456", cwd=tmp_path)
     assert record.judgments_cost_usd == 0.0
+    assert record.model_auth == ""
+    assert record.model_provider is None
     assert record.total_cost_usd == 0.02
     assert all(r.get("judgment_receipts", []) == [] for r in record.runs)
 
@@ -89,7 +91,7 @@ def test_saved_session_json_holds_no_request_content(tmp_path, receipt):
     record.runs.append(asdict(_finalized_run(tmp_path, receipt)))
     text = session_store.save(record, EpisodicMemory(capacity=10)).read_text()
     assert receipt.call_id in text
-    for forbidden in (SENTINEL, "test-key", "provider", "api_key", "Authorization"):
+    for forbidden in (SENTINEL, "test-key", '"provider"', "api_key", "Authorization"):
         assert forbidden not in text
 
 

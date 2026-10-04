@@ -38,6 +38,7 @@ class TestSchemaAllowlist:
             # S0.5 instruction-file bundle identity (paths + hash only, never text).
             "instructions_hash", "instructions_files",
             "judgments_cost_usd",
+            "model_auth", "model_provider",
         }
         assert set(data.keys()) == expected
 

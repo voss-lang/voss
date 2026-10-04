@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 from pathlib import Path
 
@@ -195,6 +196,26 @@ def test_resume_restores_session_route_after_default_changes(client, monkeypatch
     assert restored.auth == client.session.auth
     assert type(restored.provider) is type(client.session.provider)
     assert config.load_harness_config()["auth"] == "claude"
+
+
+@pytest.mark.parametrize("selection", [
+    {"model": "gpt-6.1-sol", "auth": "codex"},
+    {"model": "vendor/model", "auth": "api", "provider": "openrouter"},
+])
+def test_saved_selection_contains_route_identifiers_without_credentials(client, monkeypatch, selection):
+    monkeypatch.setattr(model_router, "resolve_key", lambda _: "synthetic-key")
+    client.resolutions["codex"].codex_oauth.account_id = "synthetic-account"
+    assert switch(client, **selection).status_code == 200
+    text = appmod.session_store.save(client.session.record, client.session.history).read_text()
+    saved = json.loads(text)
+    assert saved["model_auth"] == selection["auth"]
+    assert saved["model_provider"] == selection.get("provider")
+    for forbidden in (
+        "synthetic-key", "synthetic-access", "synthetic-refresh", "synthetic-account",
+        '"provider"', '"credentials"', '"access_token"', '"refresh_token"',
+        '"api_key"', '"Authorization"',
+    ):
+        assert forbidden not in text
 
 
 def test_busy_session_rejects_selection(client):
