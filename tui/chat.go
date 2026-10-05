@@ -118,7 +118,7 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 		git:       meta.Git,
 		home:      homeRows(meta),
 		events:    events,
-		turn:      turn{model: meta.Model},
+		turn:      turn{model: meta.Model, phase: "ambient"},
 		mode:      "plan",
 		editor:    ed,
 		r:         newRenderer(0),
@@ -229,7 +229,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.auth = meta.Auth
 		m.events, m.cancelStream = msg.conn.events, msg.conn.cancel
 		m.home = homeRows(meta)
-		m.turn = turn{model: meta.Model}
+		m.turn = turn{model: meta.Model, phase: "ambient"}
 		m.blocks, m.rendered, m.sent = nil, nil, nil
 		m.live, m.lastResponse, m.toast = "", "", ""
 		m.offline, m.navMode, m.liveTick = false, false, false
@@ -638,7 +638,7 @@ func (m chatModel) bottom() string {
 	if m.pal.kind != paletteNone {
 		return paletteBox(m.pal, m.width) + "\n" + inputBox(m.width, m.editorView(), !m.navMode)
 	}
-	out := statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git)
+	out := statusLine(m.width, m.provider, m.turn.model, m.turn.phase, m.turn.ctxPct, m.turn.costUSD, m.git)
 	if m.selecting {
 		out += "\n  loading model controls…"
 	}

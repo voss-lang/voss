@@ -13,6 +13,25 @@ import (
 
 func str(s string) *string { return &s }
 
+func TestPhaseTracksServerStatusAndReturnsToAmbient(t *testing.T) {
+	st, _ := reduce(turn{phase: "ambient"}, voss.UserEvent{Task: "hello"})
+	phase := voss.Ambient
+	st, _ = reduce(st, voss.StatusEvent{Phase: &phase, Tokens: 25, CostUsd: 0.002})
+	if st.phase != "ambient" || !st.busy {
+		t.Fatalf("ambient response in progress = %+v", st)
+	}
+	phase = voss.Run
+	st, _ = reduce(st, voss.StatusEvent{Phase: &phase})
+	st, _ = reduce(st, voss.StatusEvent{Tokens: 40})
+	if st.phase != "run" {
+		t.Fatalf("status without phase lost run phase: %+v", st)
+	}
+	st, _ = reduce(st, voss.SessionIdle{})
+	if st.phase != "ambient" || st.busy {
+		t.Fatalf("state after idle = %+v", st)
+	}
+}
+
 // replayCapture serves a recorded SSE stream through the SDK so the reducer
 // sees exactly what the SDK decodes from the wire.
 func replayCapture(t *testing.T, path string) []voss.TypedEvent {
