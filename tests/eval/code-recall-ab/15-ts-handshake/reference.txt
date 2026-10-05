@@ -1,0 +1,1 @@
+sdk/typescript/src/launcher/launcher.ts:152 - parseHandshake checks the port and token; readHandshake (launcher.ts:105) rejects on exit or timeout before the handshake.

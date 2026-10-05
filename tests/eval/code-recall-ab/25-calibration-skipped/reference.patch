@@ -1,0 +1,11 @@
+--- a/voss/harness/audit/calibration.py
++++ b/voss/harness/audit/calibration.py
+@@ -48,6 +48,8 @@
+             continue
+         a_result = (data.get("a_verification") or {}).get("result", "")
+         b_verdict = (data.get("b_verdict") or {}).get("verdict", "")
++        if b_verdict == "skipped":
++            b_verdict = ""
+         if a_result and b_verdict:
+             total += 1
+             if a_result == "pass" and b_verdict in ("fail", "block"):

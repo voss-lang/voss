@@ -5,7 +5,7 @@ import pytest
 # Task fixtures are repos-under-test, not part of this suite: matrix fixtures
 # carry their own test_calc.py meant to run inside the runner's isolated copy
 # (cwd=fixture), where pytest resolves `from calc import add` at cwd.
-collect_ignore_glob = ["golden/*", "matrix/*"]
+collect_ignore_glob = ["golden/*", "matrix/*", "code-recall-ab/*"]
 
 
 @pytest.fixture(autouse=True)

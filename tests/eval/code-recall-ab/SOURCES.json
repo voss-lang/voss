@@ -1,0 +1,92 @@
+{
+  "01-step-batches": [
+    "b01-g014"
+  ],
+  "02-max-iter-final": [
+    "b01-g023"
+  ],
+  "03-context-watermarks": [
+    "b01-g026"
+  ],
+  "04-memory-lock-busy": [
+    "b01-g035"
+  ],
+  "05-background-watchdog": [
+    "b02-g013"
+  ],
+  "06-mcp-oversized-line": [
+    "b02-g020"
+  ],
+  "07-bearer-asgi": [
+    "b02-g036"
+  ],
+  "08-event-queue-drop": [
+    "b02-g038"
+  ],
+  "09-oauth-writeback": [
+    "b02-g027"
+  ],
+  "10-implicit-ctx-scope": [
+    "b03-g020"
+  ],
+  "11-board-wip": [
+    "b04-g001"
+  ],
+  "12-gate-dry-run": [
+    "b04-g010"
+  ],
+  "13-go-word-diff": [
+    "b04-g041"
+  ],
+  "14-rust-status-line": [
+    "b04-g046"
+  ],
+  "15-ts-handshake": [
+    "b04-g043"
+  ],
+  "16-tokenize-acronyms": [
+    "b01-g002"
+  ],
+  "17-fractional-token-budget": [
+    "b03-g001"
+  ],
+  "18-mcp-env-default": [
+    "b02-g018"
+  ],
+  "19-correlation-capped": [
+    "b04-g034"
+  ],
+  "20-mcp-destructive-hint": [
+    "b02-g017"
+  ],
+  "21-skill-github-prefix": [
+    "b02-g024"
+  ],
+  "22-session-exact-match": [
+    "b01-g042"
+  ],
+  "23-walk-skip-hidden": [
+    "b01-g004"
+  ],
+  "24-anchor-case": [
+    "b02-g001"
+  ],
+  "25-calibration-skipped": [
+    "b04-g028"
+  ],
+  "26-swarm-log-corrupt": [
+    "b04-g023"
+  ],
+  "27-gather-exceptions": [
+    "b03-g043"
+  ],
+  "28-overlap-dotdot": [
+    "b04-g016"
+  ],
+  "29-rate-per-second": [
+    "b02-g031"
+  ],
+  "30-split-long-line": [
+    "b01-g038"
+  ]
+}

@@ -1,0 +1,13 @@
+--- a/voss/harness/skill/fetch.py
++++ b/voss/harness/skill/fetch.py
+@@ -36,6 +36,10 @@
+         raise ValueError(f"local path is not a directory or supported archive: {source!r}")
+ 
+     # 2. GitHub shorthand
++    if source.startswith("github:"):
++        source = source[len("github:"):]
++        if not GITHUB_SHORTHAND.match(source):
++            raise ValueError(f"unrecognised source: github:{source!r}")
+     if GITHUB_SHORTHAND.match(source):
+         url = f"https://github.com/{source}.git"
+         return _git_clone(url, staging_dir)

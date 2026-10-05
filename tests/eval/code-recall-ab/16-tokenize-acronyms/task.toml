@@ -1,0 +1,26 @@
+prompt = '''Lexical memory recall cannot match `HTTPServer` when I search for "server": a run of capitals followed by a capitalized word stays glued together when text is tokenized for BM25. Make `HTTPServer` tokenize as `http`, `server` (and `parseJSONResponse` as `parse`, `json`, `response`) without changing how ordinary camelCase and snake_case text is split.'''
+mode = "edit"
+rubric = '''PASS if, after the change, the BM25 tokenizer splits acronym runs before a capitalized word while camelCase/snake_case output is unchanged, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_tokenize_acronyms.py" <<'EOF'
+from voss.harness.memory_store import _bm25_tokenize
+
+
+def test_acronym_run_splits_before_next_word():
+    assert _bm25_tokenize("HTTPServer") == ["http", "server"]
+    assert _bm25_tokenize("parseJSONResponse") == ["parse", "json", "response"]
+
+
+def test_camel_and_snake_case_unchanged():
+    assert _bm25_tokenize("fooBar_baz-qux") == ["foo", "bar", "baz", "qux"]
+    assert _bm25_tokenize("HTTP") == ["http"]
+    assert _bm25_tokenize("load_suite(root)") == ["load", "suite", "root"]
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_tokenize_acronyms.py"
+'''
+timeout = 120

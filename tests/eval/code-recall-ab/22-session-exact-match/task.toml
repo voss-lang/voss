@@ -1,0 +1,46 @@
+prompt = '''Resuming a saved session by its full id fails with an "ambiguous session id" error when another session id starts with the same characters. An exact id or exact name match should win over prefix matches; a prefix that matches several sessions should still be ambiguous.'''
+mode = "edit"
+rubric = '''PASS if, after the change, an exact id or name match resolves even when it is also a prefix of another id, and a shared prefix stays ambiguous, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_session_exact_match.py" <<'EOF'
+import pytest
+
+from voss.harness.session import SessionRecord, load, save
+from voss_runtime.memory import EpisodicMemory
+
+
+@pytest.fixture
+def project(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    cwd = tmp_path / "proj"
+    cwd.mkdir()
+    for sid, name in (("abc123", "first"), ("abc123def456", "second"), ("ffee00", "abc1")):
+        record = SessionRecord.new(cwd=cwd, model="stub", name=name)
+        record.id = sid
+        save(record, EpisodicMemory(capacity=4))
+    return cwd
+
+
+def test_exact_id_wins_over_longer_prefix_match(project):
+    record, _ = load("abc123", cwd=project)
+    assert record.id == "abc123"
+
+
+def test_exact_name_wins_over_prefix_match(project):
+    record, _ = load("abc1", cwd=project)
+    assert record.id == "ffee00"
+
+
+def test_shared_prefix_still_ambiguous(project):
+    with pytest.raises(ValueError):
+        load("abc", cwd=project)
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_session_exact_match.py"
+'''
+timeout = 120
