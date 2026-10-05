@@ -234,7 +234,7 @@ async def test_next_turn_receives_selected_provider_and_model(client, monkeypatc
 
     monkeypatch.setattr(appmod, "run_turn", run)
     monkeypatch.setattr(appmod.session_store, "save", lambda *a: None)
-    await appmod._run_turn(client.session, "hello", "plan")
+    await appmod._run_turn(client.session, "run the task", "plan")
     assert seen["provider"] is client.session.provider
     assert seen["model"] == "gpt-6.1-sol"
 

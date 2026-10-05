@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from . import events as E
 
@@ -48,10 +48,12 @@ class EventBusRenderer:
         *,
         session_id: str = "",
         loop: "asyncio.AbstractEventLoop | None" = None,
+        model: str = "",
     ) -> None:
         self._q = queue
         self._sid = session_id
         self._loop = loop
+        self._status = E.StatusEvent(model=model, tokens=0, cost_usd=0, ctx_pct=0)
 
     # -- internal -----------------------------------------------------------
 
@@ -174,11 +176,15 @@ class EventBusRenderer:
         pass
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
-        self._emit(
-            E.StatusEvent(
-                model=model, tokens=tokens, cost_usd=cost_usd, ctx_pct=ctx_pct
-            )
+        self._status = E.StatusEvent(
+            model=model, tokens=tokens, cost_usd=cost_usd, ctx_pct=ctx_pct,
+            phase=self._status.phase,
         )
+        self._emit(self._status)
+
+    def set_phase(self, phase: Literal["ambient", "run"]) -> None:
+        self._status = self._status.model_copy(update={"phase": phase})
+        self._emit(self._status)
 
     def show_cognition(
         self,

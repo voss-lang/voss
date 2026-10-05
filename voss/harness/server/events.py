@@ -129,6 +129,7 @@ class StatusEvent(_Base):
     tokens: int
     cost_usd: float
     ctx_pct: float
+    phase: Literal["ambient", "run"] | None = None
 
 
 class CognitionLoaded(_Base):

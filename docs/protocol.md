@@ -57,6 +57,8 @@ This document is the wire contract. The server emits exactly these shapes; the c
 
 **Concurrency:** one running turn per session. `POST /message` while a turn runs → `409`.
 
+Conversation and model/auth status questions use the `ambient` phase. Work intents use the tool-enabled `run` phase; prefix a request with `run ` to select that path explicitly. Swarm sessions always run their assigned tasks. Permission `mode` remains independent of phase. Status events report phase changes and return to `ambient` on completion, cancellation, or failure.
+
 ## 5. Message & parts schema
 
 A turn's user input and the assistant's reply are **messages** composed of **parts** (mirrors OpenCode). Parts stream incrementally via `message.part.updated`-style events (here flattened to the per-event types in §6).
@@ -111,7 +113,7 @@ First event is always `server.connected`. Turn completion is signalled by `sessi
 | `final` | `text, confidence, cost_usd` | `:516` |
 | `stream.delta` | `text` | `:519` |
 | `stream.finalize` | `role, confidence, cost_usd, timestamp` | `:522` |
-| `status` | `model, tokens, cost_usd, ctx_pct` | `:539` |
+| `status` | `model, tokens, cost_usd, ctx_pct`, optional `phase: ambient \| run` | `:539` |
 | `cognition_loaded` | `architecture_tokens, constraints_count, plans_loaded, decisions_loaded` | `:542` |
 | `cognition_overflow` | `architecture_tokens, budget` | `:558` |
 | `warning` | `message` | `:567` |

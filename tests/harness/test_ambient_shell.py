@@ -43,6 +43,11 @@ def test_status_questions_route_to_local_ambient(line: str) -> None:
         "fetch the pull request",
         "which MCP tools are available?",
         "use the review skill",
+        "read README.md",
+        "check the failing test",
+        "can you read the config file?",
+        "show git status",
+        "go ahead",
     ],
 )
 def test_work_intent_routes_to_voss_run(line: str) -> None:

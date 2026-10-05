@@ -85,7 +85,7 @@ async def test_turn_publishes_event_sequence_to_queue(monkeypatch, tmp_path):
     mgr = app.state.sessions
     s = mgr.create(cwd=tmp_path, model="m", provider=object())
 
-    await appmod._run_turn(s, "hi", "plan")
+    await appmod._run_turn(s, "run the task", "plan")
 
     seen: list[str] = []
     while not s.queue.empty():
@@ -208,7 +208,7 @@ async def _server_turn_decision(monkeypatch, cwd, tool: str, args: dict) -> dict
     monkeypatch.setattr(appmod.session_store, "save", lambda record, history: None)
     app = appmod.create_app(TOKEN)
     s = app.state.sessions.create(cwd=cwd, model="m", provider=object())
-    await appmod._run_turn(s, "go", "auto")
+    await appmod._run_turn(s, "run the task", "auto")
     seen["events"] = []
     while not s.queue.empty():
         seen["events"].append(s.queue.get_nowait())
