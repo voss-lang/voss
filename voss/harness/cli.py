@@ -4269,6 +4269,13 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
     default=False,
     help="Fail run if python3/cargo/node is absent (strict mode).",
 )
+@click.option(
+    "--ab",
+    "ab_spec",
+    default=None,
+    metavar="FIELD=A,B",
+    help="Run the suite twice, with task setting FIELD set to A then B, and compare.",
+)
 def eval_cmd(
     suite: str,
     stub: bool,
@@ -4280,13 +4287,50 @@ def eval_cmd(
     auth_pref: str,
     max_turns: int | None,
     require_all_toolchains: bool,
+    ab_spec: str | None,
 ) -> None:
     """Run the golden evaluation suite."""
     if os.environ.get("VOSS_DEV") != "1":
         click.echo("voss eval: internal tool — set VOSS_DEV=1 to run", err=True)
         raise click.exceptions.Exit(code=1)
 
-    from voss.eval.runner import run_suite
+    from voss.eval.runner import _run_dir_name, run_suite
+
+    if ab_spec is not None:
+        from voss.eval.ab import run_ab
+        from voss.eval.suite import TaskSpec
+
+        field, _, values = ab_spec.partition("=")
+        sides = values.split(",")
+        if field not in TaskSpec.model_fields or len(sides) != 2 or not all(sides):
+            raise click.UsageError(
+                f"--ab expects FIELD=A,B where FIELD is a task setting, got {ab_spec!r}"
+            )
+        metadata = None
+        if field == "recall":
+            from voss.harness.code.rerank import RUBRIC_VERSION
+            from voss.harness.config import get_judgments_config
+
+            metadata = {
+                "jev_model": get_judgments_config()["model"],
+                "rubric_version": RUBRIC_VERSION,
+                "generation_model": get_config().default_model,
+            }
+        out = run_ab(
+            suite=suite,
+            setting=field,
+            a=sides[0],
+            b=sides[1],
+            out=out_path or Path.cwd() / ".voss" / "eval" / _run_dir_name(),
+            metadata=metadata,
+            stub=stub,
+            live=live,
+            auth_pref=auth_pref,
+            max_turns=max_turns,
+            require_all_toolchains=require_all_toolchains,
+        )
+        click.echo(str(out / "ab.md"))
+        return
 
     run_suite(
         suite=suite,

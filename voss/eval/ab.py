@@ -1,8 +1,10 @@
 """Paired A/B comparison of two eval runs."""
 from __future__ import annotations
 
+import json
 import math
 from collections import defaultdict
+from pathlib import Path
 
 from .retrieval import paired_bootstrap
 
@@ -87,3 +89,54 @@ def render(result: dict, *, a_label: str, b_label: str) -> str:
     lines.append(f"Task-impact gate: {'PASS' if result['passed'] else 'FAIL'}")
     lines.append(CAVEAT)
     return "\n".join(lines) + "\n"
+
+
+def run_ab(
+    *,
+    suite: str,
+    setting: str,
+    a: str,
+    b: str,
+    out: Path,
+    metadata: dict | None = None,
+    **run_suite_kwargs,
+) -> Path:
+    from .runner import run_suite
+    from .summary import _read_rows
+
+    def run(value: str, dest: Path, **kwargs) -> list[dict]:
+        run_suite(
+            suite=suite,
+            out=dest,
+            overrides={setting: value},
+            judge=False,
+            **run_suite_kwargs,
+            **kwargs,
+        )
+        return _read_rows(dest / "runs.jsonl")
+
+    a_rows = run(a, out / "a")
+    b_rows = run(b, out / "b")
+    a_by, b_by = _by_task(a_rows), _by_task(b_rows)
+    for task in sorted(a_by.keys() & b_by.keys()):
+        if task_score(a_by[task][0]) != task_score(b_by[task][0]):
+            a_rows += run(a, out / "rerun" / "a" / task, task=task)
+            b_rows += run(b, out / "rerun" / "b" / task, task=task)
+
+    result = compare(a_rows, b_rows)
+    payload = {
+        "schema_version": 1,
+        "setting": setting,
+        "a": a,
+        "b": b,
+        **(metadata or {}),
+        "a_judgment_receipts": sum(r.get("judgment_receipt_count", 0) for r in a_rows),
+        "b_judgment_receipts": sum(r.get("judgment_receipt_count", 0) for r in b_rows),
+        "compare": result,
+        "passed": result["passed"],
+    }
+    (out / "ab.json").write_text(json.dumps(payload, indent=2) + "\n")
+    (out / "ab.md").write_text(
+        render(result, a_label=f"{setting}={a}", b_label=f"{setting}={b}")
+    )
+    return out
