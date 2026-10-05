@@ -60,7 +60,7 @@ def test_missing_keychain_key_leaves_env_unset(monkeypatch, capsys):
     assert capsys.readouterr() == ("", "")
 
 
-def test_voss_cli_startup_bridges_once_without_leaking_key(monkeypatch, tmp_path):
+def test_voss_check_does_not_read_judgments_keychain(monkeypatch, tmp_path):
     from voss.cli import main
 
     calls = []
@@ -70,11 +70,33 @@ def test_voss_cli_startup_bridges_once_without_leaking_key(monkeypatch, tmp_path
     source.write_text("let x = 1\n")
     result = CliRunner().invoke(main, ["check", str(source)])
     assert result.exit_code == 0, result.output
-    assert calls == [1]
+    assert calls == []
     assert "env-sentinel" not in result.output
 
 
-def test_run_server_bridges_before_create_app(monkeypatch):
+@pytest.mark.parametrize("args", [[], ["ui", "--help"]])
+def test_native_tui_launch_does_not_read_judgments_keychain(monkeypatch, args):
+    import voss.cli as vcli
+
+    def blocked_keychain(env_key):
+        raise AssertionError("startup reached the keychain")
+
+    monkeypatch.setattr(auth, "load_provider_key", blocked_keychain)
+    monkeypatch.setattr(vcli, "_find_voss_tui", lambda: "/fake/voss-tui")
+    monkeypatch.setenv("VOSS_USE_TUI", "1")
+    launched = []
+
+    def fake_exec(path, argv, env):
+        launched.append(argv)
+        raise SystemExit(0)
+
+    monkeypatch.setattr(vcli.os, "execvpe", fake_exec)
+    result = CliRunner().invoke(vcli.main, args)
+    assert result.exit_code == 0, result.exception
+    assert launched == [["/fake/voss-tui", *args[1:]]]
+
+
+def test_run_server_does_not_read_judgments_keychain(monkeypatch):
     from voss.harness.server import app, serve
 
     order = []
@@ -87,7 +109,28 @@ def test_run_server_bridges_before_create_app(monkeypatch):
     monkeypatch.setattr(app, "create_app", create_app)
     with pytest.raises(RuntimeError, match="stop"):
         serve.run_server(token="t")
-    assert order == ["bridge", "create_app"]
+    assert order == ["create_app"]
+
+
+def test_compiled_run_still_passes_keychain_key_to_runtime(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    import voss.cli as vcli
+
+    calls = keychain(monkeypatch, "kc-sentinel")
+    monkeypatch.setattr(vcli, "_compile_source", lambda *args, **kwargs: None)
+    monkeypatch.setattr(auth, "resolve", lambda **kwargs: SimpleNamespace(source="none"))
+    captured = {}
+
+    def execute(*args, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(vcli.subprocess, "run", execute)
+    result = CliRunner().invoke(vcli.main, ["run", str(tmp_path / "example.voss")])
+    assert result.exit_code == 0, result.exception
+    assert calls == ["TYPESAFE_API_KEY"]
+    assert captured["env"]["TYPESAFE_API_KEY"] == "kc-sentinel"
+    assert "kc-sentinel" not in result.output
 
 
 def test_boot_pushes_judgments_limits_into_runtime_config(monkeypatch, tmp_path):
