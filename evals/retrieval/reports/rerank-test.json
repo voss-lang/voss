@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "split": "test",
+  "commit": "c1a27046aef3096e460b1c24b59d8066e5c2f792",
+  "model": "jev-1.13.0",
+  "rubric_version": "code_recall.rerank.v1",
+  "location": "Ben's Mac, home network",
+  "run_date": "2026-10-05",
+  "ranking": {
+    "mean_gain": 0.23720992470792823,
+    "ci_low": 0.20176107928910525,
+    "ci_high": 0.2736394742584532,
+    "recall_diff": 0.05486111111111103,
+    "passed": true
+  },
+  "latency": {
+    "n": 120,
+    "p50_ms": 450.08364599198103,
+    "p95_ms": 684.1704374819528,
+    "passed": true
+  },
+  "fallbacks": {},
+  "passed": true
+}
