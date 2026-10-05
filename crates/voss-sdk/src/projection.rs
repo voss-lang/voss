@@ -260,6 +260,7 @@ mod tests {
     #[test]
     fn projection_status() {
         let event = AgentEvent::StatusEvent(StatusEvent {
+            phase: None,
             v: 1,
             model: "model".into(),
             tokens: 42,

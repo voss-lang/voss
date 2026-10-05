@@ -53,6 +53,29 @@ func envFromEvent(t *testing.T, eventJSON string) EventEnvelope {
 	return EventEnvelope{Event: u}
 }
 
+func TestDecodeStatusPhaseIsOptional(t *testing.T) {
+	for _, phase := range []string{"", "ambient", "run"} {
+		t.Run(phase, func(t *testing.T) {
+			payload := `{"type":"status","model":"m","tokens":25,"cost_usd":0.002,"ctx_pct":0}`
+			if phase != "" {
+				payload = payload[:len(payload)-1] + `,"phase":"` + phase + `"}`
+			}
+			ev, err := Decode(envFromEvent(t, payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			status := ev.(StatusEvent)
+			if phase == "" {
+				if status.Phase != nil {
+					t.Fatalf("old status has phase %v", status.Phase)
+				}
+			} else if status.Phase == nil || string(*status.Phase) != phase {
+				t.Fatalf("phase = %v, want %s", status.Phase, phase)
+			}
+		})
+	}
+}
+
 // decodeCase is one row of the 29-member decode table: a fixture JSON for a
 // `type` plus an assertion that Decode produced the right typed value.
 type decodeCase struct {

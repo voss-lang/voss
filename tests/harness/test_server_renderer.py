@@ -18,6 +18,19 @@ def test_satisfies_renderer_protocol() -> None:
     assert isinstance(r, Renderer)
 
 
+def test_phase_updates_preserve_usage_and_do_not_mutate_queued_events() -> None:
+    q = asyncio.Queue()
+    r = EventBusRenderer(q, model="selected")
+    r.set_phase("run")
+    r.status(model="selected", tokens=25, cost_usd=0.002, ctx_pct=0.1)
+    r.set_phase("ambient")
+    started, usage, idle = [q.get_nowait() for _ in range(3)]
+    assert started.phase == usage.phase == "run"
+    assert idle.phase == "ambient"
+    assert (idle.model, idle.tokens, idle.cost_usd, idle.ctx_pct) == ("selected", 25, 0.002, 0.1)
+    assert E.AgentEventAdapter.validate_json(idle.model_dump_json()) == idle
+
+
 def test_each_method_enqueues_expected_event() -> None:
     q: asyncio.Queue = asyncio.Queue()
     r = EventBusRenderer(q, session_id="s1")

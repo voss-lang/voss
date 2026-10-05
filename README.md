@@ -108,8 +108,11 @@ Bare `voss` opens the Go client when its binary is installed. From a checkout:
 
 ```bash
 (cd tui && go build -o voss-tui .)
-VOSS_TUI_BIN="$PWD/tui/voss-tui" voss
+voss
 ```
+
+Editable Python installs and `npm link` automatically use this local build.
+`VOSS_TUI_BIN` can select a different binary explicitly.
 
 The npm platform packages include `voss-tui`. Use `VOSS_USE_TUI=0 voss` for
 Textual; it also remains the fallback when the Go binary is missing. `voss ui`
