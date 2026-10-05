@@ -10,6 +10,11 @@ from click.testing import CliRunner
 import voss.cli as vcli
 
 
+@pytest.fixture(autouse=True)
+def isolated_cli_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(vcli, "__file__", str(tmp_path / "voss" / "cli.py"))
+
+
 def test_find_voss_tui_env_existing(tmp_path, monkeypatch):
     fake = tmp_path / "voss-tui"
     fake.write_text("#!/bin/sh\n")
@@ -29,6 +34,31 @@ def test_find_voss_tui_from_path(monkeypatch):
         lambda n: "/usr/local/bin/voss-tui" if n == "voss-tui" else None,
     )
     assert vcli._find_voss_tui() == "/usr/local/bin/voss-tui"
+
+
+@pytest.mark.parametrize("platform,filename", [("darwin", "voss-tui"), ("win32", "voss-tui.exe")])
+def test_editable_install_finds_local_build_from_any_cwd(tmp_path, monkeypatch, platform, filename):
+    monkeypatch.delenv("VOSS_TUI_BIN", raising=False)
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr("shutil.which", lambda _: "/older/voss-tui")
+    binary = tmp_path / "tui" / filename
+    binary.parent.mkdir()
+    binary.write_text("local build")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    assert vcli._find_voss_tui() == str(binary)
+    override = tmp_path / filename
+    override.write_text("explicit build")
+    monkeypatch.setenv("VOSS_TUI_BIN", str(override))
+    assert vcli._find_voss_tui() == str(override)
+
+
+def test_find_voss_tui_missing_local_build_and_path(monkeypatch):
+    monkeypatch.delenv("VOSS_TUI_BIN", raising=False)
+    monkeypatch.setattr("shutil.which", lambda _: None)
+    assert vcli._find_voss_tui() is None
 
 
 def test_ui_execs_binary_when_found(monkeypatch):
