@@ -321,6 +321,9 @@ func costCommand(ctx context.Context, client *voss.Client, id, model string, arg
 		}
 		total := fmt.Sprintf("session cost: $%.4f", c.TotalUsd)
 		if !flags["by-model"] {
+			if c.BudgetUsd != nil && *c.BudgetUsd > 0 {
+				total += fmt.Sprintf(" / $%.2f (%.1f%%)", *c.BudgetUsd, c.TotalUsd / *c.BudgetUsd * 100)
+			}
 			return slashOutputMsg{stdout: total}
 		}
 		if c.Turns == 0 {

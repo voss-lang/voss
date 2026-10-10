@@ -32,8 +32,9 @@ type SavedSession struct {
 
 // CostInfo is the cost rollup (GET /session/:id/cost).
 type CostInfo struct {
-	TotalUsd float64 `json:"total_usd"`
-	Turns    int     `json:"turns"`
+	TotalUsd  float64  `json:"total_usd"`
+	Turns     int      `json:"turns"`
+	BudgetUsd *float64 `json:"budget_usd"`
 }
 
 // DoctorCheck is one diagnostic row from GET /doctor.

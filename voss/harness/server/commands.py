@@ -1,7 +1,8 @@
-"""Read-only slash commands exposed to remote clients."""
+"""Slash commands exposed to remote clients."""
 from __future__ import annotations
 
 import asyncio
+import math
 from itertools import islice
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from .. import session as session_store
 from ..skill_registry import default_skill_registry
 from ..subagents import default_subagent_registry, register_agent_files
 from ..tools import attach_mcp_tools, make_toolset
+from .sessions import ServerSession
 
 
 class CommandInfo(BaseModel):
@@ -57,6 +59,8 @@ class CommandResult(BaseModel):
 
 
 COMMANDS = (
+    CommandInfo(name="/budget", description="show/set advisory session USD budget: /budget [<usd>] (0 clears)"),
+    CommandInfo(name="/why", description="explain the last plan (rationale, confidence, step why)"),
     CommandInfo(name="/tools", description="list built-in and MCP tools"),
     CommandInfo(name="/skills", description="list registered skills"),
     CommandInfo(name="/agents", description="list registered subagents"),
@@ -83,9 +87,16 @@ def _agents(cwd: Path) -> str:
     return "\n".join(f"  {spec.id:<16} {spec.description}" for spec in registry.entries()) or "(no agents)"
 
 
-async def execute(cwd: Path, request: CommandRequest, *, record: session_store.SessionRecord) -> CommandResult:
+async def execute(session: ServerSession, request: CommandRequest) -> CommandResult:
+    cwd, record = session.cwd, session.record
     if request.name not in {command.name for command in COMMANDS}:
         raise ValueError("Unknown command. Use /help for available commands.")
+    if request.name == "/budget":
+        return _budget(session, request.args)
+    if request.name == "/why":
+        if request.args:
+            return CommandResult(stderr="usage: /why")
+        return _why(session)
     if request.name in {"/probable", "/btrace", "/vdiff"}:
         return await asyncio.to_thread(_inspect, cwd, request, record)
     if request.name in {"/symbol", "/refs", "/refresh"}:
@@ -109,6 +120,46 @@ async def execute(cwd: Path, request: CommandRequest, *, record: session_store.S
     finally:
         if client is not None:
             await client.aclose()
+
+
+def _budget(session: ServerSession, args: list[str]) -> CommandResult:
+    if args:
+        if len(args) != 1:
+            return CommandResult(stderr="usage: /budget <usd>  (e.g. /budget 5.00)")
+        try:
+            budget = float(args[0].lstrip("$"))
+        except ValueError:
+            return CommandResult(stderr="usage: /budget <usd>  (e.g. /budget 5.00)")
+        if not math.isfinite(budget) or budget < 0:
+            return CommandResult(stderr="budget must be finite and non-negative")
+        session.budget_usd = budget or None
+        if budget == 0:
+            return CommandResult(stdout="  budget: cleared (unbounded)")
+    if session.budget_usd is None:
+        return CommandResult(stdout="  budget: unbounded")
+    spent = sum(
+        float(run.get(key, 0.0) or 0.0)
+        for run in session.record.runs for key in ("cost_usd", "judgments_cost_usd")
+    )
+    warning = "  ⚠ already over budget" if args and spent > session.budget_usd else ""
+    return CommandResult(stdout=f"  budget: ${session.budget_usd:.2f} (used ${spent:.4f}){warning}")
+
+
+def _why(session: ServerSession) -> CommandResult:
+    plan = session.last_plan
+    if plan is None:
+        return CommandResult(stderr="no plan yet — run a turn first")
+    lines = [f"  rationale: {plan.rationale}", f"  confidence: {plan.confidence:.2f}"]
+    if plan.steps:
+        lines.append("  steps:")
+        for i, step in enumerate(plan.steps, 1):
+            why = step.why.strip()
+            lines.append(f"    {i}. {step.name}" + (f" — {why}" if why else ""))
+    if plan.open_question:
+        lines.append(f"  open question: {plan.open_question}")
+    if plan.final_when_done:
+        lines.append(f"  final-when-done: {plan.final_when_done}")
+    return CommandResult(stdout="\n".join(lines))
 
 
 def _inspect(cwd: Path, request: CommandRequest, record: session_store.SessionRecord) -> CommandResult:
