@@ -428,16 +428,16 @@ def test_operator_escalation(monkeypatch, tmp_path):
     th = threading.Thread(target=_run)
     th.start()
 
-    # The denial registered a pending Future and emitted the escalation.
-    deadline = time.time() + 2.0
-    while not s.pending and time.time() < deadline:
+    # The pending Future is registered before either event is emitted.
+    deadline = time.monotonic() + 2.0
+    while s.queue.qsize() < 2 and time.monotonic() < deadline:
         time.sleep(0.01)
     req_id = next(iter(s.pending))
 
     types = []
     while not s.queue.empty():
         types.append(s.queue.get_nowait().type)
-    assert "swarm.needs_operator" in types
+    assert types == ["swarm.needs_operator", "permission.updated"]
 
     # Answer via the EXISTING permission endpoint — operator approves.
     client = TestClient(app)

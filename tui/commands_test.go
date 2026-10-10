@@ -120,9 +120,10 @@ func TestStaleCommandResultCannotChangeResumedSession(t *testing.T) {
 	m := newChatModel(nil, nil, sessionMeta{ID: "new"}, nil)
 	m.commanding = "/agents"
 	stdout := "old session tools"
-	next, _ := m.Update(commandResultMsg{id: "old", result: voss.CommandResult{Stdout: &stdout}})
+	results := codeFixture()
+	next, _ := m.Update(commandResultMsg{id: "old", result: voss.CommandResult{Stdout: &stdout, Code: &results}})
 	got := next.(chatModel)
-	if got.commanding != "/agents" || len(got.blocks) != 0 {
+	if got.commanding != "/agents" || len(got.blocks) != 0 || got.code != nil {
 		t.Fatal("old response changed current command or transcript")
 	}
 }

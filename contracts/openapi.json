@@ -133,6 +133,70 @@
         "title": "ClarifyEvent",
         "type": "object"
       },
+      "CodeHit": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "line",
+          "name",
+          "language",
+          "source",
+          "snippet"
+        ],
+        "title": "CodeHit",
+        "type": "object"
+      },
+      "CodeResults": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CodeHit"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "items",
+          "truncated"
+        ],
+        "title": "CodeResults",
+        "type": "object"
+      },
       "CognitionLoaded": {
         "properties": {
           "architecture_tokens": {
@@ -267,6 +331,16 @@
       },
       "CommandResult": {
         "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeResults"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stderr": {
             "default": "",
             "title": "Stderr",

@@ -524,6 +524,30 @@ export interface components {
              */
             v: number;
         };
+        /** CodeHit */
+        CodeHit: {
+            /** File */
+            file: string;
+            /** Language */
+            language: string;
+            /** Line */
+            line: number;
+            /** Name */
+            name: string;
+            /** Snippet */
+            snippet: string;
+            /** Source */
+            source: string;
+        };
+        /** CodeResults */
+        CodeResults: {
+            /** Items */
+            items: components["schemas"]["CodeHit"][];
+            /** Query */
+            query: string;
+            /** Truncated */
+            truncated: boolean;
+        };
         /** CognitionLoaded */
         CognitionLoaded: {
             /** Architecture Tokens */
@@ -597,6 +621,7 @@ export interface components {
         };
         /** CommandResult */
         CommandResult: {
+            code?: components["schemas"]["CodeResults"] | null;
             /**
              * Stderr
              * @default

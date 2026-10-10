@@ -130,6 +130,12 @@ and saved-session resumes. `voss ui --auth codex` overrides auth for a launch.
 Use `/tools` to list built-in and discovered MCP tools, `/skills` to list skills,
 and `/agents` to list built-in and project subagents. These commands appear in
 the slash palette and `/help`; their results appear in the transcript.
+Use `/symbol <name>` to find indexed definitions, `/refs <name>` to find references,
+and `/refresh` to rebuild the code index after file changes. Lookups build a missing
+index automatically. Code results open in a scrollable panel: arrows, mouse wheel,
+and PgUp/PgDn scroll; Esc or Enter returns to chat. File paths, line numbers, and
+snippets also remain in the transcript. Indexing runs in the background with an
+elapsed-time indicator; `/refresh` reports file and symbol counts when finished.
 The remaining slash commands are available through Textual.
 
 ## Local MCP servers and skills

@@ -192,13 +192,30 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		return doctorCommand(m.ctx, m.client, m.cwd, args)
 	default:
 		m.commanding = cmd.name
+		m.sentAt = time.Now()
 		client, ctx, id := m.client, m.ctx, m.sessionID
-		return func() tea.Msg {
+		request := func() tea.Msg {
 			result, err := client.ExecuteCommand(ctx, id, cmd.name, args)
 			return commandResultMsg{id, result, err}
 		}
+		return tea.Batch(request, m.startTicking())
 	}
 	return nil
+}
+
+func (m chatModel) commandProgress() string {
+	label := "loading " + m.commanding
+	if m.commanding == "/refresh" {
+		label = "indexing workspace"
+	} else if m.commanding == "/symbol" || m.commanding == "/refs" {
+		label = "searching code (indexing if needed)"
+	}
+	glyph := glyphs.Working
+	if m.frame >= 0 {
+		frames := []rune(glyphs.SpinnerFrames)
+		glyph = string(frames[m.frame%len(frames)])
+	}
+	return fmt.Sprintf("%s %s · %ds", glyph, label, int(time.Since(m.sentAt).Seconds()))
 }
 
 type commandListMsg struct {
