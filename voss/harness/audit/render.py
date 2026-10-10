@@ -156,6 +156,8 @@ def _decision_body(report: AuditReport) -> list[str]:
 
 
 def _judgments_body(report: AuditReport) -> list[str]:
+    from voss.harness.decision_review import PURPOSE, assessment_lines
+
     data = report.judgments
     lines: list[str] = []
     for r in sorted(data["receipts"], key=lambda r: r["call_id"]):
@@ -165,6 +167,9 @@ def _judgments_body(report: AuditReport) -> list[str]:
             f"model={r['model_returned'] or r['model_requested']} attempts={r['attempts']} "
             f"cost={cost} held=${r['held_usd']:.6f} latency={r['latency_ms']:.0f}ms"
         )
+        if r["purpose"] == PURPOSE:
+            stale = isinstance(r.get("detail"), dict) and r["detail"].get("stale") is True
+            lines.extend("  " + line for line in assessment_lines(r, stale=stale))
     lines.append(
         f"- total observed ${data['judgments_cost_usd']:.6f}, "
         f"held ${data['held_usd']:.6f}, calls {len(data['receipts'])}"

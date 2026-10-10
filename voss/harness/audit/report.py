@@ -162,6 +162,8 @@ def build_audit_report(
     calibration: CalibrationReport | None = None,
 ) -> AuditReport:
     """Assemble the AuditReport from all persisted V2-V7 sources. Never writes."""
+    from voss.harness.decision_review import PURPOSE, is_stale
+
     sessions_dir = cwd / ".voss" / "sessions"
     snapshot = load_audit_snapshot(cwd, run_id=run_id)
     run_dir = sessions_dir / snapshot.root_id
@@ -186,6 +188,11 @@ def build_audit_report(
     # the report's snapshot field. _residual_risk is exposed for the renderer
     _residual_risk(snapshot)
 
+    judgments = _load_judgments_file(run_dir)
+    for receipt in (judgments or {}).get("receipts", []):
+        if isinstance(receipt, dict) and receipt.get("purpose") == PURPOSE and isinstance(receipt.get("detail"), dict):
+            receipt["detail"]["stale"] = is_stale(cwd, receipt["detail"])
+
     return AuditReport(
         run_id=snapshot.root_id,
         idea=idea,
@@ -198,5 +205,5 @@ def build_audit_report(
         calibration=calibration or _empty_calibration(),
         sections_missing=tuple(sections_missing),
         unsupported_claims=unsupported,
-        judgments=_load_judgments_file(run_dir),
+        judgments=judgments,
     )
