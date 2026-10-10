@@ -34,6 +34,8 @@ fn agent_event_exhaustive_match_includes_control_variant() {
         AgentEvent::ServerConnected(_) => "server.connected",
         AgentEvent::SessionIdle(_) => "session.idle",
         AgentEvent::PermissionUpdated(_) => "permission.updated",
+        AgentEvent::DiffProposed(_) => "diff.proposed",
+        AgentEvent::DiffResolved(_) => "diff.resolved",
         AgentEvent::BannerEvent(_) => "banner",
         AgentEvent::UserEvent(_) => "user",
         AgentEvent::ThinkingEvent(_) => "thinking",

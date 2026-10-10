@@ -133,6 +133,70 @@
         "title": "ClarifyEvent",
         "type": "object"
       },
+      "CodeHit": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "line",
+          "name",
+          "language",
+          "source",
+          "snippet"
+        ],
+        "title": "CodeHit",
+        "type": "object"
+      },
+      "CodeResults": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CodeHit"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "items",
+          "truncated"
+        ],
+        "title": "CodeResults",
+        "type": "object"
+      },
       "CognitionLoaded": {
         "properties": {
           "architecture_tokens": {
@@ -201,6 +265,109 @@
           "type"
         ],
         "title": "CognitionOverflow",
+        "type": "object"
+      },
+      "CommandCatalog": {
+        "properties": {
+          "commands": {
+            "items": {
+              "$ref": "#/components/schemas/CommandInfo"
+            },
+            "title": "Commands",
+            "type": "array"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commands"
+        ],
+        "title": "CommandCatalog",
+        "type": "object"
+      },
+      "CommandInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "CommandInfo",
+        "type": "object"
+      },
+      "CommandRequest": {
+        "properties": {
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Args",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CommandRequest",
+        "type": "object"
+      },
+      "CommandResult": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeResults"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InspectionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stderr": {
+            "default": "",
+            "title": "Stderr",
+            "type": "string"
+          },
+          "stdout": {
+            "default": "",
+            "title": "Stdout",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "title": "CommandResult",
         "type": "object"
       },
       "ConfidenceUpdated": {
@@ -296,6 +463,11 @@
             ],
             "title": "Resume"
           },
+          "review_diffs": {
+            "default": false,
+            "title": "Review Diffs",
+            "type": "boolean"
+          },
           "title": {
             "anyOf": [
               {
@@ -383,6 +555,116 @@
         "title": "CreateTaskBody",
         "type": "object"
       },
+      "DiffHunk": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file",
+          "start",
+          "lines"
+        ],
+        "title": "DiffHunk",
+        "type": "object"
+      },
+      "DiffProposed": {
+        "properties": {
+          "hunks": {
+            "items": {
+              "$ref": "#/components/schemas/DiffHunk"
+            },
+            "title": "Hunks",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "diff.proposed",
+            "default": "diff.proposed",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hunks",
+          "type"
+        ],
+        "title": "DiffProposed",
+        "type": "object"
+      },
+      "DiffReply": {
+        "properties": {
+          "decisions": {
+            "items": {
+              "enum": [
+                "accept",
+                "reject",
+                "skip"
+              ],
+              "type": "string"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "decisions"
+        ],
+        "title": "DiffReply",
+        "type": "object"
+      },
+      "DiffResolved": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "diff.resolved",
+            "default": "diff.resolved",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "DiffResolved",
+        "type": "object"
+      },
       "EventEnvelope": {
         "description": "OpenAPI schema anchor (H1.14).\n\nForced into the OpenAPI components so a typed client codegens a tagged\nenum over the full event union, even though no route returns it directly.",
         "properties": {
@@ -395,6 +677,8 @@
                 "cognition_loaded": "#/components/schemas/CognitionLoaded",
                 "cognition_overflow": "#/components/schemas/CognitionOverflow",
                 "confidence.updated": "#/components/schemas/ConfidenceUpdated",
+                "diff.proposed": "#/components/schemas/DiffProposed",
+                "diff.resolved": "#/components/schemas/DiffResolved",
                 "final": "#/components/schemas/FinalEvent",
                 "gate.updated": "#/components/schemas/GateUpdated",
                 "instructions_overflow": "#/components/schemas/InstructionsOverflow",
@@ -430,6 +714,12 @@
               },
               {
                 "$ref": "#/components/schemas/PermissionUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/DiffProposed"
+              },
+              {
+                "$ref": "#/components/schemas/DiffResolved"
               },
               {
                 "$ref": "#/components/schemas/BannerEvent"
@@ -602,6 +892,47 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HistoryTurn": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "HistoryTurn",
+        "type": "object"
+      },
+      "InspectionResult": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "text"
+        ],
+        "title": "InspectionResult",
+        "type": "object"
+      },
       "InstructionsOverflow": {
         "properties": {
           "budget": {
@@ -672,6 +1003,120 @@
           }
         },
         "title": "MessagePart",
+        "type": "object"
+      },
+      "ModelCatalog": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelChoice"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "warning": {
+            "title": "Warning",
+            "type": "string"
+          }
+        },
+        "required": [
+          "models",
+          "warning"
+        ],
+        "title": "ModelCatalog",
+        "type": "object"
+      },
+      "ModelChoice": {
+        "properties": {
+          "auth": {
+            "enum": [
+              "claude",
+              "codex",
+              "api"
+            ],
+            "title": "Auth",
+            "type": "string"
+          },
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_label": {
+            "title": "Provider Label",
+            "type": "string"
+          },
+          "recommended": {
+            "title": "Recommended",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "provider_label",
+          "auth",
+          "connected",
+          "recommended"
+        ],
+        "title": "ModelChoice",
+        "type": "object"
+      },
+      "ModelSelectionBody": {
+        "properties": {
+          "auth": {
+            "anyOf": [
+              {
+                "enum": [
+                  "claude",
+                  "codex",
+                  "api"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth"
+          },
+          "model": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "title": "ModelSelectionBody",
         "type": "object"
       },
       "ObserveEnrollmentPatch": {
@@ -886,6 +1331,18 @@
             "title": "Cost Usd",
             "type": "number"
           },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rationale"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/PlanStep"
@@ -923,6 +1380,18 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Why"
           }
         },
         "required": [
@@ -1059,6 +1528,27 @@
         "title": "ServerConnected",
         "type": "object"
       },
+      "SessionHistory": {
+        "properties": {
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryTurn"
+            },
+            "title": "Turns",
+            "type": "array"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "turns"
+        ],
+        "title": "SessionHistory",
+        "type": "object"
+      },
       "SessionIdle": {
         "properties": {
           "session_id": {
@@ -1097,6 +1587,22 @@
           "model": {
             "title": "Model",
             "type": "string"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ambient",
+                  "run"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Phase"
           },
           "tokens": {
             "title": "Tokens",
@@ -1686,9 +2192,45 @@
             "title": "Args",
             "type": "object"
           },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Call Id"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output"
+          },
+          "output_lines": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Lines"
           },
           "state": {
             "title": "State",
@@ -1817,6 +2359,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/commands": {
+      "get": {
+        "operationId": "list_commands_commands_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Commands"
+      }
+    },
     "/doctor": {
       "get": {
         "operationId": "doctor_doctor_get",
@@ -1935,6 +2495,24 @@
           }
         },
         "summary": "Get Memory"
+      }
+    },
+    "/models": {
+      "get": {
+        "operationId": "list_models_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Models"
       }
     },
     "/observe/context": {
@@ -2357,6 +2935,87 @@
         "summary": "Abort"
       }
     },
+    "/session/{session_id}/clear": {
+      "post": {
+        "operationId": "clear_history_session__session_id__clear_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear History"
+      }
+    },
+    "/session/{session_id}/command": {
+      "post": {
+        "operationId": "execute_command_session__session_id__command_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute Command"
+      }
+    },
     "/session/{session_id}/cost": {
       "get": {
         "operationId": "cost_session__session_id__cost_get",
@@ -2396,6 +3055,57 @@
           }
         },
         "summary": "Cost"
+      }
+    },
+    "/session/{session_id}/diff": {
+      "post": {
+        "operationId": "reply_diff_session__session_id__diff_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiffReply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reply Diff Session  Session Id  Diff Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reply Diff"
       }
     },
     "/session/{session_id}/events": {
@@ -2438,6 +3148,45 @@
           }
         },
         "summary": "Events"
+      }
+    },
+    "/session/{session_id}/history": {
+      "get": {
+        "operationId": "session_history_session__session_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Session History"
       }
     },
     "/session/{session_id}/message": {
@@ -2489,6 +3238,57 @@
           }
         },
         "summary": "Post Message"
+      }
+    },
+    "/session/{session_id}/model": {
+      "post": {
+        "operationId": "select_model_session__session_id__model_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelSelectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Select Model Session  Session Id  Model Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Model"
       }
     },
     "/session/{session_id}/permission": {

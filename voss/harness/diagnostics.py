@@ -338,6 +338,56 @@ def check_keyring() -> Check:
     return Check("keyring", CheckResult.OK, detail=backend)
 
 
+def check_judgments(cwd: Path) -> Check:
+    from . import judgments as judgments_mod
+    from .config import get_judgments_config
+
+    state = judgments_mod.judgments_state(cwd)
+    if state == "killed":
+        return Check("judgments", CheckResult.OK, detail=judgments_mod.KILLED_MESSAGE)
+    found = judgments_mod.resolve_api_key()
+    source = found[1] if found else "not set"
+    model = get_judgments_config()["model"]
+    if state == "enabled" and found is None:
+        return Check(
+            "judgments", CheckResult.WARN,
+            detail=f"project enabled; {judgments_mod.MISSING_KEY_MESSAGE}",
+            fix="export TYPESAFE_API_KEY or store it in the keychain under service 'voss'",
+        )
+    return Check("judgments", CheckResult.OK, detail=f"key {source}; project {state}; model {model}")
+
+
+def check_judgments_live(cwd: Path) -> Check:
+    import asyncio
+
+    from voss_runtime.judgments import JudgmentError, NoulQuestion
+    from . import judgments as judgments_mod
+
+    check = Check("judgments live", CheckResult.OK, id="judgments-live", category=Category.AUTH)
+    try:
+        client = judgments_mod.open_client(cwd, explicit=True)
+    except JudgmentError as err:
+        check.result = CheckResult.WARN if err.outcome == "disabled" else CheckResult.FAIL
+        check.detail = f"{err}; live probe skipped" if err.outcome == "disabled" else str(err)
+        return check
+
+    async def evaluate():
+        async with client:
+            return await client.evaluate(
+                "voss doctor connectivity probe",
+                {"probe": NoulQuestion("Is this request a connectivity check?")},
+            )
+
+    try:
+        result = asyncio.run(evaluate())
+    except JudgmentError as err:
+        check.result = CheckResult.FAIL
+        check.detail = f"{err.outcome}: {err}"
+    else:
+        check.detail = f"model {result.model}; tokens in {result.input_tokens} out {result.output_tokens}; {result.latency_ms:.0f} ms"
+    return check
+
+
 def check_codex_auth() -> Check:
     """Informational: Codex (~/.codex/auth.json) credential state.
 
@@ -487,6 +537,7 @@ REGISTRY: tuple[CheckSpec, ...] = (
     CheckSpec("provider-auth", Category.AUTH, lambda cwd: check_provider_auth()),
     CheckSpec("keyring", Category.AUTH, lambda cwd: check_keyring()),
     CheckSpec("codex-auth", Category.AUTH, lambda cwd: check_codex_auth()),
+    CheckSpec("judgments", Category.AUTH, lambda cwd: check_judgments(cwd)),
     CheckSpec("git", Category.ENV, lambda cwd: check_git_on_path()),
     CheckSpec("cwd-writable", Category.ENV, lambda cwd: check_cwd_writable(cwd)),
     CheckSpec("config-dirs", Category.CONFIG, lambda cwd: check_config_dirs_creatable()),

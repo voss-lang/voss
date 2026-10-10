@@ -1,0 +1,14 @@
+⏺ fs_edit new=a                                                                                                    +3 -2
+c
+d, old=a
+b, path=notes.txt
+⎿ ▾
+   new=a
+c
+d, old=a
+b, path=notes.txt
+   - a
+   - b
+   + a
+   + c
+   + d

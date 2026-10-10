@@ -41,8 +41,16 @@ def _spawn_server(tmp: Path, *, mode: str, env_extra: dict | None = None):
     env["XDG_CONFIG_HOME"] = str(tmp / "config")
     if env_extra:
         env.update(env_extra)
+    bootstrap = "\n".join([
+        "import os, runpy",
+        "from pathlib import Path",
+        "from voss.harness import local_sources",
+        "local_sources.user_home = lambda: Path(os.environ['XDG_CONFIG_HOME']).parent / 'home'",
+        "local_sources.codex_home = lambda: local_sources.user_home() / '.codex'",
+        "runpy.run_module('voss.cli', run_name='__main__')",
+    ])
     return subprocess.Popen(
-        [sys.executable, "-m", "voss.cli", "mcp", "serve",
+        [sys.executable, "-c", bootstrap, "mcp", "serve",
          "--mode", mode, "--cwd", str(tmp)],
         cwd=str(tmp),
         stdin=subprocess.PIPE,

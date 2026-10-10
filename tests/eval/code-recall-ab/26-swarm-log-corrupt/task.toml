@@ -1,0 +1,36 @@
+prompt = '''Replaying a swarm event log silently stops at the first unparseable line, so a corrupt line in the middle drops every later event. Keep tolerating a torn final line, but raise a ValueError when an unparseable line is followed by more events.'''
+mode = "edit"
+rubric = '''PASS if, after the change, a torn final line is still ignored while a corrupt line before later events raises ValueError, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_swarm_log_corrupt.py" <<'EOF'
+import json
+
+import pytest
+
+from voss.harness.swarm.events import SwarmEventLog
+
+
+def _write(cwd, text):
+    path = cwd / ".voss" / "swarm" / "s1" / "events" / "events.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text(text)
+
+
+def test_torn_final_line_still_ignored(tmp_path):
+    _write(tmp_path, json.dumps({"n": 1}) + "\n" + json.dumps({"n": 2}) + "\n" + '{"n": ')
+    assert SwarmEventLog(tmp_path).read_events("s1") == [{"n": 1}, {"n": 2}]
+
+
+def test_corrupt_line_before_later_events_raises(tmp_path):
+    _write(tmp_path, json.dumps({"n": 1}) + "\n" + "not json\n" + json.dumps({"n": 3}) + "\n")
+    with pytest.raises(ValueError):
+        SwarmEventLog(tmp_path).read_events("s1")
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_swarm_log_corrupt.py"
+'''
+timeout = 120

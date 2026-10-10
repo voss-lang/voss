@@ -1,0 +1,29 @@
+prompt = '''Hashline edits fail with "anchor not found" when the model sends the line anchor in uppercase or with stray spaces around it. Accept anchors case-insensitively and ignore surrounding whitespace.'''
+mode = "edit"
+rubric = '''PASS if, after the change, line anchors resolve regardless of case and surrounding whitespace, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_anchor_case.py" <<'EOF'
+from voss.harness.tools import _line_anchor, _resolve_anchor
+
+SEGS = ["alpha = 1", "beta = 2", "gamma = 3"]
+
+
+def test_uppercase_and_padded_anchors_resolve():
+    anchor = _line_anchor("beta = 2")
+    assert _resolve_anchor(SEGS, anchor.upper()) == (1, "")
+    assert _resolve_anchor(SEGS, f"  {anchor}\n") == (1, "")
+
+
+def test_exact_and_unknown_anchors_unchanged():
+    assert _resolve_anchor(SEGS, _line_anchor("gamma = 3")) == (2, "")
+    index, error = _resolve_anchor(SEGS, "zzzzzzzz")
+    assert index is None and "not found" in error
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_anchor_case.py"
+'''
+timeout = 120

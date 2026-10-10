@@ -35,10 +35,32 @@ crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap.new
 .vercel
 .env*.local
 npm/platforms/*/python/
+npm/platforms/*/bin/
 
 # Claude Code / GSD local install (runtime-generated, not source).
 .claude/
 .cursor/rules/gsd-*
+
+# Local planning documents.
+.planning/
+plans/
+*-plan.md
+*-PLAN.md
+PLAN.md
+ROADMAP.md
+TODO.md
+/PRD.md
+/.vscode/voss_v_0_1_scope_lock.md
+/docs/SKILLS_REPORT.md
+/docs/tui-redesign-spec.md
+/archive/voss-ade/planning/
+/archive/voss-ade/apps/voss-app/CONCEPT.md
+/archive/voss-ade/apps/voss-app/FEATURES.md
+/archive/voss-ade/apps/voss-app/PRODUCT.md
+/archive/voss-ade/apps/voss-app/V24-TERMINAL-FIRST-CHECKLIST.md
+/archive/voss-ade/docs/ADE-CANVAS-HANDOFF.md
+/site/app/roadmap/
+/site/docs/roadmap/
 
 # Node.
 node_modules/
@@ -52,3 +74,8 @@ cabal.project.local~
 
 .DS_Store
 site-redesign-ledger.html
+
+# Go TUI build output
+/tui/tui
+/tui/voss-tui-go
+/tui/voss-tui

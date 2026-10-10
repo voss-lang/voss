@@ -13,8 +13,9 @@ import uuid
 from concurrent.futures import Future
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
@@ -24,8 +25,10 @@ from starlette.responses import JSONResponse, Response
 
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
 
+from .. import ambient
 from .. import auth as auth_mod
 from .. import cognition as cognition_mod
+from .. import config as harness_config
 from .. import session as session_store
 from ..agent import run_turn
 from ..observe import admission as observe_admission
@@ -50,10 +53,13 @@ from ..swarm_store import (
     SwarmStore,
     build_ownership_policy,
 )
-from ..tools import attach_memory_tools, make_toolset
+from ..tools import attach_memory_tools, attach_mcp_tools, make_toolset
 from ..memory_gateway import open_memory_store
 from ..memory_store import MemoryStore
+from . import commands
 from . import events as E
+from . import models as model_selection
+from .diffs import DiffReply, DiffReviewRenderer
 from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
 
@@ -118,6 +124,13 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
 
     from ..claude_agent_provider import ClaudeAgentProvider
     from ..providers import OpenAIOAuthProvider
+
+    # Same persisted-default rule as cli._resolve_auth_or_die: `[harness] auth`
+    # applies when nothing more specific was asked for.
+    if preference == "auto":
+        saved = harness_config.load_harness_config().get("auth")
+        if saved in ("claude", "codex", "api", "none"):
+            preference = saved
 
     res = auth_mod.resolve(preference)
     if res.source == "none":
@@ -313,10 +326,44 @@ def _swarm_recall_text(session: ServerSession, text: str) -> str:
 # turn runner
 
 
+async def _run_ambient_turn(
+    session: ServerSession, text: str, mode: str, route: str, renderer: EventBusRenderer,
+) -> None:
+    status = ambient.status_answer(
+        provider=model_selection.provider_label(session.provider, session.auth),
+        model=session.model, mode=mode,
+    )
+    if route == "local":
+        session.history.add(text, role="user")
+        session.history.add(status, role="assistant")
+        renderer.show_final(status, confidence=1.0, cost_usd=0.0)
+        return
+    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    response = await ambient.complete(
+        text, provider=session.provider, model=session.model, cwd=session.cwd,
+        history=session.history, status=status, prior_context=session.prior_context,
+    )
+    session.record.runs.append(asdict(session_store.RunRecord(
+        id=uuid.uuid4().hex[:12], started_at=started,
+        ended_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        goal=text, cost_usd=response.cost_usd, exit_reason="done",
+        iteration_total_prompt_tokens=response.prompt_tokens,
+        iteration_total_completion_tokens=response.completion_tokens,
+    )))
+    renderer.status(
+        model=session.model, tokens=response.total_tokens,
+        cost_usd=response.cost_usd, ctx_pct=0.0,
+    )
+    renderer.show_final(response.text, confidence=1.0, cost_usd=response.cost_usd)
+
+
 async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     """Drive one turn; publish events; persist. Runs as session.task."""
     loop = asyncio.get_running_loop()
-    renderer = EventBusRenderer(session.queue, session_id=session.id, loop=loop)
+    renderer = (
+        DiffReviewRenderer(session, loop=loop) if session.review_diffs else
+        EventBusRenderer(session.queue, session_id=session.id, loop=loop, model=session.model)
+    )
 
     # VSWARM-04 spawn-gate: a builder session created before its assignment
     # holds a set (unsignaled) gate_event and runs ZERO turns until the
@@ -331,6 +378,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     if os.environ.get("VOSS_SERVE_FAKE_TURN"):
         try:
             renderer.show_user(text)
+            renderer.set_phase("run")
             renderer.show_thinking("planning 1/1")
             renderer.show_plan(_FakePlan(), cost_usd=0.0)
             renderer.stream_delta("hello ")
@@ -338,13 +386,21 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             renderer.finalize_stream(role="assistant", confidence=0.9, cost_usd=0.0)
             renderer.show_final(f"echo: {text}", confidence=0.9, cost_usd=0.0)
         finally:
+            renderer.set_phase("ambient")
             renderer.session_idle()
             session.task = None
         return
 
+    mcp_client = None
     try:
         renderer.show_user(text)
+        route = "voss_run" if session.swarm_id or session.gate_event is not None else ambient.route(text)
+        renderer.set_phase("run" if route == "voss_run" else "ambient")
+        if route != "voss_run":
+            await _run_ambient_turn(session, text, mode, route, renderer)
+            return
         tools = make_toolset(session.cwd, renderer=renderer)
+        mcp_client = await attach_mcp_tools(tools, session.cwd)
         if session.memory_store is None:
             session.memory_store = open_memory_store(session.cwd)
         memory_kwargs = {}
@@ -389,7 +445,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         # are additive and self-guard (return "" on any failure / not-ready /
         # inject-off), so a turn never breaks because injection is unavailable
         try:
-            from ..cli import _render_project_index_text, _render_code_recall_text
+            from ..cli import _render_project_index_text, _scoped_turn
 
             project_index_text = _render_project_index_text(
                 session.cwd, session_id=session.id
@@ -399,30 +455,34 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             if session.swarm_owned_files:
                 code_recall_text = await asyncio.to_thread(_swarm_recall_text, session, text)
             else:
-                code_recall_text = _render_code_recall_text(
-                    session.cwd, text, session_id=session.id
-                )
+                code_recall_text = ""
         except Exception:
             project_index_text = ""
             code_recall_text = ""
 
-        result = await run_turn(
-            text,
-            tools=tools,
-            cwd=session.cwd,
-            renderer=renderer,
-            model=session.model,
-            provider=session.provider,
-            permissions=gate,
-            history=session.history,
-            session_id=session.id,
-            cognition=bundle,
-            voss_md_text=voss_md_text,
-            project_index_text=project_index_text,
-            code_recall_text=code_recall_text,
-            prior_context=session.prior_context,
-            **memory_kwargs,
-        )
+        def make_turn(recall: dict):
+            return run_turn(
+                text,
+                tools=tools,
+                cwd=session.cwd,
+                renderer=renderer,
+                model=session.model,
+                provider=session.provider,
+                permissions=gate,
+                history=session.history,
+                session_id=session.id,
+                cognition=bundle,
+                voss_md_text=voss_md_text,
+                project_index_text=project_index_text,
+                code_recall_text=recall.get("code_recall_text", ""),
+                prior_context=session.prior_context,
+                **memory_kwargs,
+            )
+
+        if session.swarm_owned_files:
+            result = await make_turn({"code_recall_text": code_recall_text})
+        else:
+            result = await _scoped_turn(session.cwd, text, session.id, run_turn, make_turn)
         # Consume resume context once: deep history now flows via session.history
         session.prior_context = None
         renderer.show_final(
@@ -441,10 +501,16 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         renderer.stream_delta(f"\n[error: {e}]\n")
         renderer.finalize_stream(role="system", confidence=None, cost_usd=None)
     finally:
+        if mcp_client is not None:
+            await mcp_client.aclose()
         try:
+            session.record.total_cost_usd = sum(
+                float(r.get("cost_usd", 0.0) or 0.0) for r in session.record.runs
+            )
             session_store.save(session.record, session.history)
         except Exception:
             pass
+        renderer.set_phase("ambient")
         renderer.session_idle()
         session.task = None
 
@@ -453,6 +519,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
 
 
 class CreateSessionBody(BaseModel):
+    review_diffs: bool = False
     parentID: str | None = None
     title: str | None = None
     cwd: str | None = None
@@ -474,6 +541,16 @@ class MessageBody(BaseModel):
 class PermissionReply(BaseModel):
     id: str
     choice: str  # a | A | d  (or y | n for scope)
+
+
+class HistoryTurn(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str
+
+
+class SessionHistory(BaseModel):
+    v: int = 1
+    turns: list[HistoryTurn]
 
 
 # swarm
@@ -649,16 +726,41 @@ def create_app(token: str | None = None) -> FastAPI:
         auth_pref = body.auth
         if auth_pref == "auto":
             auth_pref = os.environ.get("VOSS_SERVE_DEFAULT_AUTH", "auto")
-        res, provider = _resolve_provider(auth_pref)
-        if provider is None:
-            raise HTTPException(400, f"no usable credentials ({res.detail})")
+        saved = {} if os.environ.get("VOSS_SERVE_FAKE_TURN") else harness_config.load_harness_config()
+        record = None
         if body.resume:
             try:
                 record, history = session_store.load(body.resume, cwd)
             except FileNotFoundError:
                 raise HTTPException(404, f"no saved session {body.resume!r}")
-            except ValueError as exc:  # ambiguous id
+            except ValueError as exc:
                 raise HTTPException(409, str(exc))
+            if record.model_auth:
+                saved = {
+                    "preferred_model": record.model, "auth": record.model_auth,
+                    "preferred_provider": record.model_provider,
+                }
+        restore_selection = (
+            auth_pref == "auto" and not body.model and (not record or record.model_auth)
+            and not os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
+            and saved.get("auth") in ("claude", "codex", "api")
+            and saved.get("preferred_model")
+        )
+        selected = None
+        try:
+            if restore_selection:
+                selected = model_selection.restore(
+                    saved["preferred_model"], saved["auth"], saved.get("preferred_provider"),
+                )
+                res = auth_mod.Resolution(source=selected.source, detail="saved selection")
+                provider = selected.provider
+            else:
+                res, provider = _resolve_provider(auth_pref)
+        except Exception:
+            raise HTTPException(400, "Could not initialize the selected provider. Check your local login or use --auth.") from None
+        if provider is None:
+            raise HTTPException(400, f"no usable credentials ({res.detail})")
+        if record:
             # forward ALL prior runs as prior context (consumed on turn 1)
             s = mgr.adopt(
                 record=record,
@@ -666,6 +768,8 @@ def create_app(token: str | None = None) -> FastAPI:
                 provider=provider,
                 prior_context=record.runs or None,
             )
+            if selected:
+                s.model = selected.model
             # Twin of the create snap: a saved record may carry a model (e.g.
             # the old default) that the Codex backend 400s on. Snap the
             # EFFECTIVE session model only `record.model` stays intact so
@@ -675,10 +779,15 @@ def create_app(token: str | None = None) -> FastAPI:
                 s.model
             ):
                 s.model = _codex_session_model()
+            if res.source == "claude-agent" and not s.model.startswith("claude-"):
+                s.model = model_selection.SUBSCRIPTION_MODELS["claude"][0].id
+            s.auth = res.source
+            s.review_diffs = body.review_diffs
             return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
         model = (
-            body.model
+            (selected.model if selected else body.model)
             or os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
+            or saved.get("preferred_model")
             or get_config().default_model
         )
         # codex-oauth: snap a model the backend does not serve to Codex's own
@@ -686,7 +795,14 @@ def create_app(token: str | None = None) -> FastAPI:
         # mirrors cli.py:686-687 without the global configure mutation)
         if res.source == "codex-oauth" and not auth_mod.is_codex_backend_model(model):
             model = _codex_session_model()
+        if res.source == "claude-agent" and not model.startswith("claude-"):
+            model = model_selection.SUBSCRIPTION_MODELS["claude"][0].id
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
+        s.auth = res.source
+        s.review_diffs = body.review_diffs
+        if selected:
+            s.record.model_auth = selected.choice.auth
+            s.record.model_provider = selected.choice.provider if selected.choice.auth == "api" else None
         return {"v": 1, "id": s.id, "auth": res.source, "resumed": False}
 
     @app.get("/session")
@@ -713,6 +829,7 @@ def create_app(token: str | None = None) -> FastAPI:
                     "updated_at": r.updated_at,
                     "total_cost_usd": r.total_cost_usd,
                     "turns": len(r.turns),
+                    "first_task": r.first_task(),
                 }
                 for r in records
             ],
@@ -721,7 +838,72 @@ def create_app(token: str | None = None) -> FastAPI:
     @app.get("/session/{session_id}")
     def get_session(session_id: str) -> dict:
         s = _require(session_id)
-        return {"v": 1, "id": s.id, "cwd": str(s.cwd), "model": s.model, "title": s.title, "busy": s.busy}
+        return {
+            "v": 1, "id": s.id, "cwd": str(s.cwd), "model": s.model,
+            "title": s.title, "busy": s.busy, "auth": s.auth,
+            "provider": model_selection.provider_label(s.provider, s.auth),
+        }
+
+    @app.get("/session/{session_id}/history", response_model=SessionHistory)
+    async def session_history(session_id: str) -> SessionHistory:
+        s = _require(session_id)
+        return SessionHistory(turns=[
+            HistoryTurn(role=t.role, content=t.content)
+            for t in s.history.turns if t.role in ("user", "assistant", "system")
+        ])
+
+    @app.post("/session/{session_id}/clear", status_code=204, response_class=Response)
+    async def clear_history(session_id: str) -> Response:
+        s = _require(session_id)
+        if s.busy:
+            raise HTTPException(409, "a turn or model switch is already running")
+        s.history = EpisodicMemory(capacity=40)
+        s.prior_context = None
+        return Response(status_code=204)
+
+    @app.get("/commands", response_model=commands.CommandCatalog)
+    def list_commands() -> commands.CommandCatalog:
+        return commands.CommandCatalog(commands=list(commands.COMMANDS))
+
+    @app.post("/session/{session_id}/command", response_model=commands.CommandResult)
+    async def execute_command(session_id: str, body: commands.CommandRequest) -> commands.CommandResult:
+        s = _require(session_id)
+        try:
+            return await commands.execute(s.cwd, body, record=s.record)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.get("/models", response_model=model_selection.ModelCatalog)
+    def list_models():
+        return model_selection.catalog()
+
+    @app.post("/session/{session_id}/model")
+    async def select_model(session_id: str, body: model_selection.ModelSelectionBody) -> dict:
+        s = _require(session_id)
+        if s.busy:
+            raise HTTPException(409, "a turn or model switch is already running")
+        if not body.model.strip() and not body.auth:
+            raise HTTPException(422, "model or auth is required")
+        s.switching = True
+        try:
+            selected = await asyncio.to_thread(model_selection.prepare, body, s.model)
+            if mgr.get(session_id) is not s:
+                raise HTTPException(409, "session changed during model selection")
+            choice = selected.choice
+            harness_config.set_preferred_selection(
+                choice.id, choice.auth, choice.provider if choice.auth == "api" else None,
+            )
+            s.provider, s.model, s.auth = selected.provider, selected.model, selected.source
+            s.record.model = selected.model
+            s.record.model_auth = choice.auth
+            s.record.model_provider = choice.provider if choice.auth == "api" else None
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+        except OSError:
+            raise HTTPException(500, "Could not save the model selection. Selection unchanged.") from None
+        finally:
+            s.switching = False
+        return get_session(session_id)
 
     @app.delete("/session/{session_id}", status_code=204, response_class=Response)
     def delete_session(session_id: str) -> Response:
@@ -751,8 +933,9 @@ def create_app(token: str | None = None) -> FastAPI:
     def cost(session_id: str) -> dict:
         s = _require(session_id)
         runs = s.record.runs
-        total = sum(float(r.get("cost_usd", 0.0) or 0.0) for r in runs)
-        return {"v": 1, "total_usd": total, "turns": len(runs)}
+        chat = sum(float(r.get("cost_usd", 0.0) or 0.0) for r in runs)
+        judgments = sum(float(r.get("judgments_cost_usd", 0.0) or 0.0) for r in runs)
+        return {"v": 1, "total_usd": chat + judgments, "judgments_usd": judgments, "turns": len(runs)}
 
     @app.post("/session/{session_id}/permission")
     def reply_permission(session_id: str, body: PermissionReply) -> dict:
@@ -762,6 +945,17 @@ def create_app(token: str | None = None) -> FastAPI:
             fut.set_result(body.choice)
             return {"v": 1, "status": "ok"}
         return {"v": 1, "status": "stale"}
+
+    @app.post("/session/{session_id}/diff")
+    async def reply_diff(session_id: str, body: DiffReply) -> dict:
+        s = _require(session_id)
+        pending = s.pending_diffs.get(body.id)
+        if pending is None or pending.future.done():
+            return {"v": 1, "status": "stale"}
+        if body.decisions and len(body.decisions) != pending.count:
+            raise HTTPException(422, "Supply one decision per hunk, or an empty list to cancel.")
+        pending.future.set_result(body.decisions)
+        return {"v": 1, "status": "ok"}
 
 
     @app.get(

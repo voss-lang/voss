@@ -155,3 +155,35 @@ class TestDeterminism:
         out1 = render_text(build_audit_report(fixture_root))
         out2 = render_text(build_audit_report(fixture_root))
         assert out1 == out2
+
+
+class TestJudgmentsSection:
+    _LINES = (
+        "- aaaaaaaaaaaa recall.rerank unavailable model=jev-1.13.0 attempts=1 "
+        "cost=unknown held=$0.004000 latency=5000ms\n"
+        "- bbbbbbbbbbbb explicit answered model=jev-1.13.1 attempts=1 "
+        "cost=$0.001200 held=$0.000000 latency=812ms\n"
+        "- total observed $0.001200, held $0.004000, calls 2\n"
+    )
+
+    def test_markdown_appends_judgments_section(self, fixture_root: Path):
+        from tests.harness.audit.test_audit_judgments import build_ledger
+        from voss.harness.audit.render import render_markdown
+        from voss.harness.audit.report import build_audit_report
+        from voss.harness.session_tree import write_judgments_sidecar
+
+        before = render_markdown(build_audit_report(fixture_root))
+        write_judgments_sidecar(fixture_root, "root_aabbcc0001", build_ledger())
+        after = render_markdown(build_audit_report(fixture_root))
+        assert after == before + "## §16 Judgments\n\n" + self._LINES
+
+    def test_text_appends_judgments_section(self, fixture_root: Path):
+        from tests.harness.audit.test_audit_judgments import build_ledger
+        from voss.harness.audit.render import render_text
+        from voss.harness.audit.report import build_audit_report
+        from voss.harness.session_tree import write_judgments_sidecar
+
+        before = render_text(build_audit_report(fixture_root))
+        write_judgments_sidecar(fixture_root, "root_aabbcc0001", build_ledger())
+        after = render_text(build_audit_report(fixture_root))
+        assert after == before + "[16] Judgments\n" + self._LINES

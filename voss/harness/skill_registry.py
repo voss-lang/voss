@@ -14,6 +14,7 @@ class SkillEntry:
     description: str
     handler: SkillHandler
     mutating: bool = False
+    instruction_path: Path | None = None
 
 
 class SkillRegistry:
@@ -33,7 +34,7 @@ class SkillRegistry:
         return [self._entries[k] for k in self.ids()]
 
 
-def default_skill_registry() -> SkillRegistry:
+def default_skill_registry(cwd: Path | None = None) -> SkillRegistry:
     registry = SkillRegistry()
 
     def analyze(ctx: Any, _args: list[str]) -> None:
@@ -193,7 +194,16 @@ def default_skill_registry() -> SkillRegistry:
         )
     )
     # Load third-party.voss skills AFTER built-ins (built-in ids win on collision)
-    load_voss_skills(Path.cwd(), registry)
+    cwd = cwd or Path.cwd()
+    load_voss_skills(cwd, registry)
+    from .skill.local import discover, make_handler
+
+    for skill in discover(cwd).values():
+        if registry.get(skill.name) is None:
+            registry.register(SkillEntry(
+                id=skill.name, description=skill.description, handler=make_handler(skill),
+                instruction_path=skill.path, mutating=True,
+            ))
     return registry
 
 

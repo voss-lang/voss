@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// TypedEvent is the sealed interface implemented by the 29 AgentEvent structs and UnknownEvent.
+// TypedEvent is the sealed interface implemented by the AgentEvent structs and UnknownEvent.
 // Hand-written: oapi-codegen emits the structs but no Go sum type or dispatcher.
 type TypedEvent interface{ eventType() string }
 
@@ -13,6 +13,8 @@ type TypedEvent interface{ eventType() string }
 func (ServerConnected) eventType() string      { return "server.connected" }
 func (SessionIdle) eventType() string          { return "session.idle" }
 func (PermissionUpdated) eventType() string    { return "permission.updated" }
+func (DiffProposed) eventType() string         { return "diff.proposed" }
+func (DiffResolved) eventType() string         { return "diff.resolved" }
 func (BannerEvent) eventType() string          { return "banner" }
 func (UserEvent) eventType() string            { return "user" }
 func (ThinkingEvent) eventType() string        { return "thinking" }
@@ -48,7 +50,7 @@ type UnknownEvent struct {
 	Raw  json.RawMessage
 }
 
-// ErrUnknownEventType is returned by Decode for any `type` outside the 29-member
+// ErrUnknownEventType is returned by Decode for any `type` outside the known
 // set, carrying the raw type string. Match via errors.As.
 type ErrUnknownEventType struct{ Type string }
 
@@ -62,6 +64,12 @@ func Decode(env EventEnvelope) (TypedEvent, error) {
 		return nil, fmt.Errorf("event discriminator: %w", err)
 	}
 	switch disc {
+	case "diff.proposed":
+		v, err := env.Event.AsDiffProposed()
+		return v, err
+	case "diff.resolved":
+		v, err := env.Event.AsDiffResolved()
+		return v, err
 	case "server.connected":
 		v, err := env.Event.AsServerConnected()
 		return v, err

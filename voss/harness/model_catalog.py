@@ -74,7 +74,7 @@ class ModelEntry:
 
 @dataclass(frozen=True)
 class ProviderGroup:
-    """A picker section: one provider and its models, in catalog order."""
+    """A picker section: one provider and its models, newest releases first."""
 
     id: str
     label: str
@@ -99,7 +99,7 @@ def _model_entry(provider_id: str, provider_label: str, api_base: str | None,
     context = limit.get("context") if isinstance(limit, dict) else None
     return ModelEntry(
         id=str(model.get("id", "")),
-        name=str(model.get("name") or model.get("id", "")),
+        name=str(model.get("name") or model.get("id", "")).removesuffix(" (latest)"),
         provider_id=provider_id,
         provider_label=provider_label,
         api_base=api_base,
@@ -116,8 +116,8 @@ def parse_catalog(
 ) -> list[ProviderGroup]:
     """Filter the raw models.dev dict to `providers` and normalize to groups.
 
-    Pure — no network/disk. Provider order follows `providers`; model order
-    follows the catalog's own ordering. Unknown/absent providers are skipped.
+    Pure — no network/disk. Provider order follows `providers`; models are
+    newest first, with undated entries last. Unknown providers are skipped.
     """
     order = list(providers)
     groups: list[ProviderGroup] = []
@@ -132,10 +132,13 @@ def parse_catalog(
         api_base = prov.get("api") or None
         env_list = prov.get("env")
         env_key = env_list[0] if isinstance(env_list, list) and env_list else None
-        entries = tuple(
-            _model_entry(pid, label, api_base, env_key, m)
-            for m in models_raw.values()
+        models = [
+            m for m in models_raw.values()
             if isinstance(m, dict) and m.get("id")
+        ]
+        models.sort(key=lambda m: str(m.get("release_date") or ""), reverse=True)
+        entries = tuple(
+            _model_entry(pid, label, api_base, env_key, m) for m in models
         )
         if entries:
             groups.append(

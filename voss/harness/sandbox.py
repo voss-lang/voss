@@ -21,6 +21,8 @@ DENY_TOKENS = ("rm -rf", "sudo", "curl http", "nc ", " > /", "shutdown", "reboot
 # and process substitution (`<(`, `>(`)
 SHELL_METACHARS = (";", "|", "&&", "||", "&", "$(", "`", ">", "<", ">>", "<<", "<(", ">(")
 
+SCRUBBED_ENV = frozenset({"TYPESAFE_API_KEY"})
+
 
 class SandboxError(RuntimeError):
     pass
@@ -100,3 +102,7 @@ def write_cache(project_root: Path, relpath: str | os.PathLike, text: str) -> Pa
     tmp.write_text(text)
     tmp.replace(target)
     return target
+
+
+def scrubbed_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k not in SCRUBBED_ENV}

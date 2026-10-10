@@ -26,6 +26,11 @@ class RuntimeConfig:
     # via get_config().allow_net and denies any is_network=True tool when
     # this field is False (NET-05). Default False = no outbound sockets.
     allow_net: bool = False
+    judgments_model: str = "jev-1.13.0"
+    judgments_timeout_ms: int = 5000
+    judgments_max_calls_per_turn: int = 4
+    judgments_max_request_bytes: int = 24000
+    judgments_max_cost_usd: float = 0.01
 
 
 _config = RuntimeConfig()

@@ -223,6 +223,8 @@ class RunRecorder:
     capability_invocations: list[dict] = field(default_factory=list)
     # V12 VSAFE-05: one row per safety factory-fallback route (additive).
     factory_fallbacks: list[dict] = field(default_factory=list)
+    judgment_receipts: list[dict] = field(default_factory=list)
+    judgments_cost_usd: float = 0.0
     instructions_hash: str = ""
     instructions_files: list[str] = field(default_factory=list)
     # T1-01: per-iteration sub-records appended via begin_iteration /
@@ -529,6 +531,8 @@ class RunRecorder:
             factory_fallbacks=list(self.factory_fallbacks),
             instructions_hash=self.instructions_hash,
             instructions_files=list(self.instructions_files),
+            judgments_cost_usd=self.judgments_cost_usd,
+            judgment_receipts=list(self.judgment_receipts),
         )
 
 

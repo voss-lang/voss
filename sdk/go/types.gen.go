@@ -28,6 +28,108 @@ func (e BudgetUpdatedUnit) Valid() bool {
 	}
 }
 
+// Defines values for DiffReplyDecisions.
+const (
+	Accept DiffReplyDecisions = "accept"
+	Reject DiffReplyDecisions = "reject"
+	Skip   DiffReplyDecisions = "skip"
+)
+
+// Valid indicates whether the value is a known member of the DiffReplyDecisions enum.
+func (e DiffReplyDecisions) Valid() bool {
+	switch e {
+	case Accept:
+		return true
+	case Reject:
+		return true
+	case Skip:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HistoryTurnRole.
+const (
+	Assistant HistoryTurnRole = "assistant"
+	System    HistoryTurnRole = "system"
+	User      HistoryTurnRole = "user"
+)
+
+// Valid indicates whether the value is a known member of the HistoryTurnRole enum.
+func (e HistoryTurnRole) Valid() bool {
+	switch e {
+	case Assistant:
+		return true
+	case System:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ModelChoiceAuth.
+const (
+	ModelChoiceAuthApi    ModelChoiceAuth = "api"
+	ModelChoiceAuthClaude ModelChoiceAuth = "claude"
+	ModelChoiceAuthCodex  ModelChoiceAuth = "codex"
+)
+
+// Valid indicates whether the value is a known member of the ModelChoiceAuth enum.
+func (e ModelChoiceAuth) Valid() bool {
+	switch e {
+	case ModelChoiceAuthApi:
+		return true
+	case ModelChoiceAuthClaude:
+		return true
+	case ModelChoiceAuthCodex:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ModelSelectionBodyAuth.
+const (
+	ModelSelectionBodyAuthApi    ModelSelectionBodyAuth = "api"
+	ModelSelectionBodyAuthClaude ModelSelectionBodyAuth = "claude"
+	ModelSelectionBodyAuthCodex  ModelSelectionBodyAuth = "codex"
+)
+
+// Valid indicates whether the value is a known member of the ModelSelectionBodyAuth enum.
+func (e ModelSelectionBodyAuth) Valid() bool {
+	switch e {
+	case ModelSelectionBodyAuthApi:
+		return true
+	case ModelSelectionBodyAuthClaude:
+		return true
+	case ModelSelectionBodyAuthCodex:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StatusEventPhase.
+const (
+	Ambient StatusEventPhase = "ambient"
+	Run     StatusEventPhase = "run"
+)
+
+// Valid indicates whether the value is a known member of the StatusEventPhase enum.
+func (e StatusEventPhase) Valid() bool {
+	switch e {
+	case Ambient:
+		return true
+	case Run:
+		return true
+	default:
+		return false
+	}
+}
+
 // Alternative defines model for Alternative.
 type Alternative struct {
 	Probability float32 `json:"probability"`
@@ -65,6 +167,23 @@ type ClarifyEvent struct {
 	V          *int    `json:"v,omitempty"`
 }
 
+// CodeHit defines model for CodeHit.
+type CodeHit struct {
+	File     string `json:"file"`
+	Language string `json:"language"`
+	Line     int    `json:"line"`
+	Name     string `json:"name"`
+	Snippet  string `json:"snippet"`
+	Source   string `json:"source"`
+}
+
+// CodeResults defines model for CodeResults.
+type CodeResults struct {
+	Items     []CodeHit `json:"items"`
+	Query     string    `json:"query"`
+	Truncated bool      `json:"truncated"`
+}
+
 // CognitionLoaded defines model for CognitionLoaded.
 type CognitionLoaded struct {
 	ArchitectureTokens int    `json:"architecture_tokens"`
@@ -83,6 +202,33 @@ type CognitionOverflow struct {
 	V                  *int   `json:"v,omitempty"`
 }
 
+// CommandCatalog defines model for CommandCatalog.
+type CommandCatalog struct {
+	Commands []CommandInfo `json:"commands"`
+	V        *int          `json:"v,omitempty"`
+}
+
+// CommandInfo defines model for CommandInfo.
+type CommandInfo struct {
+	Description string `json:"description"`
+	Name        string `json:"name"`
+}
+
+// CommandRequest defines model for CommandRequest.
+type CommandRequest struct {
+	Args *[]string `json:"args,omitempty"`
+	Name string    `json:"name"`
+}
+
+// CommandResult defines model for CommandResult.
+type CommandResult struct {
+	Code       *CodeResults      `json:"code,omitempty"`
+	Inspection *InspectionResult `json:"inspection,omitempty"`
+	Stderr     *string           `json:"stderr,omitempty"`
+	Stdout     *string           `json:"stdout,omitempty"`
+	V          *int              `json:"v,omitempty"`
+}
+
 // ConfidenceUpdated defines model for ConfidenceUpdated.
 type ConfidenceUpdated struct {
 	MessageId *string `json:"message_id,omitempty"`
@@ -94,12 +240,13 @@ type ConfidenceUpdated struct {
 
 // CreateSessionBody defines model for CreateSessionBody.
 type CreateSessionBody struct {
-	Auth     *string `json:"auth,omitempty"`
-	Cwd      *string `json:"cwd,omitempty"`
-	Model    *string `json:"model,omitempty"`
-	ParentID *string `json:"parentID,omitempty"`
-	Resume   *string `json:"resume,omitempty"`
-	Title    *string `json:"title,omitempty"`
+	Auth        *string `json:"auth,omitempty"`
+	Cwd         *string `json:"cwd,omitempty"`
+	Model       *string `json:"model,omitempty"`
+	ParentID    *string `json:"parentID,omitempty"`
+	Resume      *string `json:"resume,omitempty"`
+	ReviewDiffs *bool   `json:"review_diffs,omitempty"`
+	Title       *string `json:"title,omitempty"`
 }
 
 // CreateSwarmBody defines model for CreateSwarmBody.
@@ -115,6 +262,37 @@ type CreateTaskBody struct {
 	DependsOn  *[]string `json:"depends_on,omitempty"`
 	Goal       string    `json:"goal"`
 	OwnedFiles *[]string `json:"owned_files,omitempty"`
+}
+
+// DiffHunk defines model for DiffHunk.
+type DiffHunk struct {
+	File  string   `json:"file"`
+	Lines []string `json:"lines"`
+	Start int      `json:"start"`
+}
+
+// DiffProposed defines model for DiffProposed.
+type DiffProposed struct {
+	Hunks []DiffHunk `json:"hunks"`
+	Id    string     `json:"id"`
+	Type  string     `json:"type"`
+	V     *int       `json:"v,omitempty"`
+}
+
+// DiffReply defines model for DiffReply.
+type DiffReply struct {
+	Decisions []DiffReplyDecisions `json:"decisions"`
+	Id        string               `json:"id"`
+}
+
+// DiffReplyDecisions defines model for DiffReply.Decisions.
+type DiffReplyDecisions string
+
+// DiffResolved defines model for DiffResolved.
+type DiffResolved struct {
+	Id   string `json:"id"`
+	Type string `json:"type"`
+	V    *int   `json:"v,omitempty"`
 }
 
 // EventEnvelope OpenAPI schema anchor (H1.14).
@@ -153,6 +331,21 @@ type HTTPValidationError struct {
 	Detail *[]ValidationError `json:"detail,omitempty"`
 }
 
+// HistoryTurn defines model for HistoryTurn.
+type HistoryTurn struct {
+	Content string          `json:"content"`
+	Role    HistoryTurnRole `json:"role"`
+}
+
+// HistoryTurnRole defines model for HistoryTurn.Role.
+type HistoryTurnRole string
+
+// InspectionResult defines model for InspectionResult.
+type InspectionResult struct {
+	Text  string `json:"text"`
+	Title string `json:"title"`
+}
+
 // InstructionsOverflow defines model for InstructionsOverflow.
 type InstructionsOverflow struct {
 	Budget             *int      `json:"budget,omitempty"`
@@ -173,6 +366,37 @@ type MessagePart struct {
 	Text *string `json:"text,omitempty"`
 	Type *string `json:"type,omitempty"`
 }
+
+// ModelCatalog defines model for ModelCatalog.
+type ModelCatalog struct {
+	Models  []ModelChoice `json:"models"`
+	V       *int          `json:"v,omitempty"`
+	Warning string        `json:"warning"`
+}
+
+// ModelChoice defines model for ModelChoice.
+type ModelChoice struct {
+	Auth          ModelChoiceAuth `json:"auth"`
+	Connected     bool            `json:"connected"`
+	Id            string          `json:"id"`
+	Name          string          `json:"name"`
+	Provider      string          `json:"provider"`
+	ProviderLabel string          `json:"provider_label"`
+	Recommended   bool            `json:"recommended"`
+}
+
+// ModelChoiceAuth defines model for ModelChoice.Auth.
+type ModelChoiceAuth string
+
+// ModelSelectionBody defines model for ModelSelectionBody.
+type ModelSelectionBody struct {
+	Auth     *ModelSelectionBodyAuth `json:"auth,omitempty"`
+	Model    *string                 `json:"model,omitempty"`
+	Provider *string                 `json:"provider,omitempty"`
+}
+
+// ModelSelectionBodyAuth defines model for ModelSelectionBody.Auth.
+type ModelSelectionBodyAuth string
 
 // ObserveEnrollmentPatch defines model for ObserveEnrollmentPatch.
 type ObserveEnrollmentPatch struct {
@@ -224,6 +448,7 @@ type PermissionUpdated struct {
 type PlanEvent struct {
 	Confidence float32     `json:"confidence"`
 	CostUsd    float32     `json:"cost_usd"`
+	Rationale  *string     `json:"rationale,omitempty"`
 	Steps      *[]PlanStep `json:"steps,omitempty"`
 	Type       string      `json:"type"`
 	V          *int        `json:"v,omitempty"`
@@ -233,6 +458,7 @@ type PlanEvent struct {
 type PlanStep struct {
 	Args *map[string]interface{} `json:"args,omitempty"`
 	Name string                  `json:"name"`
+	Why  *string                 `json:"why,omitempty"`
 }
 
 // PrinciplesOverflow defines model for PrinciplesOverflow.
@@ -268,6 +494,12 @@ type ServerConnected struct {
 	V    *int   `json:"v,omitempty"`
 }
 
+// SessionHistory defines model for SessionHistory.
+type SessionHistory struct {
+	Turns []HistoryTurn `json:"turns"`
+	V     *int          `json:"v,omitempty"`
+}
+
 // SessionIdle defines model for SessionIdle.
 type SessionIdle struct {
 	SessionId string `json:"session_id"`
@@ -277,13 +509,17 @@ type SessionIdle struct {
 
 // StatusEvent defines model for StatusEvent.
 type StatusEvent struct {
-	CostUsd float32 `json:"cost_usd"`
-	CtxPct  float32 `json:"ctx_pct"`
-	Model   string  `json:"model"`
-	Tokens  int     `json:"tokens"`
-	Type    string  `json:"type"`
-	V       *int    `json:"v,omitempty"`
+	CostUsd float32           `json:"cost_usd"`
+	CtxPct  float32           `json:"ctx_pct"`
+	Model   string            `json:"model"`
+	Phase   *StatusEventPhase `json:"phase,omitempty"`
+	Tokens  int               `json:"tokens"`
+	Type    string            `json:"type"`
+	V       *int              `json:"v,omitempty"`
 }
+
+// StatusEventPhase defines model for StatusEvent.Phase.
+type StatusEventPhase string
 
 // StreamDelta defines model for StreamDelta.
 type StreamDelta struct {
@@ -406,12 +642,15 @@ type ThinkingEvent struct {
 
 // ToolEvent defines model for ToolEvent.
 type ToolEvent struct {
-	Args    *map[string]interface{} `json:"args,omitempty"`
-	Name    string                  `json:"name"`
-	State   string                  `json:"state"`
-	Summary *string                 `json:"summary,omitempty"`
-	Type    string                  `json:"type"`
-	V       *int                    `json:"v,omitempty"`
+	Args        *map[string]interface{} `json:"args,omitempty"`
+	CallId      *string                 `json:"call_id,omitempty"`
+	Name        string                  `json:"name"`
+	Output      *string                 `json:"output,omitempty"`
+	OutputLines *int                    `json:"output_lines,omitempty"`
+	State       string                  `json:"state"`
+	Summary     *string                 `json:"summary,omitempty"`
+	Type        string                  `json:"type"`
+	V           *int                    `json:"v,omitempty"`
 }
 
 // UserEvent defines model for UserEvent.
@@ -493,8 +732,17 @@ type PatchObserveSettingsObserveSettingsPatchJSONRequestBody = ObserveSettingsBo
 // CreateSessionSessionPostJSONRequestBody defines body for CreateSessionSessionPost for application/json ContentType.
 type CreateSessionSessionPostJSONRequestBody = CreateSessionBody
 
+// ExecuteCommandSessionSessionIdCommandPostJSONRequestBody defines body for ExecuteCommandSessionSessionIdCommandPost for application/json ContentType.
+type ExecuteCommandSessionSessionIdCommandPostJSONRequestBody = CommandRequest
+
+// ReplyDiffSessionSessionIdDiffPostJSONRequestBody defines body for ReplyDiffSessionSessionIdDiffPost for application/json ContentType.
+type ReplyDiffSessionSessionIdDiffPostJSONRequestBody = DiffReply
+
 // PostMessageSessionSessionIdMessagePostJSONRequestBody defines body for PostMessageSessionSessionIdMessagePost for application/json ContentType.
 type PostMessageSessionSessionIdMessagePostJSONRequestBody = MessageBody
+
+// SelectModelSessionSessionIdModelPostJSONRequestBody defines body for SelectModelSessionSessionIdModelPost for application/json ContentType.
+type SelectModelSessionSessionIdModelPostJSONRequestBody = ModelSelectionBody
 
 // ReplyPermissionSessionSessionIdPermissionPostJSONRequestBody defines body for ReplyPermissionSessionSessionIdPermissionPost for application/json ContentType.
 type ReplyPermissionSessionSessionIdPermissionPostJSONRequestBody = PermissionReply
@@ -582,6 +830,62 @@ func (t *EventEnvelope_Event) FromPermissionUpdated(v PermissionUpdated) error {
 // MergePermissionUpdated performs a merge with any union data inside the EventEnvelope_Event, using the provided PermissionUpdated
 func (t *EventEnvelope_Event) MergePermissionUpdated(v PermissionUpdated) error {
 	v.Type = "permission.updated"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDiffProposed returns the union data inside the EventEnvelope_Event as a DiffProposed
+func (t EventEnvelope_Event) AsDiffProposed() (DiffProposed, error) {
+	var body DiffProposed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDiffProposed overwrites any union data inside the EventEnvelope_Event as the provided DiffProposed
+func (t *EventEnvelope_Event) FromDiffProposed(v DiffProposed) error {
+	v.Type = "diff.proposed"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDiffProposed performs a merge with any union data inside the EventEnvelope_Event, using the provided DiffProposed
+func (t *EventEnvelope_Event) MergeDiffProposed(v DiffProposed) error {
+	v.Type = "diff.proposed"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDiffResolved returns the union data inside the EventEnvelope_Event as a DiffResolved
+func (t EventEnvelope_Event) AsDiffResolved() (DiffResolved, error) {
+	var body DiffResolved
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDiffResolved overwrites any union data inside the EventEnvelope_Event as the provided DiffResolved
+func (t *EventEnvelope_Event) FromDiffResolved(v DiffResolved) error {
+	v.Type = "diff.resolved"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDiffResolved performs a merge with any union data inside the EventEnvelope_Event, using the provided DiffResolved
+func (t *EventEnvelope_Event) MergeDiffResolved(v DiffResolved) error {
+	v.Type = "diff.resolved"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -1346,6 +1650,10 @@ func (t EventEnvelope_Event) ValueByDiscriminator() (interface{}, error) {
 		return t.AsCognitionOverflow()
 	case "confidence.updated":
 		return t.AsConfidenceUpdated()
+	case "diff.proposed":
+		return t.AsDiffProposed()
+	case "diff.resolved":
+		return t.AsDiffResolved()
 	case "final":
 		return t.AsFinalEvent()
 	case "gate.updated":

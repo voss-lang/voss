@@ -1,0 +1,30 @@
+prompt = '''If an MCP server marks a tool with both `readOnlyHint: true` and `destructiveHint: true`, Voss treats it as read-only. Contradictory annotations should fail safe: `destructiveHint: true` must make the tool mutating. Other cases stay as they are.'''
+mode = "edit"
+rubric = '''PASS if, after the change, destructiveHint true makes an MCP tool mutating even when readOnlyHint is true; other annotation cases unchanged, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_mcp_destructive_hint.py" <<'EOF'
+from voss.harness.mcp.registry import _is_mutating_from_descriptor
+
+
+def _tool(**annotations):
+    return {"name": "t", "annotations": annotations}
+
+
+def test_destructive_hint_overrides_read_only_hint():
+    assert _is_mutating_from_descriptor(_tool(readOnlyHint=True, destructiveHint=True)) is True
+
+
+def test_other_annotation_cases_unchanged():
+    assert _is_mutating_from_descriptor(_tool(readOnlyHint=True)) is False
+    assert _is_mutating_from_descriptor(_tool(readOnlyHint=True, destructiveHint=False)) is False
+    assert _is_mutating_from_descriptor(_tool(destructiveHint=False)) is True
+    assert _is_mutating_from_descriptor({"name": "t"}) is True
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_mcp_destructive_hint.py"
+'''
+timeout = 120

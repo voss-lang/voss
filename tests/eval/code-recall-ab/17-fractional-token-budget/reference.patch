@@ -1,0 +1,24 @@
+--- a/voss/grammar.lark
++++ b/voss/grammar.lark
+@@ -254,7 +254,7 @@
+ SLASH: "/"
+ 
+ // Composite unit-suffix terminals MUST be declared before INT so Lark prefers them.
+-TOKEN_BUDGET: /\d+[kKmM]?[ \t]+tokens\b/
++TOKEN_BUDGET: /\d+(\.\d+)?[kKmM]?[ \t]+tokens\b/
+ TURNS:        /\d+[ \t]+turns\b/
+ DURATION_MS:  /\d+ms\b/
+ DURATION_S:   /\d+s\b/
+--- a/voss/parser.py
++++ b/voss/parser.py
+@@ -113,7 +113,9 @@
+         suf = head[idx]
+         head = head[:idx]
+         mult = 1_000 if suf in "kK" else 1_000_000
+-    return int(head) * mult
++    if mult == 1:
++        return int(head)
++    return round(float(head) * mult)
+ 
+ 
+ def _parse_unit_token(tok: str) -> tuple[str, int | float, str]:

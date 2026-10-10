@@ -1,0 +1,19 @@
+--- a/voss/harness/mcp/config.py
++++ b/voss/harness/mcp/config.py
+@@ -39,13 +39,15 @@
+     servers: dict[str, McpServerConfig] = Field(default_factory=dict)
+ 
+ 
+-_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
++_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+ 
+ 
+ def _substitute(value: str, *, cwd: Path) -> str:
+     def repl(match: re.Match[str]) -> str:
+         var = match.group(1)
+         val = os.environ.get(var)
++        if val is None and match.group(2) is not None:
++            return match.group(2)
+         if val is None:
+             raise McpConfigError(f"required env var {var!r} is unset")
+         return val

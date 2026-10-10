@@ -57,3 +57,35 @@ class TestDetection:
         facts, detected = load_project_facts(tmp_path)
         assert "type" not in facts
         assert detected == frozenset()
+
+
+class TestLoadJudgmentsEnabled:
+    def test_absent_config(self, tmp_path):
+        from voss.harness.conventions import _load_judgments_enabled
+
+        assert _load_judgments_enabled(tmp_path) is False
+
+    def test_enabled_only_for_boolean_true(self, tmp_path):
+        from voss.harness.conventions import _load_judgments_enabled
+
+        for value in ('false', '"true"', '"off"', '1', 'yes-please'):
+            _write_config(tmp_path, f"judgments:\n  enabled: {value}\n")
+            assert _load_judgments_enabled(tmp_path) is False
+        _write_config(tmp_path, "judgments:\n  enabled: true\n  code_recall: active\n")
+        assert _load_judgments_enabled(tmp_path) is True
+
+    def test_bad_yaml_or_section(self, tmp_path):
+        from voss.harness.conventions import _load_judgments_enabled
+
+        for text in ("judgments: just-a-string\n", "judgments: [broken", "[]", "", "null"):
+            _write_config(tmp_path, text)
+            assert _load_judgments_enabled(tmp_path) is False
+
+
+def test_typesafe_key_hidden_from_non_live_tests():
+    import os
+
+    from voss.harness.auth import load_provider_key
+
+    assert os.environ.get("TYPESAFE_API_KEY") is None
+    assert load_provider_key("TYPESAFE_API_KEY") is None

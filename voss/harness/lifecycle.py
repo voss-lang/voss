@@ -366,6 +366,8 @@ async def _spawn_job(
     session_id: str,
     no_output_deadline_s: float = 30.0,
 ) -> str:
+    from .sandbox import scrubbed_env
+
     handle = _next_handle(session_id)
     log_path = _log_path(cwd, session_id, handle)
     proc = await asyncio.create_subprocess_exec(
@@ -374,6 +376,7 @@ async def _spawn_job(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         start_new_session=(os.name == "posix"),
+        env=scrubbed_env(),
     )
     _store_record(
         session_id=session_id,

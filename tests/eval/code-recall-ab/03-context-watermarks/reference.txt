@@ -1,0 +1,1 @@
+voss/harness/context_allocator.py:202 - ContextAllocator.pack keeps the frozen fold below high_water and, above it, re-folds until the estimate drops to the low_water target.

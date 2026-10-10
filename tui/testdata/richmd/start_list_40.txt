@@ -1,0 +1,12 @@
+
+ • a list at the very start
+ • second
+
+----------------------------------------
+
+After a rule.
+
+----------------------------------------
+
+
+ • list after a rule

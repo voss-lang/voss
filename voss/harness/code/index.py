@@ -71,6 +71,8 @@ def _discover_files(root: Path) -> list[Path]:
             )
             for line in out.splitlines():
                 p = (root / line).resolve()
+                if not p.is_relative_to(root):
+                    continue
                 if p.is_file() and not _is_vendored(p.relative_to(root)):
                     files.append(p)
             return files
@@ -83,6 +85,8 @@ def _discover_files(root: Path) -> list[Path]:
         dirnames[:] = [d for d in dirnames if d not in VENDORED_DIRS]
         for fname in filenames:
             p = Path(dirpath) / fname
+            if not p.resolve().is_relative_to(root):
+                continue
             rel = p.relative_to(root)
             if not _is_vendored(rel):
                 files.append(p)

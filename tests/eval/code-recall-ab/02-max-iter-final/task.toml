@@ -1,0 +1,9 @@
+prompt = '''When a turn runs out of iterations, what final message does the user get, and where is it defined? Answer with the location as `path:line` (repo-relative path and the line number of the relevant code).'''
+mode = "edit"
+rubric = '''PASS if the final answer cites voss/harness/agent.py lines 385-389 or voss/harness/agent.py lines 1220-1224 as `path:line` and correctly names the halted: max-iter final string (its constant or the place it is assigned). FAIL if no citation falls in that range, or the answer describes different code.'''
+judge_inputs = ["final"]
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''grep -Eq '(voss/harness/agent\.py:(38[5-9])|voss/harness/agent\.py:(122[0-4]))([^0-9]|$)' .voss-eval-final.txt'''

@@ -1,0 +1,10 @@
+--- a/voss/harness/tools.py
++++ b/voss/harness/tools.py
+@@ -51,6 +51,7 @@
+ def _resolve_anchor(segs: list[str], anchor: str) -> tuple[int | None, str]:
+     """Resolve anchor to a unique line index. Returns (index, "") or
+     (None, error_message)."""
++    anchor = anchor.strip().lower()
+     hits = [i for i, seg in enumerate(segs) if _line_anchor(seg) == anchor]
+     if len(hits) == 0:
+         return None, f"anchor `{anchor}` not found (stale — re-read with annotate=true)"

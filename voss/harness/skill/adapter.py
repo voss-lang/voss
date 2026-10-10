@@ -6,7 +6,6 @@ executes in-process (the subprocess boundary is the confinement layer).
 """
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 import tempfile
@@ -15,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import click
 
+from voss.harness.sandbox import scrubbed_env
 from voss.harness.skill.scope import ScopeSpec, scoped_gate
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ def make_voss_skill_handler(
             )
 
             # Build subprocess env — mirror voss/cli.py:run pattern
-            env = os.environ.copy()
+            env = scrubbed_env()
             env["VOSS_HERMETIC"] = "1"
             if not spec.net:
                 env["VOSS_NO_NET"] = "1"

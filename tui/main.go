@@ -1,0 +1,213 @@
+// Command voss-tui is the Go terminal client for `voss serve`.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
+	voss "github.com/vosslang/voss/sdk/go"
+)
+
+const usage = `usage: voss-tui [--attach URL --token TOKEN] [--cwd DIR] [--model MODEL] [--auth AUTH] [command]
+
+Without a command, opens a chat session.
+
+commands:
+  doctor     run the server's diagnostics and exit
+  sessions   list saved sessions for --cwd and exit
+  resume ID  resume a saved session by id or name
+
+Without --attach, starts voss serve using VOSS_BIN, the dispatcher's Python,
+or voss on PATH.
+--token defaults to VOSS_TUI_TOKEN.
+`
+
+type options struct {
+	attach string
+	token  string
+	cwd    string
+	model  string
+	auth   string
+	cmd    string
+	resume string
+}
+
+// parseArgs accepts the flags before or after the command.
+func parseArgs(args []string) (options, error) {
+	o := options{token: os.Getenv("VOSS_TUI_TOKEN")}
+	fs := flag.NewFlagSet("voss-tui", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.StringVar(&o.attach, "attach", "", "")
+	fs.StringVar(&o.token, "token", o.token, "")
+	fs.StringVar(&o.cwd, "cwd", ".", "")
+	fs.StringVar(&o.model, "model", "", "")
+	fs.StringVar(&o.auth, "auth", "", "")
+	if err := fs.Parse(args); err != nil {
+		return o, err
+	}
+	o.cmd = "chat"
+	if fs.NArg() > 0 {
+		o.cmd = fs.Arg(0)
+		rest := fs.Args()[1:]
+		if o.cmd == "resume" && len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
+			o.resume, rest = rest[0], rest[1:]
+		}
+		if err := fs.Parse(rest); err != nil {
+			return o, err
+		}
+		if o.cmd == "resume" && o.resume == "" && fs.NArg() == 1 {
+			o.resume = fs.Arg(0)
+		} else if fs.NArg() > 0 {
+			return o, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+		}
+	}
+	switch o.cmd {
+	case "resume":
+		if o.resume == "" {
+			return o, fmt.Errorf("usage: resume <session-id-or-name>")
+		}
+	case "chat", "doctor", "sessions":
+	default:
+		return o, fmt.Errorf("unknown command %q", o.cmd)
+	}
+	abs, err := filepath.Abs(o.cwd)
+	if err != nil {
+		return o, err
+	}
+	o.cwd = abs
+	return o, nil
+}
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	code := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+	stop()
+	os.Exit(code)
+}
+
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	o, err := parseArgs(args)
+	if errors.Is(err, flag.ErrHelp) {
+		fmt.Fprint(stdout, usage)
+		return 0
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "voss-tui: %v\n\n%s", err, usage)
+		return 2
+	}
+	if o.cmd == "sessions" {
+		printSessions(stdout, o.cwd, readSavedSessions(o.cwd))
+		return 0
+	}
+
+	client, err := connect(ctx, o)
+	if err != nil {
+		return fail(ctx, stderr, err)
+	}
+	defer client.Close()
+
+	if o.cmd == "chat" || o.cmd == "resume" {
+		if err := runChat(ctx, client, o); err != nil {
+			return fail(ctx, stderr, err)
+		}
+		return 0
+	}
+
+	report, err := client.Doctor(ctx, o.cwd)
+	if err != nil {
+		return fail(ctx, stderr, fmt.Errorf("doctor: %w", err))
+	}
+	printDoctor(stdout, report)
+	return report.ExitCode
+}
+
+// fail reports err, or exits quietly with 130 when the user interrupted.
+func fail(ctx context.Context, stderr io.Writer, err error) int {
+	if ctx.Err() != nil {
+		return 130
+	}
+	fmt.Fprintf(stderr, "voss-tui: %v\n", err)
+	return 1
+}
+
+func runChat(ctx context.Context, client *voss.Client, o options) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	conn, err := openChatSession(ctx, client, o)
+	if err != nil {
+		return err
+	}
+	defer conn.cancel()
+	opts := []tea.ProgramOption{tea.WithContext(ctx)}
+	// Rich, which draws the Textual TUI, trusts COLORTERM even under tmux;
+	// Bubble Tea's detection does not, so match Rich.
+	if ct := os.Getenv("COLORTERM"); ct == "truecolor" || ct == "24bit" {
+		opts = append(opts, tea.WithColorProfile(colorprofile.TrueColor))
+	}
+	m := newChatModel(ctx, client, conn.meta, conn.events)
+	m.cancelStream = conn.cancel
+	m.replayHistory(conn.history)
+	if o.resume != "" {
+		m.add(roleBlock("system", "resumed: "+conn.meta.ID))
+	}
+	home, historyErr := os.UserHomeDir()
+	if historyErr == nil {
+		historyErr = m.loadHistory(filepath.Join(home, ".config", "voss", "tui-history"))
+	}
+	if historyErr != nil {
+		m.add(roleBlock("warning", "prompt history: "+historyErr.Error()))
+	}
+	final, err := tea.NewProgram(m, opts...).Run()
+	if cm, ok := final.(chatModel); ok && cm.cancelStream != nil {
+		cm.cancelStream()
+	}
+	return err
+}
+
+func connect(ctx context.Context, o options) (*voss.Client, error) {
+	if o.attach != "" {
+		return voss.AttachClient(o.attach, o.token), nil
+	}
+	if python := os.Getenv("VOSS_SERVER_PYTHON"); python != "" && os.Getenv("VOSS_BIN") == "" {
+		return voss.Spawn(ctx, voss.LaunchOptions{Executable: python, Args: []string{"-P", "-m", "voss.cli"}, Cwd: o.cwd})
+	}
+	return voss.Spawn(ctx, voss.LaunchOptions{Cwd: o.cwd})
+}
+
+func printDoctor(w io.Writer, r voss.DoctorReport) {
+	provider := "none"
+	if r.HasProvider {
+		provider = "resolved"
+	}
+	fmt.Fprintf(w, "  auth      : %s — %s\n", r.AuthSource, r.AuthDetail)
+	fmt.Fprintf(w, "  provider  : %s\n", provider)
+	fmt.Fprintf(w, "  model     : %s\n", r.DefaultModel)
+	for _, c := range r.Checks {
+		fmt.Fprintf(w, "  %s %-22s %s\n", statusGlyph(c.Status), c.Name, c.Detail)
+		if c.Status != "OK" && c.Fix != "" {
+			fmt.Fprintf(w, "       → %s\n", c.Fix)
+		}
+	}
+}
+
+func statusGlyph(status string) string {
+	switch status {
+	case "OK":
+		return "✓"
+	case "WARN":
+		return "⚠"
+	case "FAIL":
+		return "✗"
+	}
+	return "?"
+}

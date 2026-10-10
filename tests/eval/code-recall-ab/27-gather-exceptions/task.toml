@@ -1,0 +1,52 @@
+prompt = '''The runtime helper that waits on several spawned agent handles with a timeout turns every failure into None, so callers cannot tell a crash from a timeout. Add an opt-in `return_exceptions=True` flag: failed handles then come back as their exception, timed-out handles stay None, and the default behavior is unchanged.'''
+mode = "edit"
+rubric = '''PASS if, after the change, return_exceptions=True returns exceptions for failed handles, None for timed-out ones, and the default is unchanged, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_gather_exceptions.py" <<'EOF'
+import asyncio
+
+from voss_runtime.agent import gather
+
+
+class _Handle:
+    def __init__(self, coro):
+        self.task = asyncio.ensure_future(coro)
+
+
+async def _ok():
+    return 7
+
+
+async def _boom():
+    raise RuntimeError("boom")
+
+
+async def _slow():
+    await asyncio.sleep(30)
+
+
+def _run(**kwargs):
+    async def main():
+        return await gather([_Handle(_ok()), _Handle(_boom()), _Handle(_slow())], timeout=0.2, **kwargs)
+
+    return asyncio.run(main())
+
+
+def test_return_exceptions_keeps_failures():
+    ok, failed, slow = _run(return_exceptions=True)
+    assert ok == 7
+    assert isinstance(failed, RuntimeError)
+    assert slow is None
+
+
+def test_default_still_returns_none_for_failures():
+    assert _run() == [7, None, None]
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_gather_exceptions.py"
+'''
+timeout = 120

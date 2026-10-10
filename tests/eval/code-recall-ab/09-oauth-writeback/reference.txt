@@ -1,0 +1,1 @@
+voss/harness/auth.py:186 - refresh_anthropic writes the new tokens back to the macOS keychain when the originals came from there, otherwise to the Claude credentials file.

@@ -131,6 +131,17 @@ def _load_run_final_file(run_dir: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+def _load_judgments_file(run_dir: Path) -> dict | None:
+    path = run_dir / "judgments.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def _load_review_sidecars(run_dir: Path) -> dict[str, dict]:
     """Return ``{node_id: sidecar_dict}`` for every ``*.review.json`` sidecar.
 
@@ -299,7 +310,7 @@ def load_audit_snapshot(root: Path, run_id: str | None = None) -> AuditSnapshot:
     # governance ack record) live in the same dir but are loaded separately by
     # report.py. Globbing them as nodes trips the required-`id` check ( glob
     # landmine)
-    _non_node = {"run-final.json", ".signoff-ack.json"}
+    _non_node = {"run-final.json", ".signoff-ack.json", "judgments.json"}
     node_files = [
         p
         for p in sorted(tree_dir.glob("*.json"))

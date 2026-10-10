@@ -111,6 +111,46 @@ def test_prepare_model_anthropic_oauth_uses_claude_agent(monkeypatch) -> None:
     assert getattr(provider, "voss_provider_label") == "P"
 
 
+@pytest.mark.parametrize("creds", [
+    None,
+    mr.auth.CodexCreds(None, "test-access", None, "test-account", "ChatGPT"),
+    mr.auth.CodexCreds("test-key", None, None, None, "ApiKey"),
+])
+def test_subscription_model_without_chatgpt_oauth_keeps_api_routing(monkeypatch, creds) -> None:
+    monkeypatch.setattr(mr.auth, "load_codex", lambda: creds)
+    entry = _entry(id="gpt-6.1-sol", provider_id="openai", env_key="OPENAI_API_KEY")
+
+    provider, model, present = mr.prepare_model(
+        entry, getter={"OPENAI_API_KEY": "test-key"}.get, keyring_get={}.get,
+    )
+
+    assert isinstance(provider, LiteLLMProvider)
+    assert provider.api_key == "test-key"
+    assert model == entry.id
+    assert present is True
+
+
+@pytest.mark.parametrize("entry", [
+    _entry(id="text-embedding-3-large", provider_id="openai", env_key="OPENAI_API_KEY"),
+    _entry(id="gpt-6.1-sol", provider_id="openrouter", env_key="OPENROUTER_API_KEY"),
+    _entry(id="gpt-6.1-sol", provider_id="openai", api_base="https://example.test/v1",
+           env_key="OPENAI_API_KEY"),
+])
+def test_chatgpt_oauth_does_not_override_other_routes(monkeypatch, entry) -> None:
+    creds = mr.auth.CodexCreds(None, "test-access", "test-refresh", "test-account", "ChatGPT")
+    monkeypatch.setattr(mr.auth, "load_codex", lambda: creds)
+
+    provider, model, present = mr.prepare_model(
+        entry, getter={entry.env_key: "test-key"}.get, keyring_get={}.get,
+    )
+
+    assert isinstance(provider, LiteLLMProvider)
+    assert provider.api_key == "test-key"
+    assert provider.api_base == entry.api_base
+    assert model == mr.model_string(entry)
+    assert present is True
+
+
 # --- LiteLLMProvider routing-override plumbing ---
 
 

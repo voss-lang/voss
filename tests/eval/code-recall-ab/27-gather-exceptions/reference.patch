@@ -1,0 +1,19 @@
+--- a/voss_runtime/agent.py
++++ b/voss_runtime/agent.py
+@@ -96,6 +96,7 @@
+     handles: Sequence[AgentHandle],
+     *,
+     timeout: Optional[float] = None,
++    return_exceptions: bool = False,
+ ) -> list[Any]:
+     if not handles:
+         return []
+@@ -115,6 +116,6 @@
+             continue
+         try:
+             results.append(task.result())
+-        except Exception:
+-            results.append(None)
++        except Exception as exc:
++            results.append(exc if return_exceptions else None)
+     return results

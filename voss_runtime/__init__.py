@@ -23,6 +23,19 @@ from voss_runtime.exceptions import (
 )
 from voss_runtime.agent import AgentHandle, VossAgent, gather
 from voss_runtime.context import ContextScope
+from voss_runtime.judgments import (
+    ChoiceQuestion,
+    ChoiceResult,
+    JevClient,
+    JudgmentError,
+    JudgmentResult,
+    NoulQuestion,
+    NoulResult,
+    ScoreQuestion,
+    ScoreResult,
+    judge,
+    to_probable,
+)
 from voss_runtime.memory import EpisodicMemory, SemanticMemory, WorkingMemory
 from voss_runtime.probable import ProbableValue
 from voss_runtime.providers import (
@@ -38,15 +51,24 @@ __all__: list[str] = [
     "AgentHandle",
     "BudgetExceededError",
     "BudgetScope",
+    "ChoiceQuestion",
+    "ChoiceResult",
     "ConfidenceTooLowError",
     "ContextScope",
     "EpisodicMemory",
+    "JevClient",
+    "JudgmentError",
+    "JudgmentResult",
     "ModelProvider",
+    "NoulQuestion",
+    "NoulResult",
     "ParseError",
     "ProbableValue",
     "ProviderError",
     "ProviderResponse",
     "RuntimeConfig",
+    "ScoreQuestion",
+    "ScoreResult",
     "SemanticMatcher",
     "SemanticMemory",
     "StubProvider",
@@ -58,7 +80,9 @@ __all__: list[str] = [
     "current_budget",
     "gather",
     "get_config",
+    "judge",
     "reset_config",
     "run_with_budget",
+    "to_probable",
     "tool",
 ]

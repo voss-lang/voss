@@ -1,8 +1,8 @@
 /* Voss TUI stylesheet — Contract v2 locked color contract (R5, spec §4.1).
  *
- * Nine palette entries only (5 foreground roles + 3 surfaces + 1 text).
+ * Eleven palette entries (5 foreground roles + 3 surfaces + 3 text roles).
  * Auditor greps this file (test_glyph_and_color_contract.py):
- *   - exactly 9 hex colors must appear (one per locked role)
+ *   - exactly 11 hex colors must appear (one per role)
  *   - no hex literal may exist in any voss/harness/tui .py file except
  *     palette.py, whose values must mirror these declarations exactly
  *   - translucent uses of palette vars ($accent 8%) do NOT count as new hex
@@ -38,6 +38,8 @@ $raised: #262626;
 
 /* Contract v2 row "Text" — primary body text (replaces ad-hoc white/#cccccc). */
 $text: #dadada;
+$input-text: #ffffff;
+$output-text: #e6e6e6;
 
 /* App background + overlay layer for the Toast (spec §5.3). */
 Screen {
@@ -170,6 +172,7 @@ InputBar:focus-within > #prompt-glyph {
 }
 
 InputBar > #input-textarea {
+    color: $input-text;
     height: auto;
     min-height: 1;
     max-height: 6;

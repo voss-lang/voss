@@ -13,7 +13,6 @@
 - [Security](https://www.tryvoss.dev/security): Security model for harness permissions, local credentials, project boundaries, and execution safety.
 - [Privacy](https://www.tryvoss.dev/privacy): Current marketing-site data collection posture, consent storage, and opt-in analytics behavior.
 - [Security Disclosure](https://www.tryvoss.dev/disclosure): Guidance for reporting security issues without exposing sensitive details publicly.
-- [Roadmap](https://www.tryvoss.dev/roadmap): Current product direction across live local supervision, semantic code recall, managed project instructions, external-agent handoffs, budget-aware context, and global memory.
 
 ## Documentation
 
@@ -31,9 +30,7 @@
 ## Developer Resources
 
 - [GitHub Repository](https://github.com/voss-lang/voss): Source repository, issue history, and implementation details for Voss.
-- [Product Requirements Document](https://github.com/voss-lang/voss/blob/master/PRD.md): Product requirements and background context for Voss.
 
 ## Optional
 
-- [Roadmap Documentation](https://docs.tryvoss.dev/roadmap/v0-1): Detailed v0.1 roadmap documentation.
 - [Troubleshooting Reference](https://docs.tryvoss.dev/reference/troubleshooting): Diagnostic guidance for common install, auth, and runtime issues.

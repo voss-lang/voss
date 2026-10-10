@@ -5,9 +5,11 @@ These tests pin the static guarantees of `npm/bin/voss.js` so that
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -26,7 +28,7 @@ def _shim_text() -> str:
     return SHIM_PATH.read_text(encoding="utf-8")
 
 
-def test_shim_reports_unsupported_platform_or_missing_package():
+def test_shim_reports_unsupported_platform_or_missing_package(tmp_path):
     """On a fresh checkout no platform subpackage is in node_modules.
 
     The shim must exit 1 and explain to the user either (a) the platform
@@ -34,8 +36,10 @@ def test_shim_reports_unsupported_platform_or_missing_package():
     Which message wins depends on the host arch/os — both are correct
     failure modes for NPM-03's "clear error before fall-through" guarantee.
     """
+    shim = tmp_path / "voss.js"
+    shim.write_text(_shim_text())
     result = subprocess.run(
-        ["node", str(SHIM_PATH), "--help"],
+        ["node", str(shim), "--help"],
         capture_output=True,
         text=True,
         cwd=str(_repo_root()),
@@ -91,3 +95,53 @@ def test_shim_maps_sigint_to_130():
     assert has_literal or has_arithmetic, (
         "SIGINT→130 mapping not found in shim"
     )
+
+
+@pytest.mark.parametrize("platform,arch,binary", [
+    ("darwin", "arm64", "voss-tui"),
+    ("linux", "x64", "voss-tui"),
+    ("linux", "arm64", "voss-tui"),
+    ("win32", "x64", "voss-tui.exe"),
+])
+@pytest.mark.parametrize("override", [None, "/custom/tui"])
+@pytest.mark.parametrize("dev,local_build", [(False, True), (True, False), (True, True)])
+def test_shim_selects_tui_without_changing_opt_in(tmp_path, platform, arch, binary, override, dev, local_build):
+    probe = tmp_path / "probe.js"
+    probe.write_text("""
+const vm = require('vm');
+const fs = require('fs');
+const path = require('path');
+const [source, platform, arch, override, dev, localBuild] = process.argv.slice(2);
+const env = override ? {VOSS_TUI_BIN: override} : {};
+let captured;
+const fakeRequire = name => {
+  if (name === 'path') return path;
+  if (name === 'fs') return {existsSync: p => {
+    if (p.endsWith(path.join('voss', 'cli.py'))) return dev === '1';
+    if (p.startsWith('/checkout/tui/')) return localBuild === '1';
+    return true;
+  }};
+  if (name === 'child_process') return {spawnSync: (exe, args, opts) => {
+    captured = {exe, args, tui: opts.env.VOSS_TUI_BIN, optIn: opts.env.VOSS_USE_TUI};
+    return {status: 0};
+  }};
+  throw new Error(name);
+};
+fakeRequire.resolve = () => '/pkg/package.json';
+vm.runInNewContext(fs.readFileSync(source, 'utf8'), {
+  require: fakeRequire, __dirname: '/checkout/npm/bin',
+  process: {platform, arch, env, argv: ['node', 'voss.js'], stderr: {write: () => {}},
+    exit: code => {throw new Error('exit ' + code);}},
+});
+console.log(JSON.stringify(captured));
+""")
+    result = subprocess.run(
+        ["node", str(probe), str(SHIM_PATH), platform, arch, override or "", str(int(dev)), str(int(local_build))],
+        capture_output=True, text=True, check=True, timeout=10,
+    )
+    captured = json.loads(result.stdout)
+    default = Path("/checkout/tui") if dev and local_build else Path("/pkg/bin")
+    assert captured["tui"] == (override or str(default / binary))
+    assert "optIn" not in captured
+    expected = ["-m", "voss.cli"] if dev else ["-P", "-m", "voss.cli"]
+    assert captured["args"][:len(expected)] == expected

@@ -116,6 +116,37 @@ def test_parse_skips_provider_with_no_models() -> None:
     assert mc.parse_catalog(raw) == []
 
 
+def test_new_releases_precede_old_and_undated_models() -> None:
+    models = [
+        {"id": "gpt-5.4", "release_date": "2026-03-05"},
+        {"id": "undated"},
+        {"id": "gpt-6-astra", "release_date": "2026-09-04"},
+        {"id": "gpt-6.1-sol", "release_date": "2026-09-29"},
+        {"id": "unknown-date", "release_date": None},
+    ]
+    raw = {"openai": {"models": {m["id"]: m for m in models}}}
+    group, = mc.parse_catalog(raw)
+    assert [m.id for m in group.models] == [
+        "gpt-6.1-sol", "gpt-6-astra", "gpt-5.4", "undated", "unknown-date",
+    ]
+
+
+def test_version_alias_is_not_labeled_as_the_latest_generation() -> None:
+    raw = {"anthropic": {"models": {
+        "claude-opus-4-5": {
+            "id": "claude-opus-4-5", "name": "Claude Opus 4.5 (latest)",
+            "release_date": "2025-11-01",
+        },
+        "claude-opus-5-5": {
+            "id": "claude-opus-5-5", "name": "Claude Opus 5.5",
+            "release_date": "2026-09-22",
+        },
+    }}}
+    group, = mc.parse_catalog(raw)
+    assert [m.name for m in group.models] == ["Claude Opus 5.5", "Claude Opus 4.5"]
+    assert group.models[1].id == "claude-opus-4-5"
+
+
 # ---------------------------------------------------------------------------
 # fetch_raw: cache hit / miss / offline-fallback (injected http + clock)
 # ---------------------------------------------------------------------------

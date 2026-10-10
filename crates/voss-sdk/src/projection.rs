@@ -76,6 +76,7 @@ impl TryFrom<&AgentEvent> for UiProjection {
             }),
             AgentEvent::WarningEvent(event) => Ok(UiProjection::Warning(event.message.clone())),
             AgentEvent::SessionIdle(_) => Ok(UiProjection::SessionIdle),
+            AgentEvent::DiffProposed(_) | AgentEvent::DiffResolved(_) => Err(()),
             AgentEvent::BannerEvent(_) => Err(()),
             AgentEvent::CognitionLoaded(_) => Err(()),
             AgentEvent::CognitionOverflow(_) => Err(()),
@@ -150,13 +151,16 @@ mod tests {
                 PlanStep {
                     name: "read".into(),
                     args: object(serde_json::json!({"path":"README.md"})),
+                    why: None,
                 },
                 PlanStep {
                     name: "write".into(),
                     args: serde_json::Map::new(),
+                    why: None,
                 },
             ],
             cost_usd: 0.01,
+            rationale: None,
         });
 
         assert_eq!(
@@ -176,6 +180,9 @@ mod tests {
             args: serde_json::Map::new(),
             summary: "ran".into(),
             state: "ok".into(),
+            call_id: None,
+            output: None,
+            output_lines: None,
         });
 
         assert_eq!(
@@ -254,6 +261,7 @@ mod tests {
     #[test]
     fn projection_status() {
         let event = AgentEvent::StatusEvent(StatusEvent {
+            phase: None,
             v: 1,
             model: "model".into(),
             tokens: 42,

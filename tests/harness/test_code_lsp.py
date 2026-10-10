@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from voss.harness.code.lsp import LspClientAdapter, create_lsp_client, is_lsp_available
+from voss.harness.code.lsp import LspClientAdapter, create_lsp_client
 from voss.harness.code.lsp_registry import LspRegistry
 
 
@@ -89,16 +89,7 @@ def test_lsp_adapter_imports_without_pygls():
 
 
 @pytest.mark.asyncio
-async def test_fake_server_initialize_and_definition():
-    if not is_lsp_available():
-        pytest.skip("pygls not installed")
-
-    # Start a fake server in-process
-    server_reader, server_writer = await asyncio.open_connection()
-    # We use a real subprocess running a tiny Python fake server for realism
-
-    # Simpler: use in-memory streams (advanced)
-    # For this test we just verify the adapter can be created and returns unavailable gracefully
+async def test_unconnected_adapter_returns_unavailable():
     adapter = create_lsp_client("python")
     result = await adapter.find_definition("file:///tmp/x.py", 10, 5)
     assert isinstance(result, dict)

@@ -1,0 +1,9 @@
+{
+  "repo": "voss",
+  "commit": "c1a27046aef3096e460b1c24b59d8066e5c2f792",
+  "pool_size": 15,
+  "excluded_paths": ["tests/code_recall/test_golden_queries.py"],
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "chunker": "voss.harness.code.semantic_index.extract_chunks",
+  "rubric": ["irrelevant", "contextual", "directly_useful", "necessary"]
+}

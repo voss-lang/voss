@@ -1,0 +1,10 @@
+Before the quote.
+
+▌ First paragraph of the quote which
+▌ is long enough to need wrapping at
+▌ forty columns.
+▌ Second paragraph.
+▌ ▌ Nested quote.
+▌  • list in quote
+
+After the quote.

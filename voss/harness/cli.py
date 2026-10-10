@@ -26,9 +26,11 @@ import psutil
 from voss_runtime import EpisodicMemory, configure, get_config
 from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
+from . import ambient
 from . import auth as auth_mod
 from . import cognition as cognition_mod
 from . import conventions
+from .ambient import route as _ambient_route
 from . import session as session_store
 from . import voss_md
 from .memory_cli import memory_group
@@ -36,6 +38,7 @@ from .memory_store import MemoryStore, make_global_store
 from .memory_gateway import open_memory_store
 from .agent import Plan
 from .claims import claims_group
+from .judgments import judge_cmd
 from .net import NetSession
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
@@ -44,7 +47,7 @@ from .providers import OpenAIOAuthProvider
 from .render import make_renderer
 from .sandbox import SandboxError, jail_path
 from .multiagent import DEFAULT_PARENT_RESERVE, attach_multiagent_tools
-from .session_tree import SessionTreeManager, SessionTreeNode, finalize_node
+from .session_tree import SessionTreeManager, SessionTreeNode, finalize_node, write_judgments_sidecar
 from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
@@ -70,12 +73,18 @@ def _bootstrap_runtime_config() -> None:
     Out-of-range / malformed values fall back to the dataclass defaults
     with a RuntimeWarning (see voss.harness.config getters).
     """
-    from .config import get_allow_net, get_max_iterations, get_max_parallel_reads
+    from .config import get_allow_net, get_judgments_config, get_max_iterations, get_max_parallel_reads
 
+    cfg = get_judgments_config()
     configure(
         max_iterations=get_max_iterations(),
         max_parallel_reads=get_max_parallel_reads(),
         allow_net=get_allow_net(),
+        judgments_model=cfg["model"],
+        judgments_timeout_ms=cfg["timeout_ms"],
+        judgments_max_calls_per_turn=cfg["max_calls_per_turn"],
+        judgments_max_request_bytes=cfg["max_request_bytes"],
+        judgments_max_cost_usd=cfg["max_cost_usd"],
     )
 
 
@@ -117,117 +126,41 @@ def _classify_intent(line: str) -> str | None:
     return "analyze" if line.lower().strip() in _INTENT_ALLOWLIST else None
 
 
-_AMBIENT_SYSTEM = """You are the ambient assistant inside the Voss shell.
-Answer directly and concisely. You may use the provided harness state and
-project summary, but you do not have tool access in this phase. If the user
-asks for code changes, tests, shell execution, multi-agent work, or any durable
-repo operation, say that the request should be handled as a Voss run instead of
-pretending to do it. Do not identify yourself as Voss; Voss is the harness that
-can promote this conversation into a structured run."""
+def _expand_local_skill(line: str, registry: SkillRegistry) -> str:
+    parts = line.split()
+    if not parts:
+        return line
+    if parts[0] == "/skill" and len(parts) > 1:
+        name, arguments = parts[1], parts[2:]
+    elif parts[0].startswith("$"):
+        name, arguments = parts[0][1:], parts[1:]
+    else:
+        return line
+    entry = registry.get(name)
+    if entry is None or entry.instruction_path is None:
+        return line
+    from .skill.local import prompt
 
-_WORK_INTENT_PREFIXES = (
-    "add ",
-    "build ",
-    "change ",
-    "create ",
-    "debug ",
-    "fix ",
-    "implement ",
-    "make ",
-    "modify ",
-    "patch ",
-    "refactor ",
-    "remove ",
-    "repair ",
-    "run ",
-    "update ",
-    "write ",
-)
-_WORK_INTENT_TERMS = (
-    " add test",
-    " add tests",
-    " change ",
-    " edit ",
-    " fix ",
-    " implement ",
-    " refactor ",
-    " run tests",
-    " update ",
-    " write ",
-)
-_STATUS_QUESTION_TERMS = (
-    "what model",
-    "which model",
-    "model are you",
-    "model is active",
-    "what auth",
-    "which auth",
-    "auth path",
-    "credential source",
-    "who are you",
-    "what are you",
-    "status",
-)
-
-
-def _ambient_route(line: str) -> str:
-    """Route a REPL turn before entering the structured Voss Plan loop."""
-    normalized = " ".join(line.lower().strip().split())
-    if not normalized:
-        return "ambient"
-    if normalized.startswith(_WORK_INTENT_PREFIXES):
-        return "voss_run"
-    padded = f" {normalized} "
-    if any(term in padded for term in _WORK_INTENT_TERMS):
-        return "voss_run"
-    if any(term in normalized for term in _STATUS_QUESTION_TERMS):
-        return "local"
-    return "ambient"
+    return prompt(name, arguments)
 
 
 def _ambient_status_answer(ctx: object, *, auth_detail: str = "") -> str:
-    provider_label = _provider_label_for_runtime(
-        getattr(ctx, "provider", None),
-        fallback=_provider_label(auth_detail),
+    return ambient.status_answer(
+        provider=_provider_label_for_runtime(
+            getattr(ctx, "provider", None), fallback=_provider_label(auth_detail),
+        ),
+        model=get_config().default_model,
+        mode=getattr(getattr(ctx, "gate", None), "mode", ""),
     )
-    model = get_config().default_model
-    mode = getattr(getattr(ctx, "gate", None), "mode", "")
-    parts = [
-        f"Provider: {provider_label or 'unknown'}",
-        f"Model: {model}",
-        "Phase: ambient",
-    ]
-    if mode:
-        parts.append(f"Permission mode: {mode}")
-    return "\n".join(parts)
 
 
 async def _run_ambient_provider_turn(line: str, ctx: ReplContext) -> ProviderResponse:
-    model = get_config().default_model
-    if ctx.project_index_text:
-        project_context = f"\n\nProject summary:\n{ctx.project_index_text}"
-    else:
-        project_context = ""
-    status = _ambient_status_answer(ctx)
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                f"{_AMBIENT_SYSTEM}\n\nHarness state:\n{status}\n"
-                f"Working directory: {ctx.cwd}{project_context}"
-            ),
-        },
-        {"role": "user", "content": line},
-    ]
-    ctx.history.add(line, role="user")
-    response = await ctx.provider.complete(
-        messages=messages,
-        model=model,
-        temperature=0.2,
-        max_tokens=1200,
+    return await ambient.complete(
+        line, provider=ctx.provider, model=get_config().default_model,
+        cwd=ctx.cwd, history=ctx.history, status=_ambient_status_answer(ctx),
+        project_index_text=ctx.project_index_text,
+        prior_context=getattr(ctx, "prior_context", None),
     )
-    ctx.history.add(response.text, role="assistant")
-    return response
 
 
 def _handle_analyze(
@@ -555,7 +488,7 @@ def _run_turn_cancellable(coro, *, renderer):
         asyncio.set_event_loop(None)
 
 
-async def _run_turn_with_teardown(turn_coro, teardown):
+async def _run_turn_with_teardown(turn_coro, teardown, *, tools=None, cwd=None):
     """Await one chat-turn coroutine, then ALWAYS run the M13 orphan-teardown.
 
     M13-06 / T-M13-02: child sub-agents are detached `asyncio.create_task`
@@ -568,9 +501,19 @@ async def _run_turn_with_teardown(turn_coro, teardown):
     idempotent (a clean turn that called `subagent_gather` leaves nothing to
     do), so running it unconditionally per turn is safe.
     """
+    mcp_client = None
     try:
+        if tools is not None and cwd is not None:
+            from .tools import attach_mcp_tools
+
+            for name in [name for name, entry in tools.items() if entry.group == "mcp"]:
+                del tools[name]
+            mcp_client = await attach_mcp_tools(tools, cwd)
         return await turn_coro
     finally:
+        turn_coro.close()
+        if mcp_client is not None:
+            await mcp_client.aclose()
         if teardown is not None:
             try:
                 await teardown()
@@ -793,7 +736,7 @@ def _print_plugins(ctx: ReplContext) -> None:
 
 def _print_skills(ctx: ReplContext) -> None:
     for entry in ctx.skill_registry.entries():
-        mut = "mut" if entry.mutating else "read"
+        mut = "local" if entry.instruction_path else "mut" if entry.mutating else "read"
         click.echo(f"  {entry.id:<16} {mut:<4} {entry.description}")
 
 
@@ -1035,23 +978,26 @@ def _render_code_recall_text(cwd: Path, task_text: str, session_id: str | None =
         hits = svc.query(task_text.strip(), top_k=5)
         if not hits:
             return ""
-
-        from voss.harness.agent import _default_token_count
-
-        model = get_config().default_model
-        section = "## Code Recall\nTask-relevant code (semantic index):"
-        for h in hits:
-            parts = h.locator.split(":")
-            path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
-            anchor = f"{path}:{h.line_start}" if h.line_start else path
-            excerpt = (h.excerpt or "").replace("\n", " ")[:160]
-            block = f"\n- {anchor} (score {h.score:.2f})\n  {excerpt}"
-            if _default_token_count(section + block, model=model) > _CODE_RECALL_TOKEN_CAP:
-                break  # hard cap (VSEM-06)
-            section += block
-        return section
+        return _format_code_recall_section(hits)
     except Exception:  # noqa: BLE001 — injection is additive; failures render nothing
         return ""
+
+
+def _format_code_recall_section(hits) -> str:
+    from voss.harness.agent import _default_token_count
+
+    model = get_config().default_model
+    section = "## Code Recall\nTask-relevant code (semantic index):"
+    for h in hits:
+        parts = h.locator.split(":")
+        path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
+        anchor = f"{path}:{h.line_start}" if h.line_start else path
+        excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+        block = f"\n- {anchor} (score {h.score:.2f})\n  {excerpt}"
+        if _default_token_count(section + block, model=model) > _CODE_RECALL_TOKEN_CAP:
+            break  # hard cap (VSEM-06)
+        section += block
+    return section
 
 
 def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str | None = None) -> dict:
@@ -1067,6 +1013,60 @@ def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str 
         return {}
     text = _render_code_recall_text(cwd, task_text, session_id=session_id)
     return {"code_recall_text": text} if text else {}
+
+
+async def _render_code_recall_text_async(cwd: Path, task_text: str, session_id: str | None = None) -> str:
+    if not task_text or not task_text.strip():
+        return ""
+    try:
+        from voss.harness.code.rerank import recall
+        from voss.harness.config import get_code_recall_config
+
+        if not get_code_recall_config().get("inject", True):
+            return ""
+        svc = _get_code_recall_service(Path(cwd), session_id=session_id)
+        if not svc.is_ready():
+            return ""
+        hits = await recall(svc, task_text.strip(), k=5)
+        if hits is None:
+            hits = await asyncio.to_thread(svc.query, task_text.strip(), top_k=5)
+        return _format_code_recall_section(hits) if hits else ""
+    except Exception:
+        return ""
+
+
+async def _code_recall_kwargs_async(run_turn_fn, cwd: Path, task_text: str, session_id: str | None = None) -> dict:
+    try:
+        import inspect as _inspect
+
+        if "code_recall_text" not in _inspect.signature(run_turn_fn).parameters:
+            return {}
+    except (TypeError, ValueError):
+        return {}
+    text = await _render_code_recall_text_async(cwd, task_text, session_id=session_id)
+    return {"code_recall_text": text} if text else {}
+
+
+async def _scoped_turn(cwd, task_text, session_id, run_turn_fn, make_turn, *, sidecar_root=None):
+    from voss.harness.code.rerank import TurnScope
+    from voss.harness.judgments import code_recall_mode
+
+    mode = code_recall_mode(cwd)
+    if mode == "off":
+        recall_kwargs = await asyncio.to_thread(_code_recall_kwargs, run_turn_fn, cwd, task_text, session_id)
+        return await make_turn(recall_kwargs)
+    scope = TurnScope(cwd, task_text, mode)
+    try:
+        async with scope:
+            recall_kwargs = await _code_recall_kwargs_async(run_turn_fn, cwd, task_text, session_id)
+            result = await make_turn(recall_kwargs)
+    finally:
+        if sidecar_root is not None:
+            write_judgments_sidecar(Path(cwd), sidecar_root, scope.ledger)
+    if result.run is not None:
+        result.run.judgment_receipts = [asdict(r) for r in scope.ledger.receipts]
+        result.run.judgments_cost_usd = scope.ledger.observed_usd
+    return result
 
 
 def _pinned_memory_kwargs(run_turn_fn, cwd: Path, *, model: str, store=None) -> dict:
@@ -1240,6 +1240,13 @@ def _build_slash_registry() -> SlashRegistry:
             )
         else:
             click.echo(f"session cost: ${ctx.total_cost:.4f}")
+        judgments = sum(
+            float(r.get("judgments_cost_usd", 0.0) or 0.0) for r in ctx.record.runs
+        )
+        if judgments > 0:
+            click.echo(
+                f"  judgments: ${judgments:.4f} · total: ${ctx.total_cost + judgments:.4f}"
+            )
         # V18 VOPT-05 (D-01/D-03): one labeled savings line from the session
         # ledger. Silent when no ledger (short runs / --no-pack feels like
         # nothing changed); a malformed ledger never breaks /cost.
@@ -1596,12 +1603,9 @@ def _build_slash_registry() -> SlashRegistry:
         `/model auth` keeps the curated active-subscription picker for Claude
         Agent SDK / Codex ChatGPT backend. Bare in plain CLI: availability
         lines + the numbered curated list. With args: exact-id → prefix →
-        substring match against the curated list; no match falls back to the
-        raw set-anything behavior.
-
-        A pick takes effect immediately without a provider rebuild: every
-        turn passes get_config().default_model (cli.py turn dispatch) and
-        both subscription providers take the model id per stream() call.
+        substring match against the active subscription's curated list, then
+        the other subscription lists. Cross-provider picks switch auth too.
+        Unknown ids retain the raw set-anything behavior.
         """
         from . import config as harness_config
         from . import subscription_models as sub
@@ -1612,12 +1616,33 @@ def _build_slash_registry() -> SlashRegistry:
         app = getattr(getattr(ctx, "renderer", None), "app", None)
         in_tui = app is not None and app.__class__.__name__ == "VossTUIApp"
 
-        def _apply(m) -> None:
+        def _apply(m, target_auth=auth_mode) -> None:
+            provider = ctx.provider
+            if target_auth != auth_mode:
+                res = auth_mod.resolve(target_auth)
+                expected = "codex-oauth" if target_auth == "codex" else "claude-agent"
+                if res.source != expected:
+                    login = "codex login" if target_auth == "codex" else "claude /login"
+                    click.echo(
+                        f"  {m.id} needs {target_auth} subscription auth. "
+                        f"Run `{login}`, then retry /model. Selection unchanged.",
+                        err=True,
+                    )
+                    return
+                try:
+                    provider = _build_provider_for_auth(res, announce=False)
+                except Exception as exc:  # noqa: BLE001
+                    configure(default_model=cfg.default_model)
+                    click.echo(f"  model switch failed: {exc}. Selection unchanged.", err=True)
+                    return
             configure(default_model=m.id)
             harness_config.set_preferred_model(m.id)
+            harness_config.set_preferred_auth(target_auth)
             _sync_model_selection(
                 ctx,
                 model=m.id,
+                provider=provider,
+                provider_label=_provider_label_for_runtime(provider),
                 toast=f"model: {m.label} · {m.id} (persisted)",
             )
             click.echo(f"  model: {m.id} (persisted)")
@@ -1682,9 +1707,18 @@ def _build_slash_registry() -> SlashRegistry:
 
         new_model = " ".join(args).strip()
         if auth_mode is not None:
+            target_auth = auth_mode
             matches = sub.match(auth_mode, new_model)
+            if not matches:
+                for mode in sub.SUBSCRIPTION_MODELS:
+                    if mode == auth_mode:
+                        continue
+                    matches = sub.match(mode, new_model)
+                    if matches:
+                        target_auth = mode
+                        break
             if len(matches) == 1:
-                _apply(matches[0])
+                _apply(matches[0], target_auth)
                 return
             if len(matches) > 1:
                 click.echo(
@@ -1726,19 +1760,23 @@ def _build_slash_registry() -> SlashRegistry:
             if isinstance(provider, ClaudeAgentProvider) and entry.provider_id == "anthropic":
                 harness_config.set_preferred_model(entry.id)
                 harness_config.set_preferred_auth("claude")
+            elif isinstance(provider, OpenAIOAuthProvider):
+                harness_config.set_preferred_model(entry.id)
+                harness_config.set_preferred_auth("codex")
             else:
                 harness_config.set_preferred_routed(entry.id, entry.provider_id)
             from . import model_prefs
 
             model_prefs.record_recent(entry.provider_id, entry.id)
+            label = _provider_label_for_runtime(provider, fallback=entry.provider_label)
             _sync_model_selection(
                 ctx,
                 model=model_str,
                 provider=provider,
-                provider_label=entry.provider_label,
-                toast=f"model: {entry.name} · {entry.provider_label} (persisted)",
+                provider_label=label,
+                toast=f"model: {entry.name} · {label} (persisted)",
             )
-            click.echo(f"  model: {entry.name} · {entry.provider_label} (persisted)")
+            click.echo(f"  model: {entry.name} · {label} (persisted)")
 
         def _print(entries) -> None:
             last = None
@@ -2259,21 +2297,27 @@ def do_cmd(
     except (TypeError, ValueError):
         pass
     result = _run_turn_cancellable(
-        run_turn(
-            text,
-            tools=tools,
-            cwd=cwd,
-            renderer=renderer,
-            model=do_model,
-            provider=do_provider,
-            permissions=gate,
-            history=do_history,
-            session_id=do_record.id,
-            voss_md_text=voss_md_text,
-            project_index_text=project_index_text,
-            **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
-            **_pinned_memory_kwargs(run_turn, cwd, model=do_model, store=do_memory_store),
-            **_rt_kwargs,
+        _scoped_turn(
+            cwd, text, do_record.id, run_turn,
+            lambda recall: _run_turn_with_teardown(
+                run_turn(
+                    text,
+                    tools=tools,
+                    cwd=cwd,
+                    renderer=renderer,
+                    model=do_model,
+                    provider=do_provider,
+                    permissions=gate,
+                    history=do_history,
+                    session_id=do_record.id,
+                    voss_md_text=voss_md_text,
+                    project_index_text=project_index_text,
+                    **recall,
+                    **_pinned_memory_kwargs(run_turn, cwd, model=do_model, store=do_memory_store),
+                    **_rt_kwargs,
+                ),
+                None, tools=tools, cwd=cwd,
+            ),
         ),
         renderer=renderer,
     )
@@ -2490,7 +2534,7 @@ def _run_repl(
         net=_get_net_session(),
         session_id=record.id,
     )
-    skill_registry = default_skill_registry()
+    skill_registry = default_skill_registry(cwd)
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
 
@@ -2627,6 +2671,7 @@ def _run_repl(
             renderer.app.total_cost = ctx.total_cost
 
             async def _dispatch_tui_turn(line: str):
+                line = _expand_local_skill(line, skill_registry)
                 if line.startswith("/"):
                     import io
                     old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -2682,28 +2727,34 @@ def _run_repl(
                     try:
                         renderer.show_thinking("starting Voss run")
                         run_turn = _resolve_run_turn(cwd)
-                        result = await _run_turn_with_teardown(
-                            run_turn(
-                                line,
-                                tools=tools,
-                                cwd=cwd,
-                                renderer=renderer,
-                                model=get_config().default_model,
-                                history=ctx.history,
-                                permissions=gate,
-                                provider=ctx.provider,
-                                session_id=record.id,
-                                cognition=bundle,
-                                prior_context=ctx.prior_context,
-                                voss_md_text=ctx.voss_md_text,
-                                project_index_text=ctx.project_index_text,
-                                **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                                **(await asyncio.to_thread(
-                                    _pinned_memory_kwargs, run_turn, cwd,
-                                    model=get_config().default_model, store=ctx.memory_store,
-                                )),
+                        pinned = await asyncio.to_thread(
+                            _pinned_memory_kwargs, run_turn, cwd,
+                            model=get_config().default_model, store=ctx.memory_store,
+                        )
+                        result = await _scoped_turn(
+                            cwd, line, record.id, run_turn,
+                            lambda recall: _run_turn_with_teardown(
+                                run_turn(
+                                    line,
+                                    tools=tools,
+                                    cwd=cwd,
+                                    renderer=renderer,
+                                    model=get_config().default_model,
+                                    history=ctx.history,
+                                    permissions=gate,
+                                    provider=ctx.provider,
+                                    session_id=record.id,
+                                    cognition=bundle,
+                                    prior_context=ctx.prior_context,
+                                    voss_md_text=ctx.voss_md_text,
+                                    project_index_text=ctx.project_index_text,
+                                    **recall,
+                                    **pinned,
+                                ),
+                                _multiagent_teardown,
+                                tools=tools, cwd=cwd,
                             ),
-                            _multiagent_teardown,
+                            sidecar_root=_chat_root.id,
                         )
                         ctx.prior_context = None
                     finally:
@@ -2753,6 +2804,8 @@ def _run_repl(
             line = line.strip()
             if not line:
                 continue
+
+            line = _expand_local_skill(line, skill_registry)
 
             # Slash commands.
             if line.startswith("/"):
@@ -2804,25 +2857,30 @@ def _run_repl(
                 renderer.show_thinking("starting Voss run")
                 run_turn = _resolve_run_turn(cwd)
                 result = _run_turn_cancellable(
-                    _run_turn_with_teardown(
-                        run_turn(
-                            line,
-                            tools=tools,
-                            cwd=cwd,
-                            renderer=renderer,
-                            model=get_config().default_model,
-                            history=ctx.history,
-                            permissions=gate,
-                            provider=ctx.provider,
-                            session_id=record.id,
-                            cognition=bundle,
-                            prior_context=ctx.prior_context,
-                            voss_md_text=ctx.voss_md_text,
-                            project_index_text=ctx.project_index_text,
-                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                            **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model, store=ctx.memory_store),
+                    _scoped_turn(
+                        cwd, line, record.id, run_turn,
+                        lambda recall: _run_turn_with_teardown(
+                            run_turn(
+                                line,
+                                tools=tools,
+                                cwd=cwd,
+                                renderer=renderer,
+                                model=get_config().default_model,
+                                history=ctx.history,
+                                permissions=gate,
+                                provider=ctx.provider,
+                                session_id=record.id,
+                                cognition=bundle,
+                                prior_context=ctx.prior_context,
+                                voss_md_text=ctx.voss_md_text,
+                                project_index_text=ctx.project_index_text,
+                                **recall,
+                                **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model, store=ctx.memory_store),
+                            ),
+                            _multiagent_teardown,
+                            tools=tools, cwd=cwd,
                         ),
-                        _multiagent_teardown,
+                        sidecar_root=_chat_root.id,
                     ),
                     renderer=renderer,
                 )
@@ -2938,6 +2996,7 @@ def _render_doctor_table(results) -> None:
 
 
 @click.command("doctor")
+@click.option("--live", is_flag=True, default=False, help="Also send one tiny real Jev request to verify TYPESAFE_API_KEY.")
 @click.option(
     "--cwd",
     "cwd_str",
@@ -2981,6 +3040,7 @@ def _render_doctor_table(results) -> None:
     help="Run only checks in the given category; repeatable.",
 )
 def doctor_cmd(
+    live: bool,
     cwd_str: str,
     do_fix: bool,
     assume_yes: bool,
@@ -3020,6 +3080,9 @@ def doctor_cmd(
             raise click.UsageError("no checks matched the given filters")
     else:
         results = diag.run_all_checks(cwd)
+
+    if live:
+        results.append(diag.check_judgments_live(cwd))
 
     if not as_json:
         _render_doctor_table(results)
@@ -3790,7 +3853,7 @@ def _extension_context(
     renderer=None,
     gate: PermissionGate | None = None,
 ) -> SimpleNamespace:
-    skill_registry = default_skill_registry()
+    skill_registry = default_skill_registry(cwd)
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
     renderer = renderer or make_renderer(json_mode=False)
@@ -3863,7 +3926,9 @@ def plugin_disable_cmd(plugin_id: str) -> None:
 @click.command("skills")
 def skills_cmd() -> None:
     """List registered skills."""
-    ctx = _extension_context(cwd=Path.cwd())
+    from types import SimpleNamespace
+
+    ctx = SimpleNamespace(skill_registry=default_skill_registry(Path.cwd()))
     _print_skills(ctx)  # type: ignore[arg-type]
 
 
@@ -4102,6 +4167,13 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
     default=False,
     help="Fail run if python3/cargo/node is absent (strict mode).",
 )
+@click.option(
+    "--ab",
+    "ab_spec",
+    default=None,
+    metavar="FIELD=A,B",
+    help="Run the suite twice, with task setting FIELD set to A then B, and compare.",
+)
 def eval_cmd(
     suite: str,
     stub: bool,
@@ -4113,13 +4185,50 @@ def eval_cmd(
     auth_pref: str,
     max_turns: int | None,
     require_all_toolchains: bool,
+    ab_spec: str | None,
 ) -> None:
     """Run the golden evaluation suite."""
     if os.environ.get("VOSS_DEV") != "1":
         click.echo("voss eval: internal tool — set VOSS_DEV=1 to run", err=True)
         raise click.exceptions.Exit(code=1)
 
-    from voss.eval.runner import run_suite
+    from voss.eval.runner import _run_dir_name, run_suite
+
+    if ab_spec is not None:
+        from voss.eval.ab import run_ab
+        from voss.eval.suite import TaskSpec
+
+        field, _, values = ab_spec.partition("=")
+        sides = values.split(",")
+        if field not in TaskSpec.model_fields or len(sides) != 2 or not all(sides):
+            raise click.UsageError(
+                f"--ab expects FIELD=A,B where FIELD is a task setting, got {ab_spec!r}"
+            )
+        metadata = None
+        if field == "recall":
+            from voss.harness.code.rerank import RUBRIC_VERSION
+            from voss.harness.config import get_judgments_config
+
+            metadata = {
+                "jev_model": get_judgments_config()["model"],
+                "rubric_version": RUBRIC_VERSION,
+                "generation_model": get_config().default_model,
+            }
+        out = run_ab(
+            suite=suite,
+            setting=field,
+            a=sides[0],
+            b=sides[1],
+            out=out_path or Path.cwd() / ".voss" / "eval" / _run_dir_name(),
+            metadata=metadata,
+            stub=stub,
+            live=live,
+            auth_pref=auth_pref,
+            max_turns=max_turns,
+            require_all_toolchains=require_all_toolchains,
+        )
+        click.echo(str(out / "ab.md"))
+        return
 
     run_suite(
         suite=suite,
@@ -4161,7 +4270,8 @@ def mcp_group() -> None:
 @mcp_group.command("list")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
 @click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
-def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
+@click.option("--configured", is_flag=True, help="List sources without connecting to servers.")
+def mcp_list_cmd(cwd_str: str, json_mode: bool, configured: bool = False) -> None:
     """List configured MCP servers and their advertised tools."""
     import json as json_lib
 
@@ -4194,14 +4304,16 @@ def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
         finally:
             await client.aclose()
 
-    asyncio.run(_populate())
+    if not configured:
+        asyncio.run(_populate())
     servers_payload = []
     for name, server in config.servers.items():
         tools = client._tools_cache.get(name, [])
         servers_payload.append(
             {
                 "name": name,
-                "command": server.command + server.args,
+                "source": server.source,
+                "transport": "http" if server.url else "stdio",
                 "tools": [tool["name"] for tool in tools],
             }
         )
@@ -4211,7 +4323,7 @@ def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
     else:
         for server_payload in servers_payload:
             click.echo(f"{server_payload['name']}:")
-            click.echo(f"  command: {' '.join(server_payload['command'])}")
+            click.echo(f"  source: {server_payload['source']} ({server_payload['transport']})")
             tools = server_payload["tools"]
             click.echo(
                 f"  tools: {', '.join(tools) if tools else '<none discovered>'}"
@@ -5703,6 +5815,7 @@ AGENT_COMMANDS = (
     login_cmd,
     logout_cmd,
     doctor_cmd,
+    judge_cmd,
     sessions_cmd,
     review_cmd,
     jobs_cmd,

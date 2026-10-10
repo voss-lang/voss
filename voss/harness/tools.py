@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import os
 import signal as _signal
@@ -13,7 +14,7 @@ from typing import Any
 from voss_runtime import ToolDescriptor, tool
 
 from .net import NetSession
-from .sandbox import jail_path, shell_allowed, split_command, SandboxError
+from .sandbox import jail_path, scrubbed_env, shell_allowed, split_command, SandboxError
 from .tui.widgets.diff_modal import Hunk
 from .memory_store import MemoryStore
 
@@ -290,11 +291,15 @@ def attach_code_recall_tool(tools: dict[str, "ToolEntry"], *, code_index_service
         ),
     )
     async def code_recall(query: str, top_k: int = 5) -> str:
+        from voss.harness.code.rerank import current_turn, recall
+
         query = query.strip()
         if not query:
             return "<error: empty query>"
         try:
-            hits = code_index_service.query(query, top_k=top_k)
+            hits = await recall(code_index_service, query, k=top_k, query=query) if current_turn() is not None else None
+            if hits is None:
+                hits = code_index_service.query(query, top_k=top_k)
         except Exception as exc:  # noqa: BLE001 — recall must not crash the turn
             return f"<error: code recall failed: {exc}>"
         if not hits:
@@ -394,6 +399,7 @@ def make_toolset(
                 cwd=str(cwd),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                env=scrubbed_env(),
             )
             try:
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
@@ -620,11 +626,19 @@ def make_toolset(
                 + [f"+ {ln}" for ln in (new.splitlines() or [""])],
             )
             decisions = modal([hunk], timeout_s=300.0)
+            if inspect.isawaitable(decisions):
+                decisions = await decisions
             if not decisions:
                 return "<denied: modal cancelled or timed out>"
             # STRICT: skip is treated as reject (matches fs_edit_many).
             if decisions[0].decision in ("reject", "skip"):
                 return "<denied: edit rejected>"
+            try:
+                unchanged = p.read_text() == text
+            except (OSError, UnicodeDecodeError):
+                unchanged = False
+            if not unchanged:
+                return "<error: file changed during review; request a new preview>"
 
         p.write_text(new_text)
         _maybe_queue_rehash(path)
@@ -687,6 +701,8 @@ def make_toolset(
         modal = getattr(renderer, "show_diff_modal", None) if renderer is not None else None
         if modal is not None:
             decisions = modal(hunks, timeout_s=300.0)
+            if inspect.isawaitable(decisions):
+                decisions = await decisions
             if not decisions:
                 return "<denied: modal cancelled or timed out>"
             for i, d in enumerate(decisions):
@@ -694,6 +710,12 @@ def make_toolset(
                 # RESEARCH.md Open Question 1 per the recommendation).
                 if d.decision in ("reject", "skip"):
                     return f"<denied: hunk {i} rejected>"
+            try:
+                unchanged = p.read_text() == snapshot
+            except (OSError, UnicodeDecodeError):
+                unchanged = False
+            if not unchanged:
+                return "<error: file changed during review; request a new preview>"
 
         # Phase 3: atomic single write (file untouched until here).
         p.write_text(buf)
@@ -915,6 +937,35 @@ def make_toolset(
     if net is not None:
         _merge_mcp_tools(result, cwd)
 
+    from .skill.local import discover, read_skill
+
+    local_skills = discover(cwd)
+    if local_skills:
+        catalog = "\n".join(
+            f"- {s.name}: {s.description}" + (" (only when explicitly requested)" if s.manual else "")
+            for s in local_skills.values()
+        )
+
+        @tool(name="skill_read", description=(
+            "Read a local skill's instructions or a reference relative to its directory. "
+            "Read applicable skills before working; follow their instructions. Available skills:\n" + catalog
+        ))
+        async def skill_read(name: str, path: str = "SKILL.md") -> str:
+            skill = local_skills.get(name)
+            if skill is None:
+                return "<error: unknown local skill>"
+            try:
+                contents = read_skill(skill, path)
+                if path == "SKILL.md":
+                    return f"Skill directory: {skill.path.parent}\n\n{contents}"
+                return contents
+            except (OSError, UnicodeError, SandboxError):
+                return "<error: skill resource unavailable or outside skill directory>"
+
+        result["skill_read"] = ToolEntry(
+            descriptor=skill_read, is_mutating=False, group="fs", scope_requirements=("fs",),
+        )
+
     # --- M10-04 Code Intelligence tools (read-only) ---
     try:
         from voss.harness.code.service import CodeIntelService as _CodeIntelService
@@ -995,6 +1046,7 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
             cwd=str(cwd),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=scrubbed_env(),
         )
     except OSError as e:
         return f"<error: {e}>"
@@ -1015,53 +1067,40 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
 
 def _merge_mcp_tools(result: dict[str, ToolEntry], cwd: Path) -> None:
     try:
-        from voss.harness import cognition as cognition_mod
-        from voss.harness import telemetry
-        from voss.harness.mcp import McpClient, load_mcp_config, register_mcp_tools
-    except Exception as exc:  # noqa: BLE001
-        _emit_mcp_boot_error("import", exc)
-        return
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(attach_mcp_tools(result, cwd, close_after_discovery=True))
 
+
+async def attach_mcp_tools(result: dict[str, ToolEntry], cwd: Path, *, close_after_discovery: bool = False):
+    from . import cognition as cognition_mod
+    from .mcp import McpClient, load_mcp_config, register_mcp_tools
+
+    client = None
     try:
-        mcp_config = load_mcp_config(cwd)
-        if mcp_config is None or not mcp_config.servers:
+        config = load_mcp_config(cwd)
+        if config is None or not config.servers:
             return
-
-        client = McpClient(mcp_config)
+        client = McpClient(config)
         client.set_cwd(cwd)
-
-        async def launch_all() -> None:
-            for server_name in mcp_config.servers:
-                try:
-                    await client.ensure_launched(server_name)
-                except Exception as exc:  # noqa: BLE001
-                    if telemetry.enabled():
-                        telemetry.emit(
-                            "mcp.launch_error",
-                            "warn",
-                            data={
-                                "server": server_name,
-                                "error": f"{type(exc).__name__}: {exc}",
-                            },
-                        )
-
         try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(launch_all())
-        else:
-            if telemetry.enabled():
-                telemetry.emit(
-                    "mcp.boot_error",
-                    "warn",
-                    data={"error": "make_toolset called from running event loop"},
-                )
-            return
-
+            for name in config.servers:
+                try:
+                    await client.ensure_launched(name)
+                except Exception as exc:  # noqa: BLE001
+                    _emit_mcp_boot_error(name, exc)
+        finally:
+            if close_after_discovery:
+                await client.aclose()
         bundle = cognition_mod.load(cwd)
-        permissions_mcp = bundle.permissions.mcp if bundle.permissions else {}
-        result.update(register_mcp_tools(mcp_config, permissions_mcp, client))
-    except Exception as exc:  # noqa: BLE001
+        scopes = bundle.permissions.mcp if bundle.permissions else {}
+        result.update(register_mcp_tools(config, scopes, client))
+        return client
+    except BaseException as exc:
+        if client is not None:
+            await client.aclose()
+        if not isinstance(exc, Exception):
+            raise
         _emit_mcp_boot_error("boot", exc)
 
 

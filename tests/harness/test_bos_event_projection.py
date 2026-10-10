@@ -19,7 +19,7 @@ from voss.harness.swarm.events import SwarmEventLog
 from voss.harness.swarm_store import SwarmStore
 
 REPO = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = REPO / ".planning" / "schemas" / "bos-events.schema.json"
+SCHEMA_PATH = REPO / "contracts" / "bos-events.schema.json"
 INGEST_TIME = "2026-06-20T12:00:00+00:00"
 
 

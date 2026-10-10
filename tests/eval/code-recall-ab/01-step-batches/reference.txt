@@ -1,0 +1,1 @@
+voss/harness/agent.py:1699 - _run_step_loop walks the plan in order, groups consecutive non-mutating registered steps into a parallel read batch, and flushes mutating or unknown steps as singletons.

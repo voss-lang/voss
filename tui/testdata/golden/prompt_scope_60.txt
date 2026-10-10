@@ -1,0 +1,5 @@
+Expand edit scope?
+
+Allow writes to ../other?
+
+[y] yes once · [a] always (this session) · [n] no · [Esc] no

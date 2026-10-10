@@ -166,7 +166,9 @@ def test_mcp_list_json_shape(tmp_path: Path) -> None:
     assert server["name"] == "mock"
     assert "read_text_file" in server["tools"]
     assert "write_file" in server["tools"]
-    assert server["command"] == [sys.executable, "-u", str(script)]
+    assert server["source"] == "voss"
+    assert server["transport"] == "stdio"
+    assert "command" not in server
 
 
 def test_mcp_call_success(tmp_path: Path) -> None:

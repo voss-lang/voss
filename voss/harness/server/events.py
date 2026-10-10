@@ -49,6 +49,23 @@ class PermissionUpdated(_Base):
     dimension: str = "tool"  # tool | confidence | budget
 
 
+class DiffHunk(BaseModel):
+    file: str
+    start: int
+    lines: list[str]
+
+
+class DiffProposed(_Base):
+    type: Literal["diff.proposed"] = "diff.proposed"
+    id: str
+    hunks: list[DiffHunk]
+
+
+class DiffResolved(_Base):
+    type: Literal["diff.resolved"] = "diff.resolved"
+    id: str
+
+
 # --- core 13 (mirror JsonRenderer) ----------------------------------------
 
 
@@ -72,6 +89,7 @@ class ThinkingEvent(_Base):
 class PlanStep(BaseModel):
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
+    why: str | None = None
 
 
 class PlanEvent(_Base):
@@ -79,6 +97,7 @@ class PlanEvent(_Base):
     confidence: float
     steps: list[PlanStep] = Field(default_factory=list)
     cost_usd: float
+    rationale: str | None = None
 
 
 class ToolEvent(_Base):
@@ -87,6 +106,11 @@ class ToolEvent(_Base):
     args: dict[str, Any] = Field(default_factory=dict)
     summary: str = ""
     state: str  # ok | error | pending
+    call_id: str | None = None
+    # Settled calls only. `output` is capped (see renderer.OUTPUT_CAP);
+    # `output_lines` counts the lines of the full output.
+    output: str | None = None
+    output_lines: int | None = None
 
 
 class ClarifyEvent(_Base):
@@ -122,6 +146,7 @@ class StatusEvent(_Base):
     tokens: int
     cost_usd: float
     ctx_pct: float
+    phase: Literal["ambient", "run"] | None = None
 
 
 class CognitionLoaded(_Base):
@@ -274,6 +299,8 @@ AgentEvent = Annotated[
         ServerConnected,
         SessionIdle,
         PermissionUpdated,
+        DiffProposed,
+        DiffResolved,
         BannerEvent,
         UserEvent,
         ThinkingEvent,

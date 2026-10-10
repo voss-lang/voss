@@ -150,3 +150,4 @@ class AuditReport:
     # V12 VSAFE-05: strict-runbook/factory-fallback marker. Default empty so old
     # audit snapshots hydrate; populated from run records' factory_fallbacks.
     factory_fallbacks: tuple[dict, ...] = ()
+    judgments: Optional[dict] = None

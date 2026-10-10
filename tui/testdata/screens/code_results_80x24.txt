@@ -1,0 +1,24 @@
+  Code Intel · /refs sample_entry
+  50 matches · more available; refine the query
+
+  src/module_01.py:1  sample_entry [regex]
+      result = sample_entry(argument)
+
+  src/module_02.py:2  sample_entry [regex]
+      result = sample_entry(argument)
+
+  src/module_03.py:3  sample_entry [regex]
+      result = sample_entry(argument)
+
+  src/module_04.py:4  sample_entry [regex]
+      result = sample_entry(argument)
+
+  src/module_05.py:5  sample_entry [regex]
+      result = sample_entry(argument)
+
+  src/module_06.py:6  sample_entry [regex]
+      result = sample_entry(argument)
+
+  src/module_07.py:7  sample_entry [regex]
+
+  ↑/↓ scroll · PgUp/PgDn page · Esc/Enter close

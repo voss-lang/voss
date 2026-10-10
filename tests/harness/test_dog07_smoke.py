@@ -10,8 +10,14 @@ from pathlib import Path
 # Registers a deterministic stub provider and patches the harness auth resolver
 # so `voss do` runs without real credentials (CI has none).
 _STUB_SITECUSTOMIZE = '''\
+from pathlib import Path as _Path
+
 import voss_runtime as _vr
 from voss_runtime import StubProvider as _SP, configure as _cfg
+from voss.harness import local_sources as _sources
+
+_sources.user_home = lambda: _Path.cwd() / "_isolated_home"
+_sources.codex_home = lambda: _sources.user_home() / ".codex"
 
 _stub = _SP(default_response="noop summary stub")
 _vr.providers.register("__stub__", _stub)
@@ -38,7 +44,12 @@ def test_dog07_voss_do_through_compiled_harness(precompiled_harness: Path) -> No
     stub_dir.mkdir(exist_ok=True)
     (stub_dir / "sitecustomize.py").write_text(_STUB_SITECUSTOMIZE)
 
+    config_dir = precompiled_harness / "_voss_config" / "voss"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "config.toml").write_text("[code_recall]\ninject = false\n")
+
     env = os.environ.copy()
+    env["XDG_CONFIG_HOME"] = str(config_dir.parent)
     env["VOSS_HARNESS"] = "compiled"
     env["VOSS_HERMETIC"] = "1"
     # Stub-only: strip inherited live creds and block HF/transformers downloads.
@@ -56,6 +67,7 @@ def test_dog07_voss_do_through_compiled_harness(precompiled_harness: Path) -> No
         [sys.executable, "-m", "voss.cli", "do", "noop summary of fixture.md"],
         cwd=str(precompiled_harness),
         env=env,
+        input="",
         capture_output=True,
         text=True,
         timeout=30,

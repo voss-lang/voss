@@ -1,0 +1,24 @@
+prompt = '''When the code index has to walk the filesystem because the project is not a git repo, it descends into hidden directories such as `.tox` or `.idea` and indexes their files. Skip directories whose names start with a dot in that fallback. Hidden files at the top level can stay.'''
+mode = "edit"
+rubric = '''PASS if, after the change, the non-git walk fallback prunes dot-directories but keeps hidden files, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_walk_skip_hidden.py" <<'EOF'
+from voss.harness.code.index import _discover_files
+
+
+def test_walk_fallback_skips_hidden_directories(tmp_path):
+    for rel in ("src/app.py", ".tox/lib/mod.py", ".idea/tool.py", "src/.cache2/x.py", ".editorconfig"):
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n")
+    found = sorted(p.relative_to(tmp_path).as_posix() for p in _discover_files(tmp_path))
+    assert found == [".editorconfig", "src/app.py"]
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_walk_skip_hidden.py"
+'''
+timeout = 120

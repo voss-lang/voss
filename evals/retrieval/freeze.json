@@ -1,0 +1,58 @@
+{
+  "frozen_at": "2026-10-03",
+  "commit": "c1a27046aef3096e460b1c24b59d8066e5c2f792",
+  "seed": 20261003,
+  "split_algorithm": "group kind = kind of the group's first query; for each kind in sorted order, sort group ids and shuffle with one random.Random(seed); concatenate; assign alternately dev, test starting with dev",
+  "splits": {
+    "dev": {
+      "groups": 100,
+      "queries": 120,
+      "adversarial_groups": 8,
+      "ambiguous_groups": 0
+    },
+    "test": {
+      "groups": 100,
+      "queries": 120,
+      "adversarial_groups": 8,
+      "ambiguous_groups": 0
+    }
+  },
+  "metrics": {
+    "k": 5,
+    "ndcg": {
+      "gain": "2^g-1",
+      "discount": "1/log2(rank+1)",
+      "idcg": "all labeled chunks of the query, including gold chunks outside the pool"
+    },
+    "recall": "relevant-file recall@5: files owning a chunk graded directly_useful or necessary, macro-averaged over scored queries with at least one relevant file",
+    "bootstrap": {
+      "method": "paired percentile",
+      "b": 10000,
+      "seed": 20261003,
+      "unit": "group",
+      "alpha": 0.05
+    },
+    "ambiguous": "excluded from the gate and listed separately",
+    "adversarial": "counted in the gate and reported separately"
+  },
+  "thresholds": {
+    "ndcg_gain_min": 0.03,
+    "ci": "lower bound > 0",
+    "recall_drop_max": 0.0
+  },
+  "files": {
+    "corpus.json": "bc172b0d26c9055bb21f560fcca6ed7cb2c929ab4a9fc64830c92459442a37a7",
+    "queries/batch-01.jsonl": "e03c3ea526ff4cd6f7ec6ff4bc6e64f55e93b75765c2cf52c5e4c8d3ce3d3729",
+    "queries/batch-02.jsonl": "fd61de5b39fb4e7acaf1ce2f5d734cf56526f89ac798ca37c33b39daf47d499d",
+    "queries/batch-03.jsonl": "e886fefd599ba0c76fc24ca99b615b3a4b7caab3b3d8f1fd3e7aaae3ab3ac756",
+    "queries/batch-04.jsonl": "bd447f6be3814e639da270f56b3baab79e4977fbe8902978eebf3647855f1c4a",
+    "baseline/batch-01.jsonl": "1fb69d83eeaf5f6630ac3198d160dd953bea77a1a04d375b8e402a195c5ffb8b",
+    "baseline/batch-02.jsonl": "43f0050818d7c20a685ddc04e17e0b972fee0543194ed649ff803b2d77d11c74",
+    "baseline/batch-03.jsonl": "cb3798e1f698209ff50277ca27d834dc3fc35e951f13a7fd3b2daacaadeaf8ec",
+    "baseline/batch-04.jsonl": "e39faaae8e3e57587e78d6b9bdb244a4825102381f5622dddcc676f719a9c395",
+    "labels/batch-01.csv": "b835c0faeba5bb0ee4ac68c81cdefc5cc41e0408fc1928d6dacb83539c65cdb7",
+    "labels/batch-02.csv": "65773a4bac8223bb9d2934b2ebc4f7e1a94e13db96c909ab3722accc971608a3",
+    "labels/batch-03.csv": "be9b393799198768d50690aa58d9aff2ae45c659b5640c585dae0594d58440a5",
+    "labels/batch-04.csv": "c854c6a9614d4f4185dcd5b8e57901e6cf309fe7d7b32aa5b85d4e629e7753b6"
+  }
+}

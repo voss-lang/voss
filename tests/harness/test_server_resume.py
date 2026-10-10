@@ -5,6 +5,8 @@ Covers the M2 prior-context renderer (single dict back-compat + multi-run list)
 
 from __future__ import annotations
 
+from concurrent.futures import Future
+
 from fastapi.testclient import TestClient
 
 from voss.harness import session as session_store
@@ -68,7 +70,7 @@ def test_resume_loads_saved_session(monkeypatch, tmp_path):
     saved = c.get(
         "/sessions/saved", params={"cwd": str(tmp_path)}, headers=_auth()
     ).json()
-    assert any(s["id"] == rec.id for s in saved["sessions"])
+    assert next(s for s in saved["sessions"] if s["id"] == rec.id)["first_task"] == "hello"
 
     r = c.post(
         "/session", json={"resume": rec.id, "cwd": str(tmp_path)}, headers=_auth()
@@ -82,6 +84,13 @@ def test_resume_loads_saved_session(monkeypatch, tmp_path):
     assert s.prior_context == rec.runs  # all prior runs forwarded
     assert len(s.history.turns) == 2  # transcript rehydrated
 
+    r = c.get(f"/session/{rec.id}/history", headers=_auth())
+    assert r.status_code == 200
+    assert r.json() == {"v": 1, "turns": [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi back"},
+    ]}
+
 
 def test_resume_missing_returns_404(monkeypatch, tmp_path):
     monkeypatch.setattr(appmod, "_resolve_provider", lambda pref: (_FakeRes(), object()))
@@ -90,3 +99,50 @@ def test_resume_missing_returns_404(monkeypatch, tmp_path):
         "/session", json={"resume": "nope", "cwd": str(tmp_path)}, headers=_auth()
     )
     assert r.status_code == 404
+
+
+def test_history_only_returns_conversation_fields(tmp_path):
+    c = TestClient(appmod.create_app(TOKEN))
+    s = c.app.state.sessions.create(cwd=tmp_path, model="m", provider=object())
+    s.history.add("user prompt", role="user")
+    s.history.add("system note", role="system")
+    s.history.add("private tool payload", role="tool")
+    s.history.add("assistant answer", role="assistant")
+    s.record.runs.append({"tool_calls": ["private tool payload"]})
+    r = c.get(f"/session/{s.id}/history", headers=_auth())
+    assert r.json() == {"v": 1, "turns": [
+        {"role": "user", "content": "user prompt"},
+        {"role": "system", "content": "system note"},
+        {"role": "assistant", "content": "assistant answer"},
+    ]}
+    assert c.get(f"/session/{s.id}/history").status_code == 401
+    assert c.get("/session/missing/history", headers=_auth()).status_code == 404
+
+
+def test_clear_drops_active_context_without_erasing_saved_session(tmp_path):
+    c = TestClient(appmod.create_app(TOKEN))
+    s = c.app.state.sessions.create(cwd=tmp_path, model="m", provider=object())
+    s.history.add("old prompt", role="user")
+    s.history.summary = "old summary"
+    s.record.runs.append({"goal": "old goal", "cost_usd": 0.5})
+    s.prior_context = s.record.runs
+    session_store.save(s.record, s.history)
+
+    assert c.post(f"/session/{s.id}/clear").status_code == 401
+    s.switching = True
+    assert c.post(f"/session/{s.id}/clear", headers=_auth()).status_code == 409
+    assert len(s.history.turns) == 1
+    s.switching = False
+    s.task = Future()
+    assert c.post(f"/session/{s.id}/clear", headers=_auth()).status_code == 409
+    assert len(s.history.turns) == 1
+    s.task = None
+
+    assert c.post(f"/session/{s.id}/clear", headers=_auth()).status_code == 204
+    assert c.get(f"/session/{s.id}/history", headers=_auth()).json()["turns"] == []
+    assert s.history.summary == ""
+    assert s.prior_context is None
+    assert c.get(f"/session/{s.id}/cost", headers=_auth()).json()["total_usd"] == 0.5
+    _, saved_history = session_store.load(s.id, tmp_path)
+    assert saved_history.turns[0].content == "old prompt"
+    assert c.post("/session/missing/clear", headers=_auth()).status_code == 404

@@ -18,7 +18,7 @@ def _tool(name: str, annotations: dict | None = None) -> dict:
 
 
 def _register(tools: list[dict]):
-    config = SimpleNamespace(servers=["srv"])
+    config = SimpleNamespace(servers={"srv": SimpleNamespace()})
     client = SimpleNamespace(_tools_cache={"srv": tools})
     return register_mcp_tools(config, {}, client)
 

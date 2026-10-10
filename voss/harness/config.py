@@ -10,7 +10,9 @@ loop neighbors (confidence_threshold, timeout, etc.) without renaming.
 from __future__ import annotations
 
 import os
+import math
 import re
+import tempfile
 import tomllib
 import warnings
 from pathlib import Path
@@ -40,6 +42,7 @@ _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
 _CONTEXT_BLOCK = re.compile(r"^\[context\][^\[]*", re.MULTILINE)
 _MEMORY_BLOCK = re.compile(r"^\[memory\][^\[]*", re.MULTILINE)
 _INSTRUCTIONS_BLOCK = re.compile(r"^\[instructions\][^\[]*", re.MULTILINE)
+_JUDGMENTS_BLOCK = re.compile(r"^\[judgments\][^\[]*", re.MULTILINE)
 _BILLING_BLOCK = re.compile(r"^\[billing\][^\[]*", re.MULTILINE)
 # T3-04: PITFALL 6 — escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
 # also matches `[netXrate_limits]` (any single char), corrupting the
@@ -210,6 +213,49 @@ def get_instructions_config() -> dict:
         except (TypeError, ValueError):
             warnings.warn(
                 f"[instructions] {key} = {v!r} is not a positive integer; using default",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+    return out
+
+
+JUDGMENTS_DEFAULTS: dict = {
+    "model": "jev-1.13.0",
+    "timeout_ms": 5000,
+    "max_calls_per_turn": 4,
+    "max_request_bytes": 24000,
+    "max_cost_usd": 0.01,
+}
+
+
+def get_judgments_config() -> dict:
+    """Resolve `[judgments]` limits and model with defaults."""
+    raw = _parse_bare_section(_JUDGMENTS_BLOCK, _read_config_text())
+    out = dict(JUDGMENTS_DEFAULTS)
+    if "model" in raw:
+        value = raw["model"].strip()
+        if value:
+            out["model"] = value
+        else:
+            warnings.warn(
+                "[judgments] model is not a non-empty string; using default",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+    for key in ("timeout_ms", "max_calls_per_turn", "max_request_bytes", "max_cost_usd"):
+        value = raw.get(key)
+        if value is None:
+            continue
+        is_cost = key == "max_cost_usd"
+        try:
+            number = float(value) if is_cost else int(value)
+            if number <= 0 or (is_cost and not math.isfinite(number)):
+                raise ValueError
+            out[key] = number
+        except ValueError:
+            kind = "number" if is_cost else "integer"
+            warnings.warn(
+                f"[judgments] {key} is not a positive {kind}; using default",
                 RuntimeWarning,
                 stacklevel=2,
             )
@@ -726,8 +772,14 @@ def _write_harness(updates: dict[str, str | None]) -> Path:
     else:
         new_text = new_block
 
-    p.write_text(new_text)
-    p.chmod(0o600)
+    with tempfile.NamedTemporaryFile(mode="w", dir=p.parent, delete=False) as tmp:
+        temporary = Path(tmp.name)
+        try:
+            tmp.write(new_text)
+            tmp.close()
+            temporary.replace(p)
+        finally:
+            temporary.unlink(missing_ok=True)
     return p
 
 
@@ -742,6 +794,13 @@ def set_preferred_auth(pref: str) -> Path:
     explicit --auth is given (e.g. "codex" so plain `voss chat` uses the
     subscription regardless of exported API-key env vars)."""
     return _write_harness({"auth": pref})
+
+
+def set_preferred_selection(model: str, auth: str, provider: str | None) -> Path:
+    """Persist the model and credential route as one configuration update."""
+    return _write_harness({
+        "preferred_model": model, "auth": auth, "preferred_provider": provider,
+    })
 
 
 def set_preferred_routed(model_id: str, provider_id: str) -> Path:

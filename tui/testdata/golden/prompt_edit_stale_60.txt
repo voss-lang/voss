@@ -1,0 +1,8 @@
+Permission required
+
+Tool fs_edit wants to modify notes.txt.
+
+  (old text unavailable)
+  replacement
+
+[a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny

@@ -1,0 +1,7 @@
+Mixing bold italic, bold with nested italic, code with  spaces, gone. A
+soft break joins lines, and a hard break ends one
+right here. Escaped *stars* and https://auto.link/path and Ctrl+C.
+
+A link with bold text here.
+
+averyveryverylongwordthatcannotpossiblyfitonasinglelineofthewidthweuse ok

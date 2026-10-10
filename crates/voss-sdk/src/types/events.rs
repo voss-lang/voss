@@ -385,6 +385,130 @@ pub struct ConfidenceUpdated {
     #[serde(default = "defaults::default_u64::<i64, 1>")]
     pub v: i64,
 }
+#[doc = "`DiffHunk`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"title\": \"DiffHunk\","]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"file\","]
+#[doc = "    \"lines\","]
+#[doc = "    \"start\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"file\": {"]
+#[doc = "      \"title\": \"File\","]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lines\": {"]
+#[doc = "      \"title\": \"Lines\","]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"type\": \"string\""]
+#[doc = "      }"]
+#[doc = "    },"]
+#[doc = "    \"start\": {"]
+#[doc = "      \"title\": \"Start\","]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    }"]
+#[doc = "  }"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct DiffHunk {
+    pub file: ::std::string::String,
+    pub lines: ::std::vec::Vec<::std::string::String>,
+    pub start: i64,
+}
+#[doc = "`DiffProposed`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"title\": \"DiffProposed\","]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"hunks\","]
+#[doc = "    \"id\","]
+#[doc = "    \"type\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"hunks\": {"]
+#[doc = "      \"title\": \"Hunks\","]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/components/schemas/DiffHunk\""]
+#[doc = "      }"]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"title\": \"Id\","]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"type\": {"]
+#[doc = "      \"title\": \"Type\","]
+#[doc = "      \"default\": \"diff.proposed\","]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"const\": \"diff.proposed\""]
+#[doc = "    },"]
+#[doc = "    \"v\": {"]
+#[doc = "      \"title\": \"V\","]
+#[doc = "      \"default\": 1,"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    }"]
+#[doc = "  }"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct DiffProposed {
+    pub hunks: ::std::vec::Vec<DiffHunk>,
+    pub id: ::std::string::String,
+    #[serde(default = "defaults::default_u64::<i64, 1>")]
+    pub v: i64,
+}
+#[doc = "`DiffResolved`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"title\": \"DiffResolved\","]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"id\","]
+#[doc = "    \"type\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"title\": \"Id\","]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"type\": {"]
+#[doc = "      \"title\": \"Type\","]
+#[doc = "      \"default\": \"diff.resolved\","]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"const\": \"diff.resolved\""]
+#[doc = "    },"]
+#[doc = "    \"v\": {"]
+#[doc = "      \"title\": \"V\","]
+#[doc = "      \"default\": 1,"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    }"]
+#[doc = "  }"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct DiffResolved {
+    pub id: ::std::string::String,
+    #[serde(default = "defaults::default_u64::<i64, 1>")]
+    pub v: i64,
+}
 #[doc = "`Event`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -401,6 +525,12 @@ pub struct ConfidenceUpdated {
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/components/schemas/PermissionUpdated\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/components/schemas/DiffProposed\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/components/schemas/DiffResolved\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/components/schemas/BannerEvent\""]
@@ -489,6 +619,8 @@ pub struct ConfidenceUpdated {
 #[doc = "      \"cognition_loaded\": \"#/components/schemas/CognitionLoaded\","]
 #[doc = "      \"cognition_overflow\": \"#/components/schemas/CognitionOverflow\","]
 #[doc = "      \"confidence.updated\": \"#/components/schemas/ConfidenceUpdated\","]
+#[doc = "      \"diff.proposed\": \"#/components/schemas/DiffProposed\","]
+#[doc = "      \"diff.resolved\": \"#/components/schemas/DiffResolved\","]
 #[doc = "      \"final\": \"#/components/schemas/FinalEvent\","]
 #[doc = "      \"gate.updated\": \"#/components/schemas/GateUpdated\","]
 #[doc = "      \"instructions_overflow\": \"#/components/schemas/InstructionsOverflow\","]
@@ -527,6 +659,10 @@ pub enum AgentEvent {
     SessionIdle(SessionIdle),
     #[serde(rename = "permission.updated")]
     PermissionUpdated(PermissionUpdated),
+    #[serde(rename = "diff.proposed")]
+    DiffProposed(DiffProposed),
+    #[serde(rename = "diff.resolved")]
+    DiffResolved(DiffResolved),
     #[serde(rename = "banner")]
     BannerEvent(BannerEvent),
     #[serde(rename = "user")]
@@ -593,6 +729,16 @@ impl ::std::convert::From<SessionIdle> for AgentEvent {
 impl ::std::convert::From<PermissionUpdated> for AgentEvent {
     fn from(value: PermissionUpdated) -> Self {
         Self::PermissionUpdated(value)
+    }
+}
+impl ::std::convert::From<DiffProposed> for AgentEvent {
+    fn from(value: DiffProposed) -> Self {
+        Self::DiffProposed(value)
+    }
+}
+impl ::std::convert::From<DiffResolved> for AgentEvent {
+    fn from(value: DiffResolved) -> Self {
+        Self::DiffResolved(value)
     }
 }
 impl ::std::convert::From<BannerEvent> for AgentEvent {
@@ -751,6 +897,12 @@ impl ::std::convert::From<SwarmComplete> for AgentEvent {
 #[doc = "          \"$ref\": \"#/components/schemas/PermissionUpdated\""]
 #[doc = "        },"]
 #[doc = "        {"]
+#[doc = "          \"$ref\": \"#/components/schemas/DiffProposed\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"$ref\": \"#/components/schemas/DiffResolved\""]
+#[doc = "        },"]
+#[doc = "        {"]
 #[doc = "          \"$ref\": \"#/components/schemas/BannerEvent\""]
 #[doc = "        },"]
 #[doc = "        {"]
@@ -837,6 +989,8 @@ impl ::std::convert::From<SwarmComplete> for AgentEvent {
 #[doc = "          \"cognition_loaded\": \"#/components/schemas/CognitionLoaded\","]
 #[doc = "          \"cognition_overflow\": \"#/components/schemas/CognitionOverflow\","]
 #[doc = "          \"confidence.updated\": \"#/components/schemas/ConfidenceUpdated\","]
+#[doc = "          \"diff.proposed\": \"#/components/schemas/DiffProposed\","]
+#[doc = "          \"diff.resolved\": \"#/components/schemas/DiffResolved\","]
 #[doc = "          \"final\": \"#/components/schemas/FinalEvent\","]
 #[doc = "          \"gate.updated\": \"#/components/schemas/GateUpdated\","]
 #[doc = "          \"instructions_overflow\": \"#/components/schemas/InstructionsOverflow\","]
@@ -1106,6 +1260,18 @@ pub struct PermissionUpdated {
 #[doc = "      \"title\": \"Cost Usd\","]
 #[doc = "      \"type\": \"number\""]
 #[doc = "    },"]
+#[doc = "    \"rationale\": {"]
+#[doc = "      \"title\": \"Rationale\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"steps\": {"]
 #[doc = "      \"title\": \"Steps\","]
 #[doc = "      \"type\": \"array\","]
@@ -1132,6 +1298,8 @@ pub struct PermissionUpdated {
 pub struct PlanEvent {
     pub confidence: f64,
     pub cost_usd: f64,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub rationale: ::std::option::Option<::std::string::String>,
     #[serde(default, skip_serializing_if = "::std::vec::Vec::is_empty")]
     pub steps: ::std::vec::Vec<PlanStep>,
     #[serde(default = "defaults::default_u64::<i64, 1>")]
@@ -1157,6 +1325,18 @@ pub struct PlanEvent {
 #[doc = "    \"name\": {"]
 #[doc = "      \"title\": \"Name\","]
 #[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"why\": {"]
+#[doc = "      \"title\": \"Why\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    }"]
 #[doc = "  }"]
 #[doc = "}"]
@@ -1167,6 +1347,8 @@ pub struct PlanStep {
     #[serde(default, skip_serializing_if = "::serde_json::Map::is_empty")]
     pub args: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
     pub name: ::std::string::String,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub why: ::std::option::Option<::std::string::String>,
 }
 #[doc = "`PrinciplesOverflow`"]
 #[doc = r""]
@@ -1364,6 +1546,22 @@ pub struct SessionIdle {
 #[doc = "      \"title\": \"Model\","]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
+#[doc = "    \"phase\": {"]
+#[doc = "      \"title\": \"Phase\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\","]
+#[doc = "          \"enum\": ["]
+#[doc = "            \"ambient\","]
+#[doc = "            \"run\""]
+#[doc = "          ]"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"tokens\": {"]
 #[doc = "      \"title\": \"Tokens\","]
 #[doc = "      \"type\": \"integer\""]
@@ -1388,9 +1586,83 @@ pub struct StatusEvent {
     pub cost_usd: f64,
     pub ctx_pct: f64,
     pub model: ::std::string::String,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub phase: ::std::option::Option<StatusEventPhase>,
     pub tokens: i64,
     #[serde(default = "defaults::default_u64::<i64, 1>")]
     pub v: i64,
+}
+#[doc = "`StatusEventPhase`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"ambient\","]
+#[doc = "    \"run\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum StatusEventPhase {
+    #[serde(rename = "ambient")]
+    Ambient,
+    #[serde(rename = "run")]
+    Run,
+}
+impl ::std::fmt::Display for StatusEventPhase {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Ambient => f.write_str("ambient"),
+            Self::Run => f.write_str("run"),
+        }
+    }
+}
+impl ::std::str::FromStr for StatusEventPhase {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "ambient" => Ok(Self::Ambient),
+            "run" => Ok(Self::Run),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for StatusEventPhase {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for StatusEventPhase {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for StatusEventPhase {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 #[doc = "`StreamDelta`"]
 #[doc = r""]
@@ -2048,9 +2320,45 @@ pub struct ThinkingEvent {
 #[doc = "      \"type\": \"object\","]
 #[doc = "      \"additionalProperties\": true"]
 #[doc = "    },"]
+#[doc = "    \"call_id\": {"]
+#[doc = "      \"title\": \"Call Id\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"name\": {"]
 #[doc = "      \"title\": \"Name\","]
 #[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"output\": {"]
+#[doc = "      \"title\": \"Output\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"output_lines\": {"]
+#[doc = "      \"title\": \"Output Lines\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"integer\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    },"]
 #[doc = "    \"state\": {"]
 #[doc = "      \"title\": \"State\","]
@@ -2080,7 +2388,13 @@ pub struct ThinkingEvent {
 pub struct ToolEvent {
     #[serde(default, skip_serializing_if = "::serde_json::Map::is_empty")]
     pub args: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub call_id: ::std::option::Option<::std::string::String>,
     pub name: ::std::string::String,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub output: ::std::option::Option<::std::string::String>,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub output_lines: ::std::option::Option<i64>,
     pub state: ::std::string::String,
     #[serde(default)]
     pub summary: ::std::string::String,

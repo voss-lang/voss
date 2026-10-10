@@ -1,0 +1,1 @@
+voss/harness/memory_store.py:195 - MemoryStore._lock takes a non-blocking per-source lock; on contention it prints 'memory.<source> busy - skipping write' and yields None so the write is skipped.

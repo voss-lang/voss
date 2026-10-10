@@ -10,6 +10,8 @@ BG = "#121212"       # $bg
 SURFACE = "#1c1c1c"  # $surface
 RAISED = "#262626"   # $raised
 TEXT = "#dadada"     # $text
+INPUT_TEXT = "#ffffff"  # $input-text
+OUTPUT_TEXT = "#e6e6e6"  # $output-text
 
 # tcss-var-name → value mapping consumed by the contract cross-check test
 TCSS_VARS = {
@@ -22,4 +24,6 @@ TCSS_VARS = {
     "surface": SURFACE,
     "raised": RAISED,
     "text": TEXT,
+    "input-text": INPUT_TEXT,
+    "output-text": OUTPUT_TEXT,
 }

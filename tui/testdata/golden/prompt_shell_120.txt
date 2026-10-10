@@ -1,0 +1,5 @@
+Permission required
+
+Tool shell wants to use command=go test ./..., cwd=..
+
+[a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny

@@ -20,6 +20,7 @@ from voss_runtime.memory import SemanticMemory  # noqa: F401  (lazy use in _mayb
 # MiniLM max_seq_length=256 tokens (~512 chars); 800-char regions sub-split
 # so no chunk silently truncates in the embedding window
 _MAX_CHUNK_CHARS = 800
+CANDIDATE_POOL = 15
 
 
 def _chunk_id(rel_path: str, seq: int) -> str:
@@ -83,6 +84,16 @@ def extract_chunks(db_path: Path, file_path: str, content: str) -> list[tuple[in
     return chunks
 
 
+@dataclasses.dataclass(frozen=True)
+class Candidate:
+    hit: Hit
+    path: str
+    line_start: int
+    line_end: int
+    text: str
+    fresh: bool
+
+
 def _file_hash(content: str) -> str:
     # Identical call to build_index so manifests stay consistent with files.hash
     return hashlib.sha256(content.encode("utf-8", errors="ignore")).hexdigest()
@@ -133,6 +144,7 @@ class CodeIndex:
         self._bm25 = None
         # (chunk_id, text, rel_path, line_start, line_end) for the FULL current chunk set
         self._bm25_chunks: list[tuple[str, str, str, int, int]] = []
+        self._chunk_by_id: dict[str, tuple[str, int, int, str]] = {}
 
     # lazy chroma probe (mirror of MemoryStore._maybe_chroma)
 
@@ -417,6 +429,7 @@ class CodeIndex:
         from rank_bm25 import BM25Okapi
 
         self._bm25_chunks = chunks
+        self._chunk_by_id = {cid: (rel, start, end, text) for cid, text, rel, start, end in chunks}
         if chunks:
             self._bm25 = BM25Okapi([_bm25_tokenize(text) for _, text, _, _, _ in chunks])
         else:
@@ -499,6 +512,36 @@ class CodeIndex:
             return bm25_hits[:top_k]
         return MemoryStore._rrf_merge([bm25_hits, chroma_hits], top_k=top_k)
 
+    def candidates(self, query: str, pool: int = CANDIDATE_POOL) -> list[Candidate] | None:
+        recall_k = pool * 3
+        bm25_hits = self._bm25_query(query, recall_k)
+        sem = self._maybe_semantic()
+        if sem is None:
+            return None
+        try:
+            chroma_hits = self._chroma_query(sem, query, recall_k)
+        except Exception:
+            return None
+        files: dict[str, list[str] | None] = {}
+        out: list[Candidate] = []
+        for hit in MemoryStore._rrf_merge([bm25_hits, chroma_hits], top_k=pool):
+            chunk = self._chunk_by_id.get(hit.locator)
+            if chunk is None:
+                path = hit.locator.removeprefix("code:").rsplit(":", 1)[0]
+                out.append(Candidate(hit, path, hit.line_start or 0, hit.line_end or 0, "", False))
+                continue
+            rel, start, end, text = chunk
+            if rel not in files:
+                try:
+                    content = (self.cwd / rel).read_text(encoding="utf-8", errors="ignore")
+                    files[rel] = content.splitlines(keepends=True)
+                except OSError:
+                    files[rel] = None
+            lines = files[rel]
+            fresh = lines is not None and "".join(lines[start - 1 : end]) == text
+            out.append(Candidate(hit, rel, start, end, text, fresh))
+        return out
+
     def _chroma_query(self, sem: "SemanticMemory", query: str, top_k: int) -> list[Hit]:
         result = sem._collection.query(query_texts=[query], n_results=top_k)
         ids = (result.get("ids") or [[]])[0]
@@ -566,6 +609,11 @@ class CodeIndexService:
             hits = self._code_index._bm25_query(query, top_k)
             return [dataclasses.replace(h, source="code[degraded]") for h in hits]
         return self._code_index.query(query, top_k=top_k)
+
+    def candidates(self, query: str, pool: int = CANDIDATE_POOL) -> list[Candidate] | None:
+        if not self.is_ready():
+            return None
+        return self._code_index.candidates(query, pool)
 
     def queue_rehash(self, path) -> None:
         """D-13 trigger #2: off-thread targeted re-hash after a file mutation.

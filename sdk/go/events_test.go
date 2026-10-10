@@ -8,12 +8,14 @@ import (
 	"testing"
 )
 
-// allEventTypes is the authoritative 29-member set of AgentEvent `type` strings
+// allEventTypes is the authoritative set of AgentEvent `type` strings
 // from voss/harness/server/events.py. Decode() must dispatch every one to its
 var allEventTypes = []string{
 	"server.connected",
 	"session.idle",
 	"permission.updated",
+	"diff.proposed",
+	"diff.resolved",
 	"banner",
 	"user",
 	"thinking",
@@ -53,7 +55,30 @@ func envFromEvent(t *testing.T, eventJSON string) EventEnvelope {
 	return EventEnvelope{Event: u}
 }
 
-// decodeCase is one row of the 29-member decode table: a fixture JSON for a
+func TestDecodeStatusPhaseIsOptional(t *testing.T) {
+	for _, phase := range []string{"", "ambient", "run"} {
+		t.Run(phase, func(t *testing.T) {
+			payload := `{"type":"status","model":"m","tokens":25,"cost_usd":0.002,"ctx_pct":0}`
+			if phase != "" {
+				payload = payload[:len(payload)-1] + `,"phase":"` + phase + `"}`
+			}
+			ev, err := Decode(envFromEvent(t, payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			status := ev.(StatusEvent)
+			if phase == "" {
+				if status.Phase != nil {
+					t.Fatalf("old status has phase %v", status.Phase)
+				}
+			} else if status.Phase == nil || string(*status.Phase) != phase {
+				t.Fatalf("phase = %v, want %s", status.Phase, phase)
+			}
+		})
+	}
+}
+
+// decodeCase is one row of the decode table: a fixture JSON for a
 // `type` plus an assertion that Decode produced the right typed value.
 type decodeCase struct {
 	typ   string
@@ -63,6 +88,18 @@ type decodeCase struct {
 
 func decodeTable() []decodeCase {
 	return []decodeCase{
+		{"diff.proposed", `{"v":1,"type":"diff.proposed","id":"d1","hunks":[{"file":"f.txt","start":2,"lines":["- old","+ new"]}]}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(DiffProposed)
+			if !ok || e.Id != "d1" || len(e.Hunks) != 1 || e.Hunks[0].File != "f.txt" || e.Hunks[0].Start != 2 || len(e.Hunks[0].Lines) != 2 {
+				t.Fatalf("incorrect diff proposal: %+v", ev)
+			}
+		}},
+		{"diff.resolved", `{"v":1,"type":"diff.resolved","id":"d1"}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(DiffResolved)
+			if !ok || e.Id != "d1" {
+				t.Fatalf("incorrect diff resolution: %+v", ev)
+			}
+		}},
 		{"server.connected", `{"v":1,"type":"server.connected"}`, func(t *testing.T, ev TypedEvent) {
 			if _, ok := ev.(ServerConnected); !ok {
 				t.Fatalf("got %T, want ServerConnected", ev)

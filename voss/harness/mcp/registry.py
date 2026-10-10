@@ -83,6 +83,12 @@ def register_mcp_tools(
         tools = mcp_client._tools_cache.get(server_name, [])
         for tool in tools:
             tool_name = str(tool["name"])
+            server = config.servers[server_name]
+            enabled = getattr(server, "enabled_tools", None)
+            if enabled is not None and tool_name not in enabled:
+                continue
+            if tool_name in getattr(server, "disabled_tools", ()):
+                continue
             descriptor = _make_mcp_descriptor(
                 server_name, tool_name, tool, mcp_client, scope
             )

@@ -119,14 +119,15 @@ def test_swarm_two_builder_enforced_e2e(monkeypatch, tmp_path):
 
     th = threading.Thread(target=_denied_write)
     th.start()
-    deadline = time.time() + 2.0
-    while not b0.pending and time.time() < deadline:
-        time.sleep(0.01)
-    req_id = next(iter(b0.pending))
     emitted = []
-    while not b0.queue.empty():
-        emitted.append(b0.queue.get_nowait().type)
+    deadline = time.monotonic() + 2.0
+    while "swarm.needs_operator" not in emitted and time.monotonic() < deadline:
+        while not b0.queue.empty():
+            emitted.append(b0.queue.get_nowait().type)
+        if "swarm.needs_operator" not in emitted:
+            time.sleep(0.01)
     assert "swarm.needs_operator" in emitted  # escalation emitted
+    req_id = next(iter(b0.pending))
     # Operator denies via the existing per-session permission bridge.
     assert client.post(
         f"/session/{b0.id}/permission", json={"id": req_id, "choice": "d"}, headers=_auth()

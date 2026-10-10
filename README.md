@@ -18,7 +18,7 @@
 
 Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
-Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a local `voss serve` API (REST + SSE, `docs/protocol.md`), a thin Rust TUI, and client SDKs in `sdk/` and `crates/voss-sdk`. npm (M6) distributes the same Python harness with a vendored interpreter. A separate Voss ADE desktop application integrates through the local protocol; the original in-repo app is frozen under `archive/voss-ade/` (`docs/architecture/0004-voss-ade-repository-split.md`).
+Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a local `voss serve` API (REST + SSE, `docs/protocol.md`), a Go TUI, and client SDKs in `sdk/` and `crates/voss-sdk`. npm (M6) distributes the same Python harness with a vendored interpreter. A separate Voss ADE desktop application integrates through the local protocol; the original in-repo app is frozen under `archive/voss-ade/` (`docs/architecture/0004-voss-ade-repository-split.md`).
 
 ## What is .voss
 
@@ -88,7 +88,7 @@ voss compile samples/classify.voss
 voss do "summarize this repo"
 ```
 
-Core harness commands: `voss doctor`, `voss do`, `voss chat`, `voss edit`, `voss sessions`, `voss resume` (see [.planning/HARNESS-PLAN.md](.planning/HARNESS-PLAN.md) §2.2 for the full surface).
+Core harness commands: `voss doctor`, `voss do`, `voss chat`, `voss edit`, `voss sessions`, `voss resume` (see the [CLI reference](https://docs.tryvoss.dev/reference/cli) for the full surface).
 
 Optionally opt into the compiled harness with `VOSS_HARNESS=compiled` by populating the local harness cache after install. The default Python harness path works without this step.
 
@@ -102,15 +102,85 @@ voss compile voss/harness/agent/
 pip install -e ".[dev]"
 ```
 
-### Roadmap notes
+## Go terminal client
 
-`npm i -g @vosslang/cli` ships v0.1 with M6 (the npm wrapper bundles a pinned Python 3.12 + the v0.1 wheel; `pip install voss` remains supported). Homebrew distribution stays deferred until dogfood signals demand it.
+Bare `voss` opens the Go client when its binary is installed. From a checkout:
+
+```bash
+(cd tui && go build -o voss-tui .)
+voss
+```
+
+Editable Python installs and `npm link` automatically use this local build.
+`VOSS_TUI_BIN` can select a different binary explicitly.
+
+The npm platform packages include `voss-tui`. Use `VOSS_USE_TUI=0 voss` for
+Textual; it also remains the fallback when the Go binary is missing. `voss ui`
+launches Go explicitly. `/resume` opens a saved-session picker; `/resume <id-or-name>`
+and `voss ui resume <id-or-name>` resume directly. Earlier conversation context
+is restored on the server, and saved messages appear in the transcript. The picker
+shows and searches each session's first prompt. `/clear` drops active conversation
+memory while keeping the visible transcript. Saved history updates on the next turn.
+Use `/memory` for a workspace summary and `/recall <query> [--top N]` to search it.
+Use `/model` (or `/models`) to search models and `/auth` to choose Claude, Codex,
+or API authentication. `/model gpt-6.1-sol` and `/auth claude` switch directly.
+Subscription choices reuse your local Claude/Codex login; API choices require a
+configured key. Successful switches update the footer and persist across launches
+and saved-session resumes. `voss ui --auth codex` overrides auth for a launch.
+Use `/tools` to list built-in and discovered MCP tools, `/skills` to list skills,
+and `/agents` to list built-in and project subagents. These commands appear in
+the slash palette and `/help`; their results appear in the transcript.
+Use `/symbol <name>` to find indexed definitions, `/refs <name>` to find references,
+and `/refresh` to rebuild the code index after file changes. Lookups build a missing
+index automatically. Code results open in a scrollable panel: arrows, mouse wheel,
+and PgUp/PgDn scroll; Esc or Enter returns to chat. File paths, line numbers, and
+snippets also remain in the transcript. Indexing runs in the background with an
+elapsed-time indicator; `/refresh` reports file and symbol counts when finished.
+Use `/probable [session] [--decision N]` to inspect recorded decisions and confidence,
+or `/btrace [session]` for per-iteration token usage and cost. Both default to the
+current session's latest completed run; saved sessions accept an ID prefix or name.
+Decision numbers start at zero. `/vdiff <file.voss>` shows source and generated
+Python without executing it or changing workspace files. These read-only panels
+use the same scrolling and close keys as code results, and retain their output in
+the transcript. Queued work resumes after the panel closes.
+The remaining slash commands are available through Textual.
+
+## Local MCP servers and skills
+
+Voss discovers MCP definitions from Claude's `~/.claude.json` and project
+`.mcp.json`, plus Codex's `~/.codex/config.toml` and project `.codex/config.toml`.
+`CODEX_HOME` is respected. Project entries override user entries; Codex wins
+same-scope collisions, followed by Claude's project-local entries.
+`~/.config/voss/mcp.yml` and project `.voss/mcp.yml` override imported servers
+(the user directory follows `XDG_CONFIG_HOME`). Set `enabled: false` in a Voss
+server entry to disable it. Stdio and Streamable HTTP are supported.
+
+Skills come from user and project `.claude/skills`, `.codex/skills`, and
+`.agents/skills` folders. Project skills override user skills with the same name;
+Voss's user `skills` folder and project `.voss/skills` take precedence.
+Skill instructions and references are read on demand through `skill_read`.
+
+```bash
+voss mcp list --configured   # show sources without connecting
+voss mcp list                # connect and list advertised tools
+voss skills
+voss chat --allow-net
+```
+
+In Textual, use `/skill <name> <task>` or `$name <task>`. In either TUI, ask
+to use a skill by name. MCP calls retain Voss's network and permission checks;
+set `[tools] allow_net = true` in Voss's `config.toml` for network tools in Go.
+Requests about open PRs, GitHub, MCP, or skills enter the tool-enabled run.
+
+Discovery does not transfer remote MCP OAuth sessions or enable host-managed
+plugins and app connectors. HTTP servers can use configured headers or token
+environment variables. Legacy SSE endpoints require a Streamable HTTP endpoint.
 
 ## First run · `voss login`
 
-The first time you run `voss` with no credentials configured, an interactive
-sign-in wizard launches automatically. You can also re-run it any time with
-`voss login` or `/login` inside the REPL.
+Run `voss login` to configure credentials before opening the Go client.
+Textual also opens the sign-in wizard automatically when credentials are
+missing, and supports `/login` inside its REPL.
 
 ```text
 ╭ voss · sign in ──────────────────────────────────────────╮
@@ -190,9 +260,6 @@ Live mode runs nightly in CI; stub mode runs on every PR.
 
 ## Project Docs
 
-- [PRD.md](PRD.md) — full language specification
+- [Language documentation](https://docs.tryvoss.dev/language/overview) — language overview and constructs
 - [docs/sdk.md](docs/sdk.md) — embedding Voss in Python apps: `voss_runtime` + `voss.harness` public API contract
 - [docs/voss-vs-python.md](docs/voss-vs-python.md) — side-by-side .voss vs raw Python with LOC counts
-- [.planning/PROJECT.md](.planning/PROJECT.md) — core value, constraints
-- [.planning/REQUIREMENTS.md](.planning/REQUIREMENTS.md) — RUN/GRAM/ANLY/GEN/CLI requirements
-- [.planning/ROADMAP.md](.planning/ROADMAP.md) — seven-phase delivery plan (M0–M6)

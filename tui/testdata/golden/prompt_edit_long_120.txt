@@ -1,0 +1,27 @@
+Permission required
+
+Tool fs_edit wants to modify notes.txt.
+
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  … 11 more lines
+
+[a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny

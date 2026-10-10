@@ -45,7 +45,7 @@ This document **points at** the authoritative contract; it does **not** inline o
 Cross-links:
 
 - [`docs/sdk.md`](./sdk.md) — the SDK strategy / surface overview.
-- [`docs/ORCHESTRATION_LAYERS.md`](./ORCHESTRATION_LAYERS.md) — the V13 tier taxonomy + SDK Surface Matrix used by §4. (Pending: produced by V13. The current design source is [`.planning/docs/ORCHESTRATION_LAYERS.md`](../.planning/docs/ORCHESTRATION_LAYERS.md) until V13 ships the published copy.)
+- [`docs/ORCHESTRATION_LAYERS.md`](./ORCHESTRATION_LAYERS.md) — the V13 tier taxonomy + SDK Surface Matrix used by §4. (Pending: produced by V13.)
 
 > **Soft-dependency note.** `contracts/openapi.json` and `contracts/events.schema.json` are V13.1 deliverables and `docs/ORCHESTRATION_LAYERS.md` is a V13 deliverable. As of this writing the `contracts/*.json` snapshots are committed and present; `docs/ORCHESTRATION_LAYERS.md` is still pending. The references-resolve gate [`docs/check-native-embedding-refs.sh`](./check-native-embedding-refs.sh) enumerates every cited path: it hard-fails on a missing always-present path (`docs/protocol.md`, `sdk.md`) and warn-skips (exit 0) while any upstream-gated path is absent.
 

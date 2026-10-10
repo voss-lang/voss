@@ -4,15 +4,18 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 // SessionInfo is a live session (GET /session, GET /session/:id).
 type SessionInfo struct {
-	Id    string `json:"id"`
-	Cwd   string `json:"cwd"`
-	Model string `json:"model"`
-	Title string `json:"title"`
-	Busy  bool   `json:"busy"`
+	Id       string `json:"id"`
+	Cwd      string `json:"cwd"`
+	Model    string `json:"model"`
+	Title    string `json:"title"`
+	Busy     bool   `json:"busy"`
+	Auth     string `json:"auth"`
+	Provider string `json:"provider"`
 }
 
 // SavedSession is a persisted session (GET /sessions/saved).
@@ -24,6 +27,7 @@ type SavedSession struct {
 	UpdatedAt    string  `json:"updated_at"`
 	TotalCostUsd float64 `json:"total_cost_usd"`
 	Turns        int     `json:"turns"`
+	FirstTask    string  `json:"first_task"`
 }
 
 // CostInfo is the cost rollup (GET /session/:id/cost).
@@ -50,18 +54,57 @@ type DoctorReport struct {
 	Checks       []DoctorCheck `json:"checks"`
 }
 
+// MemoryReport is the read-only workspace summary and optional recall results.
+type MemoryReport struct {
+	Summary string      `json:"summary"`
+	Hits    []MemoryHit `json:"hits"`
+}
+
+type MemoryHit struct {
+	Source  string  `json:"source"`
+	Locator string  `json:"locator"`
+	Score   float64 `json:"score"`
+	Excerpt string  `json:"excerpt"`
+}
+
+// Memory reads GET /memory. An empty query returns only the summary.
+func (c *Client) Memory(ctx context.Context, cwd, query string, topK int) (MemoryReport, error) {
+	params := url.Values{"cwd": {cwd}}
+	if query != "" {
+		params.Set("q", query)
+	}
+	if topK > 0 {
+		params.Set("top_k", strconv.Itoa(topK))
+	}
+	var out MemoryReport
+	if err := c.getJSON(ctx, "/memory?"+params.Encode(), http.StatusOK, &out); err != nil {
+		return MemoryReport{}, err
+	}
+	return out, nil
+}
+
 // SessionOptions are the POST /session fields; empty strings take the server's
 // defaults. Resume adopts a saved session by id or name.
 type SessionOptions struct {
-	Cwd    string
-	Model  string
-	Auth   string
-	Title  string
-	Resume string
+	Cwd         string
+	Model       string
+	Auth        string
+	Title       string
+	Resume      string
+	ReviewDiffs bool
 }
 
-// CreateSession opens a session, or resumes a saved one. POST /session -> 201.
-func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (string, error) {
+// OpenedSession is the POST /session response. Auth is the credential source
+// the server resolved, such as "codex-oauth" or "env-anthropic".
+type OpenedSession struct {
+	Id      string `json:"id"`
+	Auth    string `json:"auth"`
+	Resumed bool   `json:"resumed"`
+}
+
+// OpenSession opens a session, or resumes a saved one, and returns the whole
+// response. POST /session -> 201.
+func (c *Client) OpenSession(ctx context.Context, opts SessionOptions) (OpenedSession, error) {
 	body := CreateSessionBody{
 		Cwd:    optional(opts.Cwd),
 		Model:  optional(opts.Model),
@@ -69,13 +112,33 @@ func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (string
 		Title:  optional(opts.Title),
 		Resume: optional(opts.Resume),
 	}
-	var out struct {
-		Id string `json:"id"`
+	if opts.ReviewDiffs {
+		body.ReviewDiffs = &opts.ReviewDiffs
 	}
+	var out OpenedSession
 	if err := c.sendJSON(ctx, http.MethodPost, "/session", body, &out, http.StatusCreated); err != nil {
-		return "", err
+		return OpenedSession{}, err
 	}
-	return out.Id, nil
+	return out, nil
+}
+
+// ReplyDiff answers every hunk in a proposal. An empty list cancels the batch.
+// The returned bool reports an expired or already answered proposal.
+func (c *Client) ReplyDiff(ctx context.Context, sessionID, id string, decisions []DiffReplyDecisions) (bool, error) {
+	if decisions == nil {
+		decisions = []DiffReplyDecisions{}
+	}
+	var out struct {
+		Status string `json:"status"`
+	}
+	err := c.sendJSON(ctx, http.MethodPost, "/session/"+url.PathEscape(sessionID)+"/diff", DiffReply{Id: id, Decisions: decisions}, &out, http.StatusOK)
+	return out.Status == "stale", err
+}
+
+// CreateSession is OpenSession returning only the session id.
+func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (string, error) {
+	s, err := c.OpenSession(ctx, opts)
+	return s.Id, err
 }
 
 // ListSessions returns the active in-memory sessions. GET /session -> 200.
@@ -110,6 +173,20 @@ func (c *Client) GetSession(ctx context.Context, id string) (SessionInfo, error)
 	return out, nil
 }
 
+// GetHistory returns conversation messages in their original order.
+func (c *Client) GetHistory(ctx context.Context, id string) ([]HistoryTurn, error) {
+	var out SessionHistory
+	if err := c.getJSON(ctx, "/session/"+url.PathEscape(id)+"/history", http.StatusOK, &out); err != nil {
+		return nil, err
+	}
+	return out.Turns, nil
+}
+
+// ClearHistory drops active conversation memory; saved sessions are written on turn completion.
+func (c *Client) ClearHistory(ctx context.Context, id string) error {
+	return c.sendJSON(ctx, http.MethodPost, "/session/"+url.PathEscape(id)+"/clear", nil, nil, http.StatusNoContent)
+}
+
 // DeleteSession removes a session. DELETE /session/:id -> 204 No Content.
 func (c *Client) DeleteSession(ctx context.Context, id string) error {
 	return c.sendJSON(ctx, http.MethodDelete, "/session/"+url.PathEscape(id), nil, nil, http.StatusNoContent)
@@ -141,9 +218,9 @@ func (c *Client) Cost(ctx context.Context, id string) (CostInfo, error) {
 	return out, nil
 }
 
-// Doctor returns the server's environment/provider diagnostics. GET /doctor -> 200.
-func (c *Client) Doctor(ctx context.Context) (DoctorReport, error) {
-	path := "/doctor?" + url.Values{"auth": {"auto"}, "cwd": {"."}}.Encode()
+// Doctor returns the server's environment/provider diagnostics for cwd. GET /doctor -> 200.
+func (c *Client) Doctor(ctx context.Context, cwd string) (DoctorReport, error) {
+	path := "/doctor?" + url.Values{"auth": {"auto"}, "cwd": {cwd}}.Encode()
 	var out DoctorReport
 	if err := c.getJSON(ctx, path, http.StatusOK, &out); err != nil {
 		return DoctorReport{}, err

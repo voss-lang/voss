@@ -4,7 +4,7 @@
 
 **Created:** 2026-06-02 (H0.1)
 **History:** Contract LOCKED for H1–H6. Changes require a version bump (`v` field) + migration note.
-**Consumers:** Python server (`voss serve`, H1) · Rust client (`voss-tui`, H2) · future web/VSCode/SDK clients.
+**Consumers:** Python server (`voss serve`, H1) · Go client (`voss-tui`) · future web/VSCode/SDK clients.
 **Source of truth for shapes:** existing `JsonRenderer` (`voss/harness/render.py:485-568`) + OpenCode `packages/sdk/js/src/gen/types.gen.ts` (mirrored where applicable). Voss diverges only by **adding** part/event/gate types — never overloading existing ones, so an unmodified OpenCode-style client degrades gracefully.
 
 This document is the wire contract. The server emits exactly these shapes; the client deserializes exactly these shapes; a parity test (H3.3) fails CI on drift.
@@ -42,17 +42,55 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `POST` | `/session` | Create session. Body `{parentID?, title?}` | `{id}` |
 | `GET` | `/session` | List sessions | `[SessionInfo]` |
 | `GET` | `/session/:id` | Session detail | `SessionInfo` |
+| `GET` | `/session/:id/history` | Active conversation in chronological order | `{v:1, turns:[{role,content}]}` |
+| `POST` | `/session/:id/clear` | Drop active conversation memory; `409` while busy | `204` |
+| `GET` | `/sessions/saved?cwd=...` | Saved session metadata, including `first_task` | `{v:1, sessions:[...]}` |
 | `DELETE` | `/session/:id` | Delete session + data | `204` |
 | `POST` | `/session/:id/message` | Enqueue a user turn (async) | `202 {status:"accepted"}` |
 | `GET` | `/session/:id/events` | SSE event stream for the session | `text/event-stream` |
 | `POST` | `/session/:id/abort` | Cancel the in-flight turn | `202` |
 | `POST` | `/session/:id/permission` | Reply to a pending permission request | `200` |
+| `POST` | `/session/:id/diff` | Reply to an edit proposal. Body `{id,decisions}` | `{v:1,status:"ok"\|"stale"}` |
+| `GET` | `/commands` | Read-only slash command catalog | `{v:1, commands:[{name,description}]}` |
+| `POST` | `/session/:id/command` | Execute a listed command. Body `{name,args?:string[]}` | `{v:1, stdout, stderr, code?}` |
 | `GET` | `/doctor` | Auth/config/tooling status | `DoctorReport` |
 | `GET` | `/openapi.json` | OpenAPI 3.1 spec | spec |
 
 **Voss-native (additive):** `POST /session/:id/budget` (set/inspect token-or-cost envelope) · `GET /session/:id/confidence` (turn confidence rollup). Paths mirror OpenCode for everything shared so existing SDK clients work unmodified.
 
 **Concurrency:** one running turn per session. `POST /message` while a turn runs → `409`.
+
+The command catalog exposes `/tools`, `/skills`, and `/agents`. Each
+accepts no arguments and uses the session's workspace. They list metadata without
+starting a model turn or changing conversation history. Unknown commands return
+`400`; unsupported arguments return usage text in `stderr`. Clients render
+`stdout` as system output and `stderr` as a warning. Catalog loading does not
+connect MCP servers; `/tools` connects for discovery and closes those connections
+after listing. Listed tools remain subject to permission checks when invoked.
+
+`/symbol <name>` and `/refs <name>` add an optional `code` payload:
+`{query, items:[{file,line,name,language,source,snippet}], truncated}`. Paths are
+workspace-relative, lines are one-based, and snippets contain at most 240
+characters. Results are limited to 50 matches. The same results remain in `stdout`
+for clients without a results panel. Definitions use the index; references use
+LSP with a regex fallback. Lookups create a missing index; `/refresh` rebuilds it
+after source changes and returns file/symbol counts in `stdout`. These commands
+run in a worker thread without blocking the server event loop or starting a model
+turn. Index writes are limited to the rebuildable `.voss-cache/code` cache.
+
+`/probable [session] [--decision N]`, `/btrace [session]`, and `/vdiff <file.voss>`
+return an optional `inspection: {title, text}` payload for a read-only panel,
+along with the same text in `stdout`. Decision and budget views use the latest
+completed run of the current session, or a saved session resolved by ID prefix or
+name in the same workspace. `--decision` selects a zero-based decision index.
+Fresh sessions and runs without inspection data return a no-data message.
+`/vdiff` uses the existing compiler preview, including cached harness output when
+available, and rejects sources or cached artifacts outside the workspace.
+Invalid arguments and lookup/compiler errors appear in `stderr` without a panel.
+Inspection runs in a worker thread and does not change history, call the session's
+provider, or write workspace files.
+
+Conversation and model/auth status questions use the `ambient` phase. Work intents use the tool-enabled `run` phase; prefix a request with `run ` to select that path explicitly. Swarm sessions always run their assigned tasks. Permission `mode` remains independent of phase. Status events report phase changes and return to `ambient` on completion, cancellation, or failure.
 
 ## 5. Message & parts schema
 
@@ -108,11 +146,13 @@ First event is always `server.connected`. Turn completion is signalled by `sessi
 | `final` | `text, confidence, cost_usd` | `:516` |
 | `stream.delta` | `text` | `:519` |
 | `stream.finalize` | `role, confidence, cost_usd, timestamp` | `:522` |
-| `status` | `model, tokens, cost_usd, ctx_pct` | `:539` |
+| `status` | `model, tokens, cost_usd, ctx_pct`, optional `phase: ambient \| run` | `:539` |
 | `cognition_loaded` | `architecture_tokens, constraints_count, plans_loaded, decisions_loaded` | `:542` |
 | `cognition_overflow` | `architecture_tokens, budget` | `:558` |
 | `warning` | `message` | `:567` |
 | `permission.updated` | `id, tool_name, args, dimension` | server-only (§7) |
+| `diff.proposed` | `id, hunks:[{file,start,lines}]` | opt-in edit review (§7) |
+| `diff.resolved` | `id` | close the matching edit review |
 | `session.idle` | `{sessionID}` (turn done) | server-only |
 | **`probable`** | `text, probability, alternatives?` | **Voss-native** |
 | **`budget.updated`** | `sessionID, spent, limit, remaining, unit` | **Voss-native** |
@@ -139,6 +179,27 @@ The agent's `PermissionGate` blocks on a decision whenever a mutating/shell/netw
 
 `dimension ∈ "tool" | "confidence" | "budget"` (Voss gate dimensions, H5.2).
 
+### Edit review
+
+Clients that support edit review send `review_diffs: true` when creating or
+resuming a session. The default is false for existing clients. After permission
+checks, `fs_edit` and `fs_edit_many` emit `diff.proposed` and await a reply before
+writing. Each hunk has a file path, a one-based start line, and removed
+(`- `) and added (`+ `) lines. Batch hunks describe edits in order against the
+working buffer produced by preceding hunks.
+
+Reply to `/session/:id/diff` with the proposal `id` and one decision per hunk:
+`"accept"`, `"reject"`, or `"skip"`. An empty list cancels. Rejecting or skipping
+any hunk cancels the whole batch. An invalid decision or count returns `422`
+and leaves the proposal pending; expired or already answered IDs return
+`status: "stale"`. Proposals belong to their session.
+
+The server emits `diff.resolved` on reply, timeout (300 seconds), or cancellation.
+This closes the review; tool results report whether an edit was applied. Timeout,
+turn abort, or stream disconnect cancels pending edits. A file changed during
+review requires a new preview. Previews over 256 KiB of encoded event data are
+denied with a warning rather than truncated.
+
 ## 8. Abort
 
 `POST /session/:id/abort` → server `loop.call_soon_threadsafe(task.cancel)` on the turn task. Reuses the existing handler (`agent.py:1052`): emits `stream.delta("\n[interrupted]\n")` + `stream.finalize(role="system")` then `session.idle`, and records `exit_reason="interrupt"`. SSE client disconnect triggers the identical cancel.
@@ -152,6 +213,15 @@ The agent's `PermissionGate` blocks on a decision whenever a mutating/shell/netw
 ## 10. Session persistence
 
 On turn completion the server calls `session_store.save(record, history)` → `<cwd>/.voss/sessions/<id>.json` (mode 0600). Session id = `uuid4().hex[:12]`. Resume rehydrates `SessionInfo` + `EpisodicMemory`; the M2 fix (H4.2) forwards **all** prior runs and widens the in-turn history window (was `history.last(6)` / `runs[-1]` only).
+
+After opening a resumed session, clients can fetch `/session/:id/history` before
+opening the event stream. The response contains only user, assistant, and system
+messages; tool payloads and run metadata are excluded. `first_task` in saved-session
+listings is the first user message, limited to 60 characters, or `(empty)`.
+
+`/session/:id/clear` matches the CLI's `/clear`: it clears active episodic memory
+and pending resume context. It leaves the visible transcript, run records, costs,
+and saved file intact. The next completed turn saves the new conversation history.
 
 ## 11. Worked sequence (one turn)
 

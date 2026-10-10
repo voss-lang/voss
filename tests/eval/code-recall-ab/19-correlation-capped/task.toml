@@ -1,0 +1,31 @@
+prompt = '''The eval summary's plan-confidence vs task-success correlation (and its n) includes runs that hit the iteration cap. Leave out rows where `capped` is true when computing that correlation.'''
+mode = "edit"
+rubric = '''PASS if, after the change, capped rows are excluded from the confidence/success correlation and its count, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_correlation_capped.py" <<'EOF'
+import statistics
+
+import pytest
+
+from voss.eval.summary import _pearson
+
+
+def test_capped_rows_left_out_of_correlation():
+    rows = [
+        {"confidence": 0.9, "success": True, "capped": False},
+        {"confidence": 0.1, "success": False},
+        {"confidence": 0.8, "success": True, "capped": False},
+        {"confidence": 0.2, "success": True, "capped": True},
+    ]
+    corr, n = _pearson(rows)
+    assert n == 3
+    assert corr == pytest.approx(statistics.correlation([0.9, 0.1, 0.8], [1.0, 0.0, 1.0]))
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_correlation_capped.py"
+'''
+timeout = 120

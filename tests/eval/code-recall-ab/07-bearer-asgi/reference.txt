@@ -1,0 +1,1 @@
+voss/harness/server/app.py:76 - _BearerASGI is raw ASGI middleware (not BaseHTTPMiddleware, which buffers bodies) that returns 401 on a missing or wrong token.

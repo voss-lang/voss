@@ -100,6 +100,84 @@ asyncio.run(main())
 | `VossAgent`, `AgentHandle`, `gather` | Multi-agent primitives (`spawn` / `gather`) |
 | `ToolDescriptor`, `tool` | `@tool` decorator + descriptor type |
 | `VossRuntimeError`, `BudgetExceededError`, `ConfidenceTooLowError`, `ParseError`, `ProviderError` | Exception hierarchy |
+| `judge`, `to_probable`, `JevClient`, `JudgmentResult`, `JudgmentError` | Explicit Jev judgments (see below) |
+| `ChoiceQuestion`, `ScoreQuestion`, `NoulQuestion`, `ChoiceResult`, `ScoreResult`, `NoulResult` | Judgment question and result types |
+
+### Explicit judgments
+
+`await judge(state, questions)` sends one request to Jev and returns a
+`JudgmentResult`. It is an explicit call: nothing in the runtime calls it
+for you.
+
+- **Kill switch.** With `VOSS_JUDGMENTS=off` every call raises
+  `JudgmentError` with outcome `disabled` before any request is made.
+- **Key.** The runtime reads the key only from the `TYPESAFE_API_KEY`
+  environment variable. `voss run` copies a keychain key into that variable
+  before executing a compiled program. `voss judge` resolves its key when
+  invoked. TUI and server startup do not read the Jev keychain entry or export
+  it to child processes. Direct Python callers, including scripts launched
+  from the TUI, set the variable themselves. The key is never stored in
+  `RuntimeConfig`.
+- **Limits.** Model, timeout, request size, calls per turn, and dollar cap
+  come from the `judgments_*` fields of `RuntimeConfig`.
+- **Questions.** `questions` maps an ID to a `ChoiceQuestion`,
+  `ScoreQuestion`, or `NoulQuestion`, or to the same question as a wire dict
+  such as `{"type": "choice", "instructions": ..., "criteria": {...}}`.
+  Compiled `.voss` code passes wire dicts.
+
+**Probabilities.** Only a Choice result converts to a `ProbableValue`:
+`to_probable(result)` or `result.to_probable()` returns the selected option
+with its probability from the returned distribution. That makes `p @ 0.80`
+a real probability gate. Score and Noul results never convert. A Score
+value is an expected rubric level and a Noul value is P(yes); neither is a
+probability of being correct. The provider's `confidence` and the full
+distribution stay on the original result.
+
+**Errors.** Explicit calls raise `JudgmentError` and never fall back
+silently. `err.outcome` is one of `disabled`, `unavailable` (missing key,
+timeout, transport or HTTP failure), `budget_exhausted`, or
+`invalid_response`. When the call reached the Jev client (every case except
+`disabled` and a missing key), `err.receipt` holds its receipt.
+
+**Spend.** Each call reserves a worst-case cost in a `JudgmentLedger`
+before dispatch and reconciles to the reported usage afterward. Pass
+`ledger=`, or open `async with JudgmentLedger(max_calls, max_cost_usd)`
+(from `voss_runtime.judgments`) to share one ledger across a turn.
+Otherwise each call gets its own ledger from the `RuntimeConfig` limits.
+Inside an enclosing `BudgetScope`, judgment spend counts against the
+scope's dollar limit (`cost_usd`) and never against `token_limit`. If the
+scope's remaining dollars are below the reservation, the call is refused
+before dispatch with outcome `budget_exhausted`.
+
+**Receipts.** Every call that reaches the Jev client produces a
+content-free receipt: call ID, purpose, model, status, attempts, usage,
+cost, latency, and answer option IDs with probabilities. It is available in
+memory as `result.receipt` and in `ledger.receipts`. The runtime writes
+nothing to disk.
+
+```python
+import asyncio
+
+from voss_runtime import ChoiceQuestion, judge, to_probable
+from voss_runtime.judgments import JudgmentLedger
+
+
+async def main():
+    async with JudgmentLedger(max_calls=4, max_cost_usd=0.01) as ledger:
+        res = await judge("Please refund my last invoice.", {"route": ChoiceQuestion(
+            "Which support queue should handle this request?",
+            {"billing": "Payment, refund, or invoice issue.", "other": "Anything else."},
+        )})
+    print(res.receipt.status, len(ledger.receipts))
+    p = to_probable(res.answers["route"])
+    print(p.value if p @ 0.80 else "unknown")
+
+
+asyncio.run(main())
+```
+
+`examples/judgments/` has the same decision as a Python module and as a
+compiled `.voss` program (`triage.voss`).
 
 ### What `voss_runtime` is not
 
@@ -247,17 +325,17 @@ The SDKs never look for a Python interpreter or a source checkout. Any
 `voss` executable that speaks the protocol works: the npm `@vosslang/cli`
 install, a pip console script, or a wheel-vendored binary.
 
-`voss-tui` is a first-party consumer of the same API. When run from a
-checkout with no `VOSS_BIN` set it prefers the sibling `.venv/bin/voss`;
-that convenience lives in the TUI, not the SDK.
+`voss-tui` is a Go consumer of the same API. The Python dispatcher passes its
+interpreter as `VOSS_SERVER_PYTHON`, so the TUI starts the server with the same
+Python installation. An explicit `VOSS_BIN` overrides that handoff. Direct
+invocations otherwise resolve `voss` on `PATH`.
 
 ---
 
 ## Known gaps (closing in M7)
 
 These are public-API-shaped holes today. They are scoped to formal v0.1
-phase **M7 — SDK Polish** (see `.planning/ROADMAP.md` §"Phase M7: SDK
-Polish" and `.planning/REQUIREMENTS.md` SDK-01..05). When M7 ships, the
+phase **M7 — SDK Polish**. When M7 ships, the
 items below will be promoted into `voss.harness.__all__` /
 `voss_runtime.__all__` and this list will shrink to zero.
 

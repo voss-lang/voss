@@ -1,0 +1,39 @@
+prompt = '''Reviewer calibration counts review sidecars where reviewer B was skipped (verdict "skipped") toward the false-pass pairs and the slop-rejection denominator. Treat a skipped B verdict as no B verdict.'''
+mode = "edit"
+rubric = '''PASS if, after the change, skipped B verdicts are excluded from false-pass pairs and the slop-rejection denominator, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_calibration_skipped.py" <<'EOF'
+import json
+
+import pytest
+
+from voss.harness.audit.calibration import compute_calibration
+
+
+def _sidecar(root, name, a_result, b_verdict):
+    path = root / "s1" / f"{name}.review.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "a_verification": {"result": a_result},
+        "b_verdict": {"verdict": b_verdict},
+    }))
+
+
+def test_skipped_reviewer_b_is_not_counted(tmp_path):
+    _sidecar(tmp_path, "c1", "pass", "block")
+    _sidecar(tmp_path, "c2", "pass", "skipped")
+    _sidecar(tmp_path, "c3", "fail", "pass")
+    report = compute_calibration(tmp_path, spot_k=0)
+    assert report.total_pairs == 2
+    assert report.false_pass_count == 1
+    assert report.false_pass_rate == pytest.approx(0.5)
+    assert report.slop_rejection_rate == pytest.approx(0.5)
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_calibration_skipped.py"
+'''
+timeout = 120

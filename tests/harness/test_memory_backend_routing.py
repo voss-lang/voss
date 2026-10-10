@@ -94,7 +94,7 @@ async def test_server_stops_before_model_call_when_remote_pins_are_unavailable(t
     app = appmod.create_app("synthetic-client-authorization")
     session = app.state.sessions.create(cwd=tmp_path, model="synthetic", provider=object())
 
-    await appmod._run_turn(session, "Synthetic task", "plan")
+    await appmod._run_turn(session, "Run the synthetic task", "plan")
 
     events = []
     while not session.queue.empty():
