@@ -50,6 +50,7 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `GET` | `/session/:id/events` | SSE event stream for the session | `text/event-stream` |
 | `POST` | `/session/:id/abort` | Cancel the in-flight turn | `202` |
 | `POST` | `/session/:id/permission` | Reply to a pending permission request | `200` |
+| `POST` | `/session/:id/diff` | Reply to an edit proposal. Body `{id,decisions}` | `{v:1,status:"ok"\|"stale"}` |
 | `GET` | `/commands` | Read-only slash command catalog | `{v:1, commands:[{name,description}]}` |
 | `POST` | `/session/:id/command` | Execute a listed command. Body `{name,args?:string[]}` | `{v:1, stdout, stderr, code?}` |
 | `GET` | `/doctor` | Auth/config/tooling status | `DoctorReport` |
@@ -150,6 +151,8 @@ First event is always `server.connected`. Turn completion is signalled by `sessi
 | `cognition_overflow` | `architecture_tokens, budget` | `:558` |
 | `warning` | `message` | `:567` |
 | `permission.updated` | `id, tool_name, args, dimension` | server-only (§7) |
+| `diff.proposed` | `id, hunks:[{file,start,lines}]` | opt-in edit review (§7) |
+| `diff.resolved` | `id` | close the matching edit review |
 | `session.idle` | `{sessionID}` (turn done) | server-only |
 | **`probable`** | `text, probability, alternatives?` | **Voss-native** |
 | **`budget.updated`** | `sessionID, spent, limit, remaining, unit` | **Voss-native** |
@@ -175,6 +178,27 @@ The agent's `PermissionGate` blocks on a decision whenever a mutating/shell/netw
 5. Server resolves the Future; gate proceeds. Timeout (default 300s) → deny.
 
 `dimension ∈ "tool" | "confidence" | "budget"` (Voss gate dimensions, H5.2).
+
+### Edit review
+
+Clients that support edit review send `review_diffs: true` when creating or
+resuming a session. The default is false for existing clients. After permission
+checks, `fs_edit` and `fs_edit_many` emit `diff.proposed` and await a reply before
+writing. Each hunk has a file path, a one-based start line, and removed
+(`- `) and added (`+ `) lines. Batch hunks describe edits in order against the
+working buffer produced by preceding hunks.
+
+Reply to `/session/:id/diff` with the proposal `id` and one decision per hunk:
+`"accept"`, `"reject"`, or `"skip"`. An empty list cancels. Rejecting or skipping
+any hunk cancels the whole batch. An invalid decision or count returns `422`
+and leaves the proposal pending; expired or already answered IDs return
+`status: "stale"`. Proposals belong to their session.
+
+The server emits `diff.resolved` on reply, timeout (300 seconds), or cancellation.
+This closes the review; tool results report whether an edit was applied. Timeout,
+turn abort, or stream disconnect cancels pending edits. A file changed during
+review requires a new preview. Previews over 256 KiB of encoded event data are
+denied with a warning rather than truncated.
 
 ## 8. Abort
 

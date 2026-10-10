@@ -86,11 +86,12 @@ func (c *Client) Memory(ctx context.Context, cwd, query string, topK int) (Memor
 // SessionOptions are the POST /session fields; empty strings take the server's
 // defaults. Resume adopts a saved session by id or name.
 type SessionOptions struct {
-	Cwd    string
-	Model  string
-	Auth   string
-	Title  string
-	Resume string
+	Cwd         string
+	Model       string
+	Auth        string
+	Title       string
+	Resume      string
+	ReviewDiffs bool
 }
 
 // OpenedSession is the POST /session response. Auth is the credential source
@@ -111,11 +112,27 @@ func (c *Client) OpenSession(ctx context.Context, opts SessionOptions) (OpenedSe
 		Title:  optional(opts.Title),
 		Resume: optional(opts.Resume),
 	}
+	if opts.ReviewDiffs {
+		body.ReviewDiffs = &opts.ReviewDiffs
+	}
 	var out OpenedSession
 	if err := c.sendJSON(ctx, http.MethodPost, "/session", body, &out, http.StatusCreated); err != nil {
 		return OpenedSession{}, err
 	}
 	return out, nil
+}
+
+// ReplyDiff answers every hunk in a proposal. An empty list cancels the batch.
+// The returned bool reports an expired or already answered proposal.
+func (c *Client) ReplyDiff(ctx context.Context, sessionID, id string, decisions []DiffReplyDecisions) (bool, error) {
+	if decisions == nil {
+		decisions = []DiffReplyDecisions{}
+	}
+	var out struct {
+		Status string `json:"status"`
+	}
+	err := c.sendJSON(ctx, http.MethodPost, "/session/"+url.PathEscape(sessionID)+"/diff", DiffReply{Id: id, Decisions: decisions}, &out, http.StatusOK)
+	return out.Status == "stale", err
 }
 
 // CreateSession is OpenSession returning only the session id.

@@ -9,6 +9,8 @@ function assertExhaustiveAgentEvent(event: AgentEvent): AgentEvent {
     case "session.idle":
       return event;
     case "permission.updated":
+    case "diff.proposed":
+    case "diff.resolved":
       return event;
     case "banner":
       return event;

@@ -49,6 +49,23 @@ class PermissionUpdated(_Base):
     dimension: str = "tool"  # tool | confidence | budget
 
 
+class DiffHunk(BaseModel):
+    file: str
+    start: int
+    lines: list[str]
+
+
+class DiffProposed(_Base):
+    type: Literal["diff.proposed"] = "diff.proposed"
+    id: str
+    hunks: list[DiffHunk]
+
+
+class DiffResolved(_Base):
+    type: Literal["diff.resolved"] = "diff.resolved"
+    id: str
+
+
 # --- core 13 (mirror JsonRenderer) ----------------------------------------
 
 
@@ -282,6 +299,8 @@ AgentEvent = Annotated[
         ServerConnected,
         SessionIdle,
         PermissionUpdated,
+        DiffProposed,
+        DiffResolved,
         BannerEvent,
         UserEvent,
         ThinkingEvent,
