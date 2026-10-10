@@ -31,21 +31,23 @@ type (
 )
 
 type chatModel struct {
-	ctx           context.Context
-	client        *voss.Client
-	sessionID     string
-	cwd           string
-	provider      string
-	auth          string
-	git           string
-	home          [][2]string
-	events        <-chan voss.TypedEvent
-	cancelStream  context.CancelFunc
-	resuming      bool
-	clearing      bool
-	savedSessions []voss.SavedSession
-	selecting     bool
-	modelChoices  []voss.ModelChoice
+	ctx            context.Context
+	client         *voss.Client
+	sessionID      string
+	cwd            string
+	provider       string
+	auth           string
+	git            string
+	home           [][2]string
+	events         <-chan voss.TypedEvent
+	cancelStream   context.CancelFunc
+	resuming       bool
+	clearing       bool
+	savedSessions  []voss.SavedSession
+	selecting      bool
+	modelChoices   []voss.ModelChoice
+	serverCommands []voss.CommandInfo
+	commanding     string
 
 	turn     turn
 	mode     string
@@ -129,7 +131,7 @@ func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, ev
 }
 
 func (m chatModel) Init() tea.Cmd {
-	return waitEvent(m.events)
+	return tea.Batch(waitEvent(m.events), m.loadCommands())
 }
 
 func waitEvent(ch <-chan voss.TypedEvent) tea.Cmd {
@@ -167,6 +169,36 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case commandListMsg:
+		if msg.err != nil {
+			var ve *voss.VossError
+			if !errors.As(msg.err, &ve) || ve.Status != http.StatusNotFound {
+				m.add(output("", "commands: "+errText(msg.err))...)
+			}
+			return m, nil
+		}
+		m.serverCommands = msg.catalog.Commands
+		m.syncPalette()
+		return m, nil
+	case commandResultMsg:
+		if msg.id != m.sessionID {
+			return m, nil
+		}
+		name := m.commanding
+		m.commanding = ""
+		if msg.err != nil {
+			m.add(output("", name+": "+errText(msg.err))...)
+		} else {
+			var stdout, stderr string
+			if msg.result.Stdout != nil {
+				stdout = *msg.result.Stdout
+			}
+			if msg.result.Stderr != nil {
+				stderr = *msg.result.Stderr
+			}
+			m.add(output(stdout, stderr)...)
+		}
+		return m, m.drain()
 	case modelListMsg:
 		if msg.id != m.sessionID {
 			return m, nil
@@ -230,6 +262,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.events, m.cancelStream = msg.conn.events, msg.conn.cancel
 		m.home = homeRows(meta)
 		m.turn = turn{model: meta.Model, phase: "ambient"}
+		m.commanding = ""
 		m.blocks, m.rendered, m.sent = nil, nil, nil
 		m.live, m.lastResponse, m.toast = "", "", ""
 		m.offline, m.navMode, m.liveTick = false, false, false
@@ -524,7 +557,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if m.turn.busy || m.resuming || m.selecting || m.clearing {
+		if m.turn.busy || m.resuming || m.selecting || m.clearing || m.commanding != "" {
 			m.queue = append(m.queue, text)
 			return m, nil
 		}
@@ -560,7 +593,7 @@ func (m *chatModel) dispatch(text string) tea.Cmd {
 // order until a line starts the next turn.
 func (m *chatModel) drain() tea.Cmd {
 	var cmds []tea.Cmd
-	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing &&
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing && m.commanding == "" &&
 		m.pal.kind != paletteSession && m.pal.kind != paletteModel && m.pal.kind != paletteAuth {
 		text := m.queue[0]
 		m.queue = m.queue[1:]
@@ -641,6 +674,9 @@ func (m chatModel) bottom() string {
 	out := statusLine(m.width, m.provider, m.turn.model, m.turn.phase, m.turn.ctxPct, m.turn.costUSD, m.git)
 	if m.selecting {
 		out += "\n  loading model controls…"
+	}
+	if m.commanding != "" {
+		out += "\n  loading " + m.commanding + "…"
 	}
 	if len(m.queue) > 0 {
 		out += "\n" + queueChip(m.queue, m.width)

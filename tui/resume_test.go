@@ -171,6 +171,8 @@ func TestResumePickerFiltersAndSelectsSavedSession(t *testing.T) {
 func TestResumeHistoryFailureKeepsActiveTranscript(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/commands":
+			w.WriteHeader(http.StatusNotFound)
 		case "/session":
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"id":"saved","resumed":true}`))
@@ -233,7 +235,8 @@ func TestClearWaitsBeforeSendingQueuedPrompt(t *testing.T) {
 }
 
 func TestClearFailureRestoresQueuedInput(t *testing.T) {
-	d := newDriver(t, nil, nil)
+	_, client := newFakeServer(t)
+	d := newDriver(t, client, nil)
 	d.m.clearing = true
 	d.m.queue = []string{"follow up"}
 	d.m.editor.SetValue("draft")

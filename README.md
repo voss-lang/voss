@@ -127,6 +127,9 @@ or API authentication. `/model gpt-6.1-sol` and `/auth claude` switch directly.
 Subscription choices reuse your local Claude/Codex login; API choices require a
 configured key. Successful switches update the footer and persist across launches
 and saved-session resumes. `voss ui --auth codex` overrides auth for a launch.
+Use `/tools` to list built-in and discovered MCP tools, `/skills` to list skills,
+and `/agents` to list built-in and project subagents. These commands appear in
+the slash palette and `/help`; their results appear in the transcript.
 The remaining slash commands are available through Textual.
 
 ## Local MCP servers and skills

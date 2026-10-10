@@ -207,10 +207,10 @@ func (m *chatModel) syncPalette() {
 			m.pal.labels = append(m.pal.labels, s.Id+"  "+s.Name+"  "+strings.Join(strings.Fields(s.FirstTask), " ")+"  "+s.UpdatedAt)
 		}
 	case strings.HasPrefix(text, "/"):
-		names := rankCommands(text, commandNames(), m.recentCommands)
+		names := rankCommands(text, m.commandNames(), m.recentCommands)
 		m.pal = picker{kind: paletteSlash, names: names}
 		for _, n := range names {
-			m.pal.labels = append(m.pal.labels, padRight(n, 16)+" "+slashHelp(n))
+			m.pal.labels = append(m.pal.labels, padRight(n, 16)+" "+m.slashHelp(n))
 		}
 	default:
 		_, query, ok := findMentionToken([]rune(text), m.cursorOffset())
