@@ -38,7 +38,7 @@ type clearHistoryMsg struct {
 }
 
 func openChatSession(ctx context.Context, client *voss.Client, o options) (sessionConnection, error) {
-	s, err := client.OpenSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model, Auth: o.auth, Resume: o.resume})
+	s, err := client.OpenSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model, Auth: o.auth, Resume: o.resume, ReviewDiffs: true})
 	if err != nil {
 		return sessionConnection{}, fmt.Errorf("open session: %w", err)
 	}

@@ -1,0 +1,40 @@
+  Review changes
+
+  [1/2] settings.go:3 · accept
+  - timeout := 10
+  + timeout := 30
+
+  [2/2] settings.go:7 · reviewing
+  - retries := 1
+  + retries := 3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  y accept · n reject · s skip · a accept rest · q reject rest
+  Reject/skip cancels batch · Esc cancel · ↑/↓ scroll · PgUp/PgDn page

@@ -76,6 +76,7 @@ impl TryFrom<&AgentEvent> for UiProjection {
             }),
             AgentEvent::WarningEvent(event) => Ok(UiProjection::Warning(event.message.clone())),
             AgentEvent::SessionIdle(_) => Ok(UiProjection::SessionIdle),
+            AgentEvent::DiffProposed(_) | AgentEvent::DiffResolved(_) => Err(()),
             AgentEvent::BannerEvent(_) => Err(()),
             AgentEvent::CognitionLoaded(_) => Err(()),
             AgentEvent::CognitionOverflow(_) => Err(()),

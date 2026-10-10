@@ -246,6 +246,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/session/{session_id}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reply Diff */
+        post: operations["reply_diff_session__session_id__diff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/session/{session_id}/events": {
         parameters: {
             query?: never;
@@ -676,6 +693,11 @@ export interface components {
             parentID?: string | null;
             /** Resume */
             resume?: string | null;
+            /**
+             * Review Diffs
+             * @default false
+             */
+            review_diffs: boolean;
             /** Title */
             title?: string | null;
         };
@@ -708,6 +730,54 @@ export interface components {
              */
             owned_files: string[];
         };
+        /** DiffHunk */
+        DiffHunk: {
+            /** File */
+            file: string;
+            /** Lines */
+            lines: string[];
+            /** Start */
+            start: number;
+        };
+        /** DiffProposed */
+        DiffProposed: {
+            /** Hunks */
+            hunks: components["schemas"]["DiffHunk"][];
+            /** Id */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "diff.proposed";
+            /**
+             * V
+             * @default 1
+             */
+            v: number;
+        };
+        /** DiffReply */
+        DiffReply: {
+            /** Decisions */
+            decisions: ("accept" | "reject" | "skip")[];
+            /** Id */
+            id: string;
+        };
+        /** DiffResolved */
+        DiffResolved: {
+            /** Id */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "diff.resolved";
+            /**
+             * V
+             * @default 1
+             */
+            v: number;
+        };
         /**
          * EventEnvelope
          * @description OpenAPI schema anchor (H1.14).
@@ -717,7 +787,7 @@ export interface components {
          */
         EventEnvelope: {
             /** Event */
-            event: components["schemas"]["ServerConnected"] | components["schemas"]["SessionIdle"] | components["schemas"]["PermissionUpdated"] | components["schemas"]["BannerEvent"] | components["schemas"]["UserEvent"] | components["schemas"]["ThinkingEvent"] | components["schemas"]["PlanEvent"] | components["schemas"]["ToolEvent"] | components["schemas"]["ClarifyEvent"] | components["schemas"]["FinalEvent"] | components["schemas"]["StreamDelta"] | components["schemas"]["StreamFinalize"] | components["schemas"]["StatusEvent"] | components["schemas"]["CognitionLoaded"] | components["schemas"]["CognitionOverflow"] | components["schemas"]["PrinciplesOverflow"] | components["schemas"]["InstructionsOverflow"] | components["schemas"]["WarningEvent"] | components["schemas"]["ProbableEvent"] | components["schemas"]["BudgetUpdated"] | components["schemas"]["ConfidenceUpdated"] | components["schemas"]["GateUpdated"] | components["schemas"]["SwarmAssign"] | components["schemas"]["SwarmCandidateReady"] | components["schemas"]["SwarmCandidatesReady"] | components["schemas"]["SwarmWorkerDone"] | components["schemas"]["SwarmGate"] | components["schemas"]["SwarmNeedsOperator"] | components["schemas"]["SwarmComplete"];
+            event: components["schemas"]["ServerConnected"] | components["schemas"]["SessionIdle"] | components["schemas"]["PermissionUpdated"] | components["schemas"]["DiffProposed"] | components["schemas"]["DiffResolved"] | components["schemas"]["BannerEvent"] | components["schemas"]["UserEvent"] | components["schemas"]["ThinkingEvent"] | components["schemas"]["PlanEvent"] | components["schemas"]["ToolEvent"] | components["schemas"]["ClarifyEvent"] | components["schemas"]["FinalEvent"] | components["schemas"]["StreamDelta"] | components["schemas"]["StreamFinalize"] | components["schemas"]["StatusEvent"] | components["schemas"]["CognitionLoaded"] | components["schemas"]["CognitionOverflow"] | components["schemas"]["PrinciplesOverflow"] | components["schemas"]["InstructionsOverflow"] | components["schemas"]["WarningEvent"] | components["schemas"]["ProbableEvent"] | components["schemas"]["BudgetUpdated"] | components["schemas"]["ConfidenceUpdated"] | components["schemas"]["GateUpdated"] | components["schemas"]["SwarmAssign"] | components["schemas"]["SwarmCandidateReady"] | components["schemas"]["SwarmCandidatesReady"] | components["schemas"]["SwarmWorkerDone"] | components["schemas"]["SwarmGate"] | components["schemas"]["SwarmNeedsOperator"] | components["schemas"]["SwarmComplete"];
         };
         /** FinalEvent */
         FinalEvent: {
@@ -2031,6 +2101,43 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reply_diff_session__session_id__diff_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiffReply"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

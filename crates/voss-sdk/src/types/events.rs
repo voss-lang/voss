@@ -385,6 +385,130 @@ pub struct ConfidenceUpdated {
     #[serde(default = "defaults::default_u64::<i64, 1>")]
     pub v: i64,
 }
+#[doc = "`DiffHunk`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"title\": \"DiffHunk\","]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"file\","]
+#[doc = "    \"lines\","]
+#[doc = "    \"start\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"file\": {"]
+#[doc = "      \"title\": \"File\","]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lines\": {"]
+#[doc = "      \"title\": \"Lines\","]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"type\": \"string\""]
+#[doc = "      }"]
+#[doc = "    },"]
+#[doc = "    \"start\": {"]
+#[doc = "      \"title\": \"Start\","]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    }"]
+#[doc = "  }"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct DiffHunk {
+    pub file: ::std::string::String,
+    pub lines: ::std::vec::Vec<::std::string::String>,
+    pub start: i64,
+}
+#[doc = "`DiffProposed`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"title\": \"DiffProposed\","]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"hunks\","]
+#[doc = "    \"id\","]
+#[doc = "    \"type\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"hunks\": {"]
+#[doc = "      \"title\": \"Hunks\","]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/components/schemas/DiffHunk\""]
+#[doc = "      }"]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"title\": \"Id\","]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"type\": {"]
+#[doc = "      \"title\": \"Type\","]
+#[doc = "      \"default\": \"diff.proposed\","]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"const\": \"diff.proposed\""]
+#[doc = "    },"]
+#[doc = "    \"v\": {"]
+#[doc = "      \"title\": \"V\","]
+#[doc = "      \"default\": 1,"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    }"]
+#[doc = "  }"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct DiffProposed {
+    pub hunks: ::std::vec::Vec<DiffHunk>,
+    pub id: ::std::string::String,
+    #[serde(default = "defaults::default_u64::<i64, 1>")]
+    pub v: i64,
+}
+#[doc = "`DiffResolved`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"title\": \"DiffResolved\","]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"id\","]
+#[doc = "    \"type\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"title\": \"Id\","]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"type\": {"]
+#[doc = "      \"title\": \"Type\","]
+#[doc = "      \"default\": \"diff.resolved\","]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"const\": \"diff.resolved\""]
+#[doc = "    },"]
+#[doc = "    \"v\": {"]
+#[doc = "      \"title\": \"V\","]
+#[doc = "      \"default\": 1,"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    }"]
+#[doc = "  }"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct DiffResolved {
+    pub id: ::std::string::String,
+    #[serde(default = "defaults::default_u64::<i64, 1>")]
+    pub v: i64,
+}
 #[doc = "`Event`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -401,6 +525,12 @@ pub struct ConfidenceUpdated {
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/components/schemas/PermissionUpdated\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/components/schemas/DiffProposed\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/components/schemas/DiffResolved\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/components/schemas/BannerEvent\""]
@@ -489,6 +619,8 @@ pub struct ConfidenceUpdated {
 #[doc = "      \"cognition_loaded\": \"#/components/schemas/CognitionLoaded\","]
 #[doc = "      \"cognition_overflow\": \"#/components/schemas/CognitionOverflow\","]
 #[doc = "      \"confidence.updated\": \"#/components/schemas/ConfidenceUpdated\","]
+#[doc = "      \"diff.proposed\": \"#/components/schemas/DiffProposed\","]
+#[doc = "      \"diff.resolved\": \"#/components/schemas/DiffResolved\","]
 #[doc = "      \"final\": \"#/components/schemas/FinalEvent\","]
 #[doc = "      \"gate.updated\": \"#/components/schemas/GateUpdated\","]
 #[doc = "      \"instructions_overflow\": \"#/components/schemas/InstructionsOverflow\","]
@@ -527,6 +659,10 @@ pub enum AgentEvent {
     SessionIdle(SessionIdle),
     #[serde(rename = "permission.updated")]
     PermissionUpdated(PermissionUpdated),
+    #[serde(rename = "diff.proposed")]
+    DiffProposed(DiffProposed),
+    #[serde(rename = "diff.resolved")]
+    DiffResolved(DiffResolved),
     #[serde(rename = "banner")]
     BannerEvent(BannerEvent),
     #[serde(rename = "user")]
@@ -593,6 +729,16 @@ impl ::std::convert::From<SessionIdle> for AgentEvent {
 impl ::std::convert::From<PermissionUpdated> for AgentEvent {
     fn from(value: PermissionUpdated) -> Self {
         Self::PermissionUpdated(value)
+    }
+}
+impl ::std::convert::From<DiffProposed> for AgentEvent {
+    fn from(value: DiffProposed) -> Self {
+        Self::DiffProposed(value)
+    }
+}
+impl ::std::convert::From<DiffResolved> for AgentEvent {
+    fn from(value: DiffResolved) -> Self {
+        Self::DiffResolved(value)
     }
 }
 impl ::std::convert::From<BannerEvent> for AgentEvent {
@@ -751,6 +897,12 @@ impl ::std::convert::From<SwarmComplete> for AgentEvent {
 #[doc = "          \"$ref\": \"#/components/schemas/PermissionUpdated\""]
 #[doc = "        },"]
 #[doc = "        {"]
+#[doc = "          \"$ref\": \"#/components/schemas/DiffProposed\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"$ref\": \"#/components/schemas/DiffResolved\""]
+#[doc = "        },"]
+#[doc = "        {"]
 #[doc = "          \"$ref\": \"#/components/schemas/BannerEvent\""]
 #[doc = "        },"]
 #[doc = "        {"]
@@ -837,6 +989,8 @@ impl ::std::convert::From<SwarmComplete> for AgentEvent {
 #[doc = "          \"cognition_loaded\": \"#/components/schemas/CognitionLoaded\","]
 #[doc = "          \"cognition_overflow\": \"#/components/schemas/CognitionOverflow\","]
 #[doc = "          \"confidence.updated\": \"#/components/schemas/ConfidenceUpdated\","]
+#[doc = "          \"diff.proposed\": \"#/components/schemas/DiffProposed\","]
+#[doc = "          \"diff.resolved\": \"#/components/schemas/DiffResolved\","]
 #[doc = "          \"final\": \"#/components/schemas/FinalEvent\","]
 #[doc = "          \"gate.updated\": \"#/components/schemas/GateUpdated\","]
 #[doc = "          \"instructions_overflow\": \"#/components/schemas/InstructionsOverflow\","]

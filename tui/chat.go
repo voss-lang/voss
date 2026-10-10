@@ -50,6 +50,7 @@ type chatModel struct {
 	commanding     string
 	code           *codePanel
 	inspection     *inspectionPanel
+	review         *diffReviewPanel
 
 	turn     turn
 	mode     string
@@ -171,6 +172,20 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case diffReplyMsg:
+		if msg.sessionID != m.sessionID || m.review == nil || msg.id != m.review.proposal.Id {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.review.submitting = false
+			m.review.err = "Reply failed: " + errText(msg.err)
+		} else {
+			m.review = nil
+			if msg.stale {
+				m.add(roleBlock("system", "Edit review expired or was already answered."))
+			}
+		}
+		return m, nil
 	case commandListMsg:
 		if msg.err != nil {
 			var ve *voss.VossError
@@ -273,6 +288,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.commanding = ""
 		m.code = nil
 		m.inspection = nil
+		m.review = nil
 		m.blocks, m.rendered, m.sent = nil, nil, nil
 		m.live, m.lastResponse, m.toast = "", "", ""
 		m.offline, m.navMode, m.liveTick = false, false, false
@@ -292,6 +308,10 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.MouseWheelMsg:
 		var cmd tea.Cmd
+		if m.review != nil && m.turn.permission == nil {
+			m.review.view, cmd = m.review.view.Update(msg)
+			return m, cmd
+		}
 		if m.inspection != nil && m.turn.permission == nil {
 			m.inspection.view, cmd = m.inspection.view.Update(msg)
 			return m, cmd
@@ -312,6 +332,15 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventMsg:
 		wasBusy, wasStreaming := m.turn.busy, m.turn.streaming
 		switch e := msg.ev.(type) {
+		case voss.DiffProposed:
+			m.review = &diffReviewPanel{proposal: e, view: viewport.New()}
+			m.review.resize(m.width, m.height)
+		case voss.DiffResolved:
+			if m.review != nil && m.review.proposal.Id == e.Id {
+				m.review = nil
+			}
+		case voss.SessionIdle:
+			m.review = nil
 		case voss.FinalEvent:
 			m.lastResponse = e.Text
 		case voss.StreamFinalize:
@@ -345,6 +374,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case streamClosedMsg:
+		m.review = nil
 		m.turn.busy = false
 		m.offline = true
 		m.add(roleBlock("error", "lost the connection to voss serve (ctrl+c quits)"))
@@ -400,7 +430,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.PasteMsg:
 		m.kills.lastKey = ""
-		if m.search.active || m.navMode || m.code != nil || m.inspection != nil {
+		if m.search.active || m.navMode || m.code != nil || m.inspection != nil || m.review != nil {
 			return m, nil
 		}
 		if len(strings.Split(msg.Content, "\n")) > pasteChipLines {
@@ -432,6 +462,9 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.review != nil && m.turn.permission == nil {
+		return m.reviewKey(msg)
+	}
 	if m.code != nil && m.turn.permission == nil {
 		return m.codeKey(msg)
 	}
@@ -618,7 +651,7 @@ func (m *chatModel) dispatch(text string) tea.Cmd {
 // order until a line starts the next turn.
 func (m *chatModel) drain() tea.Cmd {
 	var cmds []tea.Cmd
-	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing && m.commanding == "" && m.code == nil && m.inspection == nil &&
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing && m.commanding == "" && m.code == nil && m.inspection == nil && m.review == nil &&
 		m.pal.kind != paletteSession && m.pal.kind != paletteModel && m.pal.kind != paletteAuth {
 		text := m.queue[0]
 		m.queue = m.queue[1:]
@@ -685,6 +718,9 @@ func (m chatModel) View() tea.View {
 	if m.inspection != nil {
 		screen = m.inspection.screen(m.width, m.height)
 	}
+	if m.review != nil {
+		screen = m.review.screen(m.width, m.height)
+	}
 	if p := m.turn.permission; p != nil {
 		screen = m.r.permissionModal(*p, m.cwd, m.width)
 		screen += strings.Repeat("\n", max(m.height-lipgloss.Height(screen), 0))
@@ -746,6 +782,9 @@ func (m chatModel) working() string {
 // layout sizes the transcript to the space the bottom area leaves and keeps
 // it on the newest line while following.
 func (m *chatModel) layout() {
+	if m.review != nil {
+		m.review.resize(m.width, m.height)
+	}
 	if m.inspection != nil {
 		m.inspection.resize(m.width, m.height)
 	}

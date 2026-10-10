@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import os
 import signal as _signal
@@ -625,11 +626,19 @@ def make_toolset(
                 + [f"+ {ln}" for ln in (new.splitlines() or [""])],
             )
             decisions = modal([hunk], timeout_s=300.0)
+            if inspect.isawaitable(decisions):
+                decisions = await decisions
             if not decisions:
                 return "<denied: modal cancelled or timed out>"
             # STRICT: skip is treated as reject (matches fs_edit_many).
             if decisions[0].decision in ("reject", "skip"):
                 return "<denied: edit rejected>"
+            try:
+                unchanged = p.read_text() == text
+            except (OSError, UnicodeDecodeError):
+                unchanged = False
+            if not unchanged:
+                return "<error: file changed during review; request a new preview>"
 
         p.write_text(new_text)
         _maybe_queue_rehash(path)
@@ -692,6 +701,8 @@ def make_toolset(
         modal = getattr(renderer, "show_diff_modal", None) if renderer is not None else None
         if modal is not None:
             decisions = modal(hunks, timeout_s=300.0)
+            if inspect.isawaitable(decisions):
+                decisions = await decisions
             if not decisions:
                 return "<denied: modal cancelled or timed out>"
             for i, d in enumerate(decisions):
@@ -699,6 +710,12 @@ def make_toolset(
                 # RESEARCH.md Open Question 1 per the recommendation).
                 if d.decision in ("reject", "skip"):
                     return f"<denied: hunk {i} rejected>"
+            try:
+                unchanged = p.read_text() == snapshot
+            except (OSError, UnicodeDecodeError):
+                unchanged = False
+            if not unchanged:
+                return "<error: file changed during review; request a new preview>"
 
         # Phase 3: atomic single write (file untouched until here).
         p.write_text(buf)

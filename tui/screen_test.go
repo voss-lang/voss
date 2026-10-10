@@ -15,6 +15,12 @@ import (
 
 // screenCases drive a model into a state; the golden is the whole screen.
 var screenCases = map[string]func(d *driver, events chan voss.TypedEvent){
+	"diff_review": func(d *driver, events chan voss.TypedEvent) {
+		events <- voss.UserEvent{Task: "update both settings"}
+		events <- diffFixture()
+		d.until("review", func() bool { return d.m.review != nil })
+		d.press("y")
+	},
 	"inspection_decision": func(d *driver, events chan voss.TypedEvent) {
 		result := inspectionFixture()
 		d.send(commandResultMsg{id: "sess-1", result: voss.CommandResult{Inspection: &result}})

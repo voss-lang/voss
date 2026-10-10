@@ -28,6 +28,27 @@ func (e BudgetUpdatedUnit) Valid() bool {
 	}
 }
 
+// Defines values for DiffReplyDecisions.
+const (
+	Accept DiffReplyDecisions = "accept"
+	Reject DiffReplyDecisions = "reject"
+	Skip   DiffReplyDecisions = "skip"
+)
+
+// Valid indicates whether the value is a known member of the DiffReplyDecisions enum.
+func (e DiffReplyDecisions) Valid() bool {
+	switch e {
+	case Accept:
+		return true
+	case Reject:
+		return true
+	case Skip:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HistoryTurnRole.
 const (
 	Assistant HistoryTurnRole = "assistant"
@@ -219,12 +240,13 @@ type ConfidenceUpdated struct {
 
 // CreateSessionBody defines model for CreateSessionBody.
 type CreateSessionBody struct {
-	Auth     *string `json:"auth,omitempty"`
-	Cwd      *string `json:"cwd,omitempty"`
-	Model    *string `json:"model,omitempty"`
-	ParentID *string `json:"parentID,omitempty"`
-	Resume   *string `json:"resume,omitempty"`
-	Title    *string `json:"title,omitempty"`
+	Auth        *string `json:"auth,omitempty"`
+	Cwd         *string `json:"cwd,omitempty"`
+	Model       *string `json:"model,omitempty"`
+	ParentID    *string `json:"parentID,omitempty"`
+	Resume      *string `json:"resume,omitempty"`
+	ReviewDiffs *bool   `json:"review_diffs,omitempty"`
+	Title       *string `json:"title,omitempty"`
 }
 
 // CreateSwarmBody defines model for CreateSwarmBody.
@@ -240,6 +262,37 @@ type CreateTaskBody struct {
 	DependsOn  *[]string `json:"depends_on,omitempty"`
 	Goal       string    `json:"goal"`
 	OwnedFiles *[]string `json:"owned_files,omitempty"`
+}
+
+// DiffHunk defines model for DiffHunk.
+type DiffHunk struct {
+	File  string   `json:"file"`
+	Lines []string `json:"lines"`
+	Start int      `json:"start"`
+}
+
+// DiffProposed defines model for DiffProposed.
+type DiffProposed struct {
+	Hunks []DiffHunk `json:"hunks"`
+	Id    string     `json:"id"`
+	Type  string     `json:"type"`
+	V     *int       `json:"v,omitempty"`
+}
+
+// DiffReply defines model for DiffReply.
+type DiffReply struct {
+	Decisions []DiffReplyDecisions `json:"decisions"`
+	Id        string               `json:"id"`
+}
+
+// DiffReplyDecisions defines model for DiffReply.Decisions.
+type DiffReplyDecisions string
+
+// DiffResolved defines model for DiffResolved.
+type DiffResolved struct {
+	Id   string `json:"id"`
+	Type string `json:"type"`
+	V    *int   `json:"v,omitempty"`
 }
 
 // EventEnvelope OpenAPI schema anchor (H1.14).
@@ -682,6 +735,9 @@ type CreateSessionSessionPostJSONRequestBody = CreateSessionBody
 // ExecuteCommandSessionSessionIdCommandPostJSONRequestBody defines body for ExecuteCommandSessionSessionIdCommandPost for application/json ContentType.
 type ExecuteCommandSessionSessionIdCommandPostJSONRequestBody = CommandRequest
 
+// ReplyDiffSessionSessionIdDiffPostJSONRequestBody defines body for ReplyDiffSessionSessionIdDiffPost for application/json ContentType.
+type ReplyDiffSessionSessionIdDiffPostJSONRequestBody = DiffReply
+
 // PostMessageSessionSessionIdMessagePostJSONRequestBody defines body for PostMessageSessionSessionIdMessagePost for application/json ContentType.
 type PostMessageSessionSessionIdMessagePostJSONRequestBody = MessageBody
 
@@ -774,6 +830,62 @@ func (t *EventEnvelope_Event) FromPermissionUpdated(v PermissionUpdated) error {
 // MergePermissionUpdated performs a merge with any union data inside the EventEnvelope_Event, using the provided PermissionUpdated
 func (t *EventEnvelope_Event) MergePermissionUpdated(v PermissionUpdated) error {
 	v.Type = "permission.updated"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDiffProposed returns the union data inside the EventEnvelope_Event as a DiffProposed
+func (t EventEnvelope_Event) AsDiffProposed() (DiffProposed, error) {
+	var body DiffProposed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDiffProposed overwrites any union data inside the EventEnvelope_Event as the provided DiffProposed
+func (t *EventEnvelope_Event) FromDiffProposed(v DiffProposed) error {
+	v.Type = "diff.proposed"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDiffProposed performs a merge with any union data inside the EventEnvelope_Event, using the provided DiffProposed
+func (t *EventEnvelope_Event) MergeDiffProposed(v DiffProposed) error {
+	v.Type = "diff.proposed"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDiffResolved returns the union data inside the EventEnvelope_Event as a DiffResolved
+func (t EventEnvelope_Event) AsDiffResolved() (DiffResolved, error) {
+	var body DiffResolved
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDiffResolved overwrites any union data inside the EventEnvelope_Event as the provided DiffResolved
+func (t *EventEnvelope_Event) FromDiffResolved(v DiffResolved) error {
+	v.Type = "diff.resolved"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDiffResolved performs a merge with any union data inside the EventEnvelope_Event, using the provided DiffResolved
+func (t *EventEnvelope_Event) MergeDiffResolved(v DiffResolved) error {
+	v.Type = "diff.resolved"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -1538,6 +1650,10 @@ func (t EventEnvelope_Event) ValueByDiscriminator() (interface{}, error) {
 		return t.AsCognitionOverflow()
 	case "confidence.updated":
 		return t.AsConfidenceUpdated()
+	case "diff.proposed":
+		return t.AsDiffProposed()
+	case "diff.resolved":
+		return t.AsDiffResolved()
 	case "final":
 		return t.AsFinalEvent()
 	case "gate.updated":
