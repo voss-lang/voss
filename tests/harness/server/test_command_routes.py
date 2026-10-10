@@ -36,7 +36,9 @@ def test_catalog_requires_auth_and_does_not_discover_resources(client, monkeypat
     monkeypatch.setattr(commands, "default_subagent_registry", unexpected)
     response = client.get("/commands")
     assert response.status_code == 200
-    assert {c["name"] for c in response.json()["commands"]} == {"/tools", "/skills", "/agents"}
+    assert {c["name"] for c in response.json()["commands"]} == {
+        "/tools", "/skills", "/agents", "/symbol", "/refs", "/refresh",
+    }
     assert all(c["description"] for c in response.json()["commands"])
     assert client.get("/commands", headers={"Authorization": "Bearer wrong"}).status_code == 401
     assert client.post(f"/session/{client.session.id}/command", json={"name": "/tools"},
@@ -129,3 +131,118 @@ async def test_slow_discovery_does_not_block_other_server_requests(client, monke
             release.set()
             result = await task
         assert result.json()["stdout"] == "synthetic skill"
+
+
+def test_code_commands_find_source_lines_and_refresh_changed_files(client, monkeypatch):
+    monkeypatch.setattr("voss.harness.code.lsp_registry.is_lsp_available", lambda: False)
+    path = client.session.cwd / "app.py"
+    path.write_text("def sample_entry():\n    return 1\n\nsample_entry()\n")
+    result = execute(client, "/symbol", ["sample_entry"]).json()
+    assert result["stderr"] == ""
+    assert result["code"] == {
+        "query": "/symbol sample_entry", "truncated": False,
+        "items": [{"file": "app.py", "line": 1, "name": "sample_entry", "language": "python",
+                   "source": "index", "snippet": "def sample_entry():"}],
+    }
+    refs = execute(client, "/refs", ["sample_entry"]).json()["code"]["items"]
+    assert [(r["line"], r["source"]) for r in refs] == [(1, "regex"), (4, "regex")]
+    assert refs[1]["snippet"] == "sample_entry()"
+
+    path.write_text("def replacement(): pass\n")
+    refreshed = execute(client, "/refresh").json()
+    assert refreshed["stdout"] == "refreshed code index: 1 files, 1 symbols"
+    assert execute(client, "/symbol", ["sample_entry"]).json()["code"]["items"] == []
+    assert execute(client, "/symbol", ["replacement"]).json()["code"]["items"][0]["line"] == 1
+    assert path.read_text() == "def replacement(): pass\n"
+    assert client.session.history.turns == []
+    assert client.session.record.runs == []
+    assert client.session.queue.empty()
+
+
+@pytest.mark.parametrize(("name", "args"), [
+    ("/symbol", []), ("/symbol", ["a", "b"]), ("/refs", [""]),
+    ("/refs", ["--help"]), ("/refresh", ["extra"]),
+])
+def test_code_command_usage_does_not_build_an_index(client, name, args):
+    response = execute(client, name, args)
+    assert response.status_code == 200
+    assert response.json()["stderr"].startswith(f"usage: {name}")
+    assert not (client.session.cwd / ".voss-cache").exists()
+
+
+@pytest.mark.parametrize("git_workspace", [False, True])
+def test_code_results_are_bounded_and_skip_external_symlinks(client, tmp_path, monkeypatch, git_workspace):
+    if git_workspace:
+        (client.session.cwd / ".git").mkdir()
+        monkeypatch.setattr("subprocess.check_output", lambda *a, **kw: "many.py\nexternal.py\n")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.py"
+    outside.write_text("def outside_only(): pass\n")
+    (client.session.cwd / "external.py").symlink_to(outside)
+    (client.session.cwd / "many.py").write_text("\n".join(f"def sample_{n:02d}(): pass" for n in range(60)))
+    result = execute(client, "/symbol", ["sample_"]).json()["code"]
+    assert len(result["items"]) == 50 and result["truncated"]
+    assert execute(client, "/symbol", ["outside_only"]).json()["code"]["items"] == []
+
+
+def test_lsp_references_use_one_based_lines_and_close_the_client(client, monkeypatch, tmp_path):
+    from voss.harness.code.lsp import create_lsp_client
+    from voss.harness.code.lsp_registry import LspRegistry
+
+    path = client.session.cwd / "space name.py"
+    path.write_text("def sample_entry(): pass\n\nsample_entry()\n")
+    closed = []
+
+    async def send_request(method, params=None):
+        if method == "shutdown":
+            closed.append(True)
+            return
+        assert method == "textDocument/references"
+        assert params["position"]["line"] == 0
+        return [
+            {"uri": target.as_uri(), "range": {"start": {"line": 2, "character": 0}}}
+            for target in (path, tmp_path.parent / "external.py")
+        ]
+
+    async def send_notification(method, params=None):
+        assert method == "exit"
+
+    async def adapter_for(registry, language):
+        adapter = create_lsp_client(language)
+        adapter._initialized = True
+        adapter._client = SimpleNamespace(send_request=send_request, send_notification=send_notification)
+        registry._clients[language] = adapter
+        return adapter
+
+    monkeypatch.setattr(LspRegistry, "get_adapter", adapter_for)
+    result = execute(client, "/refs", ["sample_entry"]).json()["code"]["items"]
+    assert len(result) == 1
+    assert result[0]["file"] == "space name.py" and result[0]["line"] == 3
+    assert result[0]["snippet"] == "sample_entry()" and result[0]["source"] == "lsp"
+    assert closed == [True]
+
+
+@pytest.mark.asyncio
+async def test_refresh_keeps_server_responsive(client, monkeypatch):
+    from voss.harness.code import index
+
+    entered, release = threading.Event(), threading.Event()
+    build = index.build_index
+
+    def slow_build(cwd):
+        entered.set()
+        assert release.wait(5)
+        return build(cwd)
+
+    monkeypatch.setattr(index, "build_index", slow_build)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client.app), base_url="http://test",
+                                headers={"Authorization": "Bearer test-commands"}) as api:
+        task = asyncio.create_task(api.post(f"/session/{client.session.id}/command", json={"name": "/refresh"}))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            response = await asyncio.wait_for(api.get(f"/session/{client.session.id}"), 1)
+            assert response.status_code == 200
+            assert not task.done()
+        finally:
+            release.set()
+            result = await task
+        assert result.json()["stdout"].startswith("refreshed code index:")

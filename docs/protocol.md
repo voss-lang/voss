@@ -51,7 +51,7 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `POST` | `/session/:id/abort` | Cancel the in-flight turn | `202` |
 | `POST` | `/session/:id/permission` | Reply to a pending permission request | `200` |
 | `GET` | `/commands` | Read-only slash command catalog | `{v:1, commands:[{name,description}]}` |
-| `POST` | `/session/:id/command` | Execute a listed command. Body `{name,args?:string[]}` | `{v:1, stdout, stderr}` |
+| `POST` | `/session/:id/command` | Execute a listed command. Body `{name,args?:string[]}` | `{v:1, stdout, stderr, code?}` |
 | `GET` | `/doctor` | Auth/config/tooling status | `DoctorReport` |
 | `GET` | `/openapi.json` | OpenAPI 3.1 spec | spec |
 
@@ -59,13 +59,23 @@ This document is the wire contract. The server emits exactly these shapes; the c
 
 **Concurrency:** one running turn per session. `POST /message` while a turn runs → `409`.
 
-The command catalog currently exposes `/tools`, `/skills`, and `/agents`. Each
+The command catalog exposes `/tools`, `/skills`, and `/agents`. Each
 accepts no arguments and uses the session's workspace. They list metadata without
 starting a model turn or changing conversation history. Unknown commands return
 `400`; unsupported arguments return usage text in `stderr`. Clients render
 `stdout` as system output and `stderr` as a warning. Catalog loading does not
 connect MCP servers; `/tools` connects for discovery and closes those connections
 after listing. Listed tools remain subject to permission checks when invoked.
+
+`/symbol <name>` and `/refs <name>` add an optional `code` payload:
+`{query, items:[{file,line,name,language,source,snippet}], truncated}`. Paths are
+workspace-relative, lines are one-based, and snippets contain at most 240
+characters. Results are limited to 50 matches. The same results remain in `stdout`
+for clients without a results panel. Definitions use the index; references use
+LSP with a regex fallback. Lookups create a missing index; `/refresh` rebuilds it
+after source changes and returns file/symbol counts in `stdout`. These commands
+run in a worker thread without blocking the server event loop or starting a model
+turn. Index writes are limited to the rebuildable `.voss-cache/code` cache.
 
 Conversation and model/auth status questions use the `ambient` phase. Work intents use the tool-enabled `run` phase; prefix a request with `run ` to select that path explicitly. Swarm sessions always run their assigned tasks. Permission `mode` remains independent of phase. Status events report phase changes and return to `ambient` on completion, cancellation, or failure.
 

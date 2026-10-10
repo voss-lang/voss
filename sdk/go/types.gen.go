@@ -146,6 +146,23 @@ type ClarifyEvent struct {
 	V          *int    `json:"v,omitempty"`
 }
 
+// CodeHit defines model for CodeHit.
+type CodeHit struct {
+	File     string `json:"file"`
+	Language string `json:"language"`
+	Line     int    `json:"line"`
+	Name     string `json:"name"`
+	Snippet  string `json:"snippet"`
+	Source   string `json:"source"`
+}
+
+// CodeResults defines model for CodeResults.
+type CodeResults struct {
+	Items     []CodeHit `json:"items"`
+	Query     string    `json:"query"`
+	Truncated bool      `json:"truncated"`
+}
+
 // CognitionLoaded defines model for CognitionLoaded.
 type CognitionLoaded struct {
 	ArchitectureTokens int    `json:"architecture_tokens"`
@@ -184,9 +201,10 @@ type CommandRequest struct {
 
 // CommandResult defines model for CommandResult.
 type CommandResult struct {
-	Stderr *string `json:"stderr,omitempty"`
-	Stdout *string `json:"stdout,omitempty"`
-	V      *int    `json:"v,omitempty"`
+	Code   *CodeResults `json:"code,omitempty"`
+	Stderr *string      `json:"stderr,omitempty"`
+	Stdout *string      `json:"stdout,omitempty"`
+	V      *int         `json:"v,omitempty"`
 }
 
 // ConfidenceUpdated defines model for ConfidenceUpdated.

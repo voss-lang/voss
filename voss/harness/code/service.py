@@ -119,6 +119,11 @@ class CodeIntelService:
             self._registry = LspRegistry(self.cwd, self.session_id or "default")
         return self._registry
 
+    async def aclose(self) -> None:
+        registry = getattr(self, "_registry", None)
+        if registry is not None:
+            await registry.shutdown_all()
+
     # --- Lazy semantic code index (V19-03) ---
     def _get_code_index_service(self):
         """Only construction site for CodeIndexService — never eager in

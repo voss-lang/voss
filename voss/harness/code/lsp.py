@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from .models import CodeLocation, ReferenceHit, SymbolHit
 
@@ -183,11 +184,11 @@ class _PyglsLspClient(LspClientAdapter):
 
     def _range_to_location(self, uri: str, rng: dict) -> CodeLocation | None:
         try:
-            path = uri.replace("file://", "")
+            path = unquote(urlparse(uri).path)
             start = rng.get("start", {})
             return CodeLocation(
                 file=path,
-                line=start.get("line", 0),
+                line=start.get("line", 0) + 1,
                 column=start.get("character", 0),
             )
         except Exception:

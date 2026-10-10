@@ -27,6 +27,8 @@ func TestCommandCatalogAndDispatch(t *testing.T) {
 			t.Error(err)
 		}
 		switch body["name"] {
+		case "/symbol":
+			_, _ = w.Write([]byte(`{"stdout":"app.py:1","code":{"query":"/symbol sample_entry","items":[{"file":"app.py","line":1,"name":"sample_entry","language":"python","source":"index","snippet":"def sample_entry(): pass"}],"truncated":false}}`))
 		case "/skills":
 			if _, ok := body["args"]; ok {
 				t.Error("empty args should be omitted")
@@ -61,5 +63,9 @@ func TestCommandCatalogAndDispatch(t *testing.T) {
 	var ve *VossError
 	if !errors.As(err, &ve) || ve.Status != http.StatusBadRequest || ve.Detail != "Unknown command" {
 		t.Fatalf("command error = %v", err)
+	}
+	result, err = client.ExecuteCommand(ctx, "sess-1", "/symbol", []string{"sample_entry"})
+	if err != nil || result.Code == nil || len(result.Code.Items) != 1 || result.Code.Items[0].Line != 1 || result.Code.Items[0].Snippet != "def sample_entry(): pass" {
+		t.Fatalf("code results = %+v, %v", result, err)
 	}
 }
