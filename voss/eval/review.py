@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import math
@@ -9,9 +10,14 @@ import statistics
 import subprocess
 import sys
 from collections import Counter
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
+import click
+
+from voss.eval import runner
 from voss.eval.retrieval import (
     FLAGS,
     PINNED_COMMIT,
@@ -19,10 +25,15 @@ from voss.eval.retrieval import (
     DatasetError,
     LockedSplitError,
     _assign_splits,
+    _common_value,
     _read_jsonl,
+    _write_jsonl,
     materialize,
 )
-from voss.harness.decision_review import load_checks, parse_criteria
+from voss.harness import config, decision_review, judgments
+from voss.harness.board.reviewer_b import ReviewerB, build_repo_context
+from voss.harness.decision_review import NO_CHECKS, build_packet, load_checks, parse_criteria
+from voss_runtime.judgments import KILLED_MESSAGE, MISSING_KEY_MESSAGE, JudgmentError, JudgmentLedger, is_killed
 
 DATASET_ROOT = Path("evals/review")
 KINDS = ("missing_criterion", "contradicted", "failed_check", "skipped_check", "no_checks", "ambiguous", "supported")
@@ -32,6 +43,8 @@ ABSTAINED = ("abstained", "no_answer", None)
 RELEASE_BAR = 0.05
 START_THRESHOLD = 0.80
 FREEZE_SEED = 20261010
+TUNE_THRESHOLDS = tuple(round(0.55 + 0.05 * n, 2) for n in range(9))
+BASELINE_MODEL = "claude-sonnet-5-5"
 _ID_RE = re.compile(r"rv-\d{3}")
 
 
@@ -310,6 +323,262 @@ def receipt_summary(receipts: list[dict]) -> dict:
     }
 
 
+def _frozen(root: Path) -> dict:
+    path = root / "freeze.json"
+    if not path.exists():
+        raise DatasetError(f"{path} missing; the dataset is not frozen")
+    frozen = json.loads(path.read_text())
+    if _sha256_files(root) != frozen["files"]:
+        raise DatasetError(f"{root}: fixture files changed since freeze.json was written")
+    return frozen
+
+
+async def _assess_fixtures(fixtures: list[dict], tree: Path) -> tuple[list[dict], list[dict]]:
+    cfg = config.get_judgments_config()
+    rows: list[dict] = []
+    receipts: list[dict] = []
+    for fixture in sorted(fixtures, key=lambda row: row["id"]):
+        packet = build_packet(
+            fixture["criteria"],
+            diff=fixture["diff"],
+            code=build_repo_context(tree, fixture["diff"]),
+            checks=load_checks(fixture["checks"]),
+            candidate={"kind": "fixture", "head": fixture["id"]},
+            verification_note=fixture["verification_note"],
+        )
+        ledger = JudgmentLedger(cfg["max_calls_per_turn"], cfg["max_cost_usd"])
+        try:
+            await decision_review.assess(packet, mode="explicit", ledger=ledger)
+        except JudgmentError:
+            pass
+        receipt = asdict(ledger.receipts[0])
+        receipts.append(receipt)
+        labels = receipt["detail"]["labels"] if receipt["status"] == "answered" else {}
+        for pair in pairs([fixture]):
+            answer = receipt["answers"].get(pair["criterion"])
+            rows.append({
+                **pair,
+                "label": labels.get(pair["criterion"]),
+                "probabilities": answer["probabilities"] if answer else None,
+            })
+    return rows, receipts
+
+
+def _fmt_proportion(value: dict) -> str:
+    if not value["n"]:
+        return f"{value['k']}/0 (n/a)"
+    low, high = value["ci"]
+    return f"{value['k']}/{value['n']} = {value['rate']:.3f} (Wilson 95% {low:.3f} to {high:.3f})"
+
+
+def _fmt_number(value, spec: str) -> str:
+    return "n/a" if value is None else format(value, spec)
+
+
+def _markdown(report: dict) -> str:
+    metrics, cost = report["metrics"], report["receipts"]
+    lines = [
+        f"# Requirement assessments eval ({report['split']})",
+        "",
+        f"- commit: `{report['commit']}`",
+        f"- rubric: `{report['rubric_version']}`, threshold {report['threshold']}",
+        f"- model: `{report['model']}`, location `{report['location']}`",
+        f"- false supported: {_fmt_proportion(metrics['false_supported'])}",
+        f"- contradicted recall: {_fmt_proportion(metrics['contradicted_recall'])}",
+        f"- abstention: {metrics['abstention']['k']}/{metrics['abstention']['n']}, "
+        f"coverage {_fmt_number(metrics['coverage'], '.3f')}",
+        f"- failed pairs: {metrics['failed']}",
+        f"- ambiguous pairs (excluded): {metrics['ambiguous']['count']}",
+        f"- calls: {cost['calls']}, answered {cost['answered']}",
+        f"- cost: ${cost['cost_usd_total']:.4f} total, ${_fmt_number(cost['cost_usd_mean'], '.4f')} mean",
+        f"- latency: p50 {_fmt_number(cost['latency_p50_ms'], '.0f')} ms, p95 {_fmt_number(cost['latency_p95_ms'], '.0f')} ms",
+    ]
+    if report["passed"] is not None:
+        lines += [
+            f"- release bar (false supported <= {report['release_bar']['false_supported_max']}, point estimate): "
+            f"**{'PASS' if report['passed'] else 'FAIL'}**",
+            "- this many locked pairs cannot prove a rate at or below 5%; read the Wilson upper bound",
+        ]
+    lines += ["", "## By kind", "", "| kind | gold | shown | pairs |", "| --- | --- | --- | --- |"]
+    lines += [
+        f"| {kind} | {gold} | {shown} | {count} |"
+        for kind, golds in sorted(metrics["by_kind"].items())
+        for gold, shown_counts in sorted(golds.items())
+        for shown, count in sorted(shown_counts.items())
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def run(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    if args.split == "test" and not args.locked_final:
+        raise LockedSplitError("test split is locked; pass --locked-final only for the J4 locked run")
+    if is_killed():
+        raise DatasetError(KILLED_MESSAGE)
+    if judgments.resolve_api_key() is None:
+        raise DatasetError(MISSING_KEY_MESSAGE)
+    frozen = _frozen(root)
+    fixtures = load_fixtures(root, split=args.split, locked_final=args.locked_final)
+    reports = root / "reports"
+    report_path = reports / f"review-{args.split}.json"
+    if args.split == "test" and report_path.exists():
+        raise DatasetError(f"{report_path} exists; the locked test split is scored once")
+    tree = args.tree or materialize()
+    reports.mkdir(parents=True, exist_ok=True)
+    if args.split == "test":
+        report_path.write_text(json.dumps({
+            "schema_version": 1, "split": "test", "status": "started",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "threshold": decision_review.THRESHOLD, "rubric_version": decision_review.RUBRIC_VERSION,
+        }, indent=2) + "\n")
+    rows, receipts = asyncio.run(_assess_fixtures(fixtures, tree))
+    out_dir = reports / f"review-{args.split}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    _write_jsonl(out_dir / "rows.jsonl", rows)
+    _write_jsonl(out_dir / "receipts.jsonl", receipts)
+    metrics = score(rows)
+    report = {
+        "schema_version": 1,
+        "status": "complete",
+        "split": args.split,
+        "commit": frozen["commit"],
+        "rubric_version": decision_review.RUBRIC_VERSION,
+        "threshold": decision_review.THRESHOLD,
+        "model": _common_value([r for r in receipts if r["model_returned"]], "model_returned"),
+        "location": args.location,
+        "run_date": datetime.now(timezone.utc).date().isoformat(),
+        "metrics": metrics,
+        "receipts": receipt_summary(receipts),
+        "release_bar": frozen["release_bar"],
+        "passed": metrics["passed"] if args.split == "test" else None,
+    }
+    (reports / f"review-{args.split}.md").write_text(_markdown(report))
+    report_path.write_text(json.dumps(report, indent=2) + "\n")
+    print(f"wrote {report_path}")
+    return 0
+
+
+def _relabel(row: dict, threshold: float) -> dict:
+    if not row["probabilities"] or row["label"] in (None, "no_answer"):
+        return row
+    return {**row, "label": decision_review.label_for(SimpleNamespace(probabilities=row["probabilities"]), threshold)}
+
+
+def tune(args: argparse.Namespace) -> int:
+    path = Path(args.report or Path(args.root) / "reports" / "review-dev.json")
+    report = json.loads(path.read_text())
+    if report.get("split") != "dev" or report.get("status") != "complete":
+        raise DatasetError(f"{path}: tune reads only a complete dev report")
+    rows = _read_jsonl(path.with_suffix("") / "rows.jsonl")
+    print("threshold  false_supported  contradicted_recall  coverage")
+    for threshold in TUNE_THRESHOLDS:
+        metrics = score([_relabel(row, threshold) for row in rows])
+        false_supported, recall = metrics["false_supported"], metrics["contradicted_recall"]
+        print(
+            f"{threshold:.2f}  {_fmt_number(false_supported['rate'], '.3f')} ({false_supported['k']}/{false_supported['n']})"
+            f"  {_fmt_number(recall['rate'], '.3f')} ({recall['k']}/{recall['n']})"
+            f"  {_fmt_number(metrics['coverage'], '.3f')}"
+        )
+    return 0
+
+
+def _card(fixture: dict, tree: Path) -> SimpleNamespace:
+    checks = load_checks(fixture["checks"])
+    return SimpleNamespace(
+        original_idea=fixture["title"],
+        acceptance_criteria="\n".join(fixture["criteria"]),
+        artifact=None,
+        artifact_text="\n".join(f"{check.name}: {check.status}" for check in checks) or NO_CHECKS,
+        file_diff=fixture["diff"],
+        a_verification_summary=fixture["verification_note"],
+        repo_context=build_repo_context(tree, fixture["diff"]),
+    )
+
+
+def baseline_b(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    if args.split != "dev" and not args.locked_final:
+        raise LockedSplitError("test split is locked; pass --locked-final only for the J4 locked baseline")
+    out = root / "reports" / f"reviewer-b-baseline-{args.split}.json"
+    if out.exists():
+        raise DatasetError(f"{out} exists; the Reviewer B baseline runs once per split")
+    _frozen(root)
+    splits = SPLITS if args.split == "all" else (args.split,)
+    fixtures = [row for split in splits for row in load_fixtures(root, split=split, locked_final=args.locked_final)]
+    tree = args.tree or materialize()
+    try:
+        provider, _ = runner._provider_for_eval(stub=False, auth_pref=args.auth)
+    except click.exceptions.Exit as exc:
+        return exc.exit_code
+    reviewer = ReviewerB(provider=provider, fast_model=args.model, strong_model=args.model, cwd=tree)
+    rows = []
+    for fixture in sorted(fixtures, key=lambda row: row["id"]):
+        row = {"fixture": fixture["id"], "split": fixture["split"], "kind": fixture["kind"]}
+        try:
+            verdict = reviewer.review(_card(fixture, tree), tier="strong")
+        except Exception as exc:
+            rows.append({**row, "verdict": None, "conf": None, "evidence_refs": [], "domain_inferred": None,
+                         "error": type(exc).__name__})
+            continue
+        rows.append({
+            **row, "verdict": verdict.verdict, "conf": verdict.conf, "evidence_refs": list(verdict.evidence_refs),
+            "domain_inferred": verdict.domain_inferred, "error": None,
+        })
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({
+        "schema_version": 1, "split": args.split, "model": args.model, "auth": args.auth,
+        "run_date": datetime.now(timezone.utc).date().isoformat(), "rows": rows,
+    }, indent=2) + "\n")
+    errors = sum(1 for row in rows if row["error"])
+    print(f"wrote {out} ({len(rows)} fixtures, {errors} errors)")
+    return 0
+
+
+def _baseline_rows(reports: Path) -> list[dict]:
+    for name in ("reviewer-b-baseline-test.json", "reviewer-b-baseline-all.json"):
+        path = reports / name
+        if path.exists():
+            return [row for row in json.loads(path.read_text())["rows"] if row["split"] == "test"]
+    raise DatasetError(f"{reports}: no Reviewer B baseline for the test split")
+
+
+def compare(args: argparse.Namespace) -> int:
+    reports = Path(args.root) / "reports"
+    report_path = reports / "review-test.json"
+    report = json.loads(report_path.read_text()) if report_path.exists() else {}
+    if report.get("status") != "complete":
+        raise DatasetError(f"{report_path}: needs a complete locked run")
+    rows = _read_jsonl(reports / "review-test" / "rows.jsonl")
+    negative: dict[str, list[dict]] = {}
+    for row in rows:
+        if row["flag"] != "ambiguous" and row["gold"] != "supported":
+            negative.setdefault(row["fixture"], []).append(row)
+    verdicts = {row["fixture"]: row for row in _baseline_rows(reports)}
+    answered = sorted(fid for fid in negative if fid in verdicts and verdicts[fid]["error"] is None)
+    b_passes = sum(1 for fid in answered if verdicts[fid]["verdict"] == "pass")
+    jev_misses = sum(1 for fid in answered if any(row["label"] == "supported" for row in negative[fid]))
+    result = {
+        "schema_version": 1,
+        "informational": True,
+        "split": "test",
+        "negative_fixtures": len(negative),
+        "compared_fixtures": len(answered),
+        "reviewer_b_errors": len(negative) - len(answered),
+        "reviewer_b_passes": _proportion(b_passes, len(answered)),
+        "jev_fixture_false_supported": _proportion(jev_misses, len(answered)),
+        "jev_pair_false_supported": report["metrics"]["false_supported"],
+        "threshold": report["threshold"],
+    }
+    (reports / "review-compare.json").write_text(json.dumps(result, indent=2) + "\n")
+    print("Reviewer B baseline (informational, outside the release bar)")
+    print(f"- fixtures with a labeled missing or contradicted criterion: {len(negative)}")
+    print(f"- Reviewer B passed: {_fmt_proportion(result['reviewer_b_passes'])}")
+    print(f"- Reviewer B errors: {result['reviewer_b_errors']}")
+    print(f"- Jev showed supported on one of them: {_fmt_proportion(result['jev_fixture_false_supported'])}")
+    print(f"- Jev pair-level false supported: {_fmt_proportion(result['jev_pair_false_supported'])}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m voss.eval.review")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -326,6 +595,28 @@ def main(argv: list[str] | None = None) -> int:
     freeze_parser.add_argument("--seed", type=int, default=FREEZE_SEED)
     freeze_parser.add_argument("--tree", type=Path)
     freeze_parser.set_defaults(handler=freeze)
+    run_parser = commands.add_parser("run", help="assess each fixture of a split with Jev and write the report")
+    run_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    run_parser.add_argument("--split", choices=SPLITS, default="dev")
+    run_parser.add_argument("--locked-final", action="store_true")
+    run_parser.add_argument("--location", required=True)
+    run_parser.add_argument("--tree", type=Path)
+    run_parser.set_defaults(handler=run)
+    tune_parser = commands.add_parser("tune", help="replay a dev report at thresholds 0.55 to 0.95 without calling Jev")
+    tune_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    tune_parser.add_argument("--report", type=Path)
+    tune_parser.set_defaults(handler=tune)
+    baseline_parser = commands.add_parser("baseline-b", help="run the real Reviewer B on the same fixtures")
+    baseline_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    baseline_parser.add_argument("--split", choices=(*SPLITS, "all"), default="dev")
+    baseline_parser.add_argument("--locked-final", action="store_true")
+    baseline_parser.add_argument("--auth", default="claude")
+    baseline_parser.add_argument("--model", default=BASELINE_MODEL)
+    baseline_parser.add_argument("--tree", type=Path)
+    baseline_parser.set_defaults(handler=baseline_b)
+    compare_parser = commands.add_parser("compare", help="compare the Reviewer B baseline with Jev on the locked split")
+    compare_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    compare_parser.set_defaults(handler=compare)
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
