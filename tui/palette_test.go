@@ -13,7 +13,7 @@ import (
 )
 
 func TestRankCommandsLikeTextual(t *testing.T) {
-	names := commandNames()
+	names := (chatModel{}).commandNames()
 	if got := rankCommands("/d", names, nil); !reflect.DeepEqual(got, []string{"/diff", "/doctor", "/mode", "/model"}) {
 		t.Fatalf("/d = %v", got)
 	}
