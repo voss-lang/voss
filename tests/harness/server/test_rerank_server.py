@@ -22,7 +22,7 @@ from voss.harness.session import RunRecord
 jev = recall_conftest.jev
 
 TOKEN = "test-token-rerank"
-TASK = "where is retry backoff handled"
+TASK = "fix the retry backoff handling"
 FAVOR_C05 = {f"c{i:02d}": 3 if i == 5 else 0 for i in range(1, 16)}
 
 

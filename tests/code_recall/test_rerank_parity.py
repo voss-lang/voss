@@ -18,7 +18,7 @@ from voss.harness.tools import attach_code_recall_tool
 from .conftest import make_candidates, score_body
 from .test_rerank_entrypoints import FakeService, enable
 
-TASK = "where is retry backoff handled"
+TASK = "fix the retry backoff handling"
 FAVORED = [8, 13, 1, 10, 5]
 PATHS = ("do", "chat_tui", "chat_plain", "server")
 SECTION_ANCHOR = re.compile(r"\n- (\S+) \(score ")
