@@ -1,0 +1,9 @@
+prompt = '''When the agent's replayed context gets close to its packing budget, where is the logic that decides between keeping the frozen prefix and re-folding older iterations? I was told it uses some kind of hysteresis. Answer with the location as `path:line` (repo-relative path and the line number of the relevant code).'''
+mode = "edit"
+rubric = '''PASS if the final answer cites voss/harness/context_allocator.py lines 175-226 as `path:line` and correctly names the high-water/low-water recompaction decision in ContextAllocator.pack. FAIL if no citation falls in that range, or the answer describes different code.'''
+judge_inputs = ["final"]
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''grep -Eq 'voss/harness/context_allocator\.py:(17[5-9]|1[8-9][0-9]|2[0-1][0-9]|22[0-6])([^0-9]|$)' .voss-eval-final.txt'''

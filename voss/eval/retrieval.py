@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import contextlib
 import csv
 import hashlib
@@ -16,14 +17,18 @@ import sys
 import tarfile
 import tempfile
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from voss.harness import config, judgments
 from voss.harness.code.index import build_index
-from voss.harness.code.semantic_index import CodeIndex, _effective_embedding_model
+from voss.harness.code.rerank import RUBRIC_VERSION, rerank
+from voss.harness.code.semantic_index import Candidate, CodeIndex, _effective_embedding_model
+from voss.harness.memory_store import Hit
 from voss.template_render import render_package_template
 from voss_runtime._config import configure, get_config
+from voss_runtime.judgments import JudgmentLedger, is_killed
 
 GRADES = {"irrelevant": 0, "contextual": 1, "directly_useful": 2, "necessary": 3}
 RELEVANT_GRADE = 2
@@ -34,6 +39,8 @@ RECALL_DROP_MAX = 0.0
 BOOTSTRAP_B = 10_000
 BOOTSTRAP_SEED = 20261003
 ALPHA = 0.05
+LATENCY_P95_MAX_MS = 1000
+LATENCY_MIN_SAMPLES = 100
 DATASET_ROOT = Path("evals/retrieval")
 PINNED_COMMIT = "c1a27046aef3096e460b1c24b59d8066e5c2f792"
 EXCLUDED_PATHS = ("tests/code_recall/test_golden_queries.py",)
@@ -500,6 +507,142 @@ def _pinned_chunks() -> dict[str, tuple[str, int, int, str]]:
     return chunk_map(materialize(PINNED_COMMIT))
 
 
+def divergence(index, queries: dict[str, dict]) -> list[str]:
+    return sorted(
+        qid for qid, row in queries.items()
+        if [hit.locator for hit in index.query(row["text"], top_k=K)]
+        != [hit.locator for hit in index.query(row["text"], top_k=POOL_SIZE)[:K]]
+    )
+
+
+def _divergence(args: argparse.Namespace) -> int:
+    dataset = load_dataset(args.root, split="dev")
+    corpus = materialize(PINNED_COMMIT)
+    with _local_embedding_config():
+        build_index(corpus)
+        index = CodeIndex(corpus)
+        if index._maybe_semantic() is None:
+            raise DatasetError("vector backend unavailable; divergence needs BM25+vector ranking")
+        index.build(session_id="retrieval-divergence")
+        differing = divergence(index, dataset.queries)
+    print(
+        f"{len(differing)}/{len(dataset.queries)} dev queries differ between "
+        f"query(top_k=5) and query(top_k=15)[:5]"
+    )
+    for qid in differing:
+        print(qid)
+    return 0
+
+
+def latency_gate(receipts: list[dict]) -> dict:
+    n = sum(1 for receipt in receipts if receipt["status"] == "answered")
+    dispatched = [receipt["latency_ms"] for receipt in receipts if receipt["attempts"] > 0]
+    quantiles = statistics.quantiles(dispatched, n=20) if len(dispatched) >= 2 else None
+    p95 = quantiles[18] if quantiles else None
+    return {
+        "n": n,
+        "p50_ms": quantiles[9] if quantiles else None,
+        "p95_ms": p95,
+        "passed": n >= LATENCY_MIN_SAMPLES and p95 is not None and p95 <= LATENCY_P95_MAX_MS,
+    }
+
+
+def _candidate(chunk_id: str, chunk: tuple[str, int, int, str]) -> Candidate:
+    path, start, end, text = chunk
+    hit = Hit(source="code", locator=chunk_id, score=0.0, excerpt="", line_start=start, line_end=end)
+    return Candidate(hit, path, start, end, text, fresh=True)
+
+
+async def _rerank_pools(
+    dataset: Dataset, candidates: dict[str, list[Candidate]]
+) -> tuple[dict[str, list[str]], list[dict]]:
+    cfg = config.get_judgments_config()
+    rankings: dict[str, list[str]] = {}
+    receipts: list[dict] = []
+    for qid, cands in candidates.items():
+        ledger = JudgmentLedger(cfg["max_calls_per_turn"], cfg["max_cost_usd"])
+        order = await rerank(cands, task=dataset.queries[qid]["text"], mode="active", ledger=ledger)
+        rankings[qid] = [cands[i].hit.locator for i in order]
+        receipts.append(asdict(ledger.receipts[0]))
+    return rankings, receipts
+
+
+def _write_jsonl(path: Path, rows: list[dict]) -> None:
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+
+def _ms(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.0f} ms"
+
+
+def _rerank(args: argparse.Namespace) -> int:
+    if args.split == "test" and not args.locked_final:
+        print("test split is locked; pass --locked-final only for the J3 comparison run", file=sys.stderr)
+        return 2
+    if is_killed() or judgments.resolve_api_key() is None:
+        print("rerank needs Jev: set TYPESAFE_API_KEY and leave VOSS_JUDGMENTS on", file=sys.stderr)
+        return 2
+    dataset = load_dataset(args.root, split=args.split, locked_final=args.locked_final)
+    reports = Path(args.root) / "reports"
+    gate_path = reports / f"rerank-{args.split}.json"
+    if args.split == "test" and gate_path.exists():
+        raise DatasetError(f"{gate_path} exists; the locked test split is scored once (D-19)")
+    chunks = _pinned_chunks()
+    missing = sorted({cid for pool in dataset.pools.values() for cid in pool} - chunks.keys())
+    if missing:
+        raise DatasetError(f"pool chunks missing at the pinned commit: {missing}")
+    candidates = {qid: [_candidate(cid, chunks[cid]) for cid in pool] for qid, pool in dataset.pools.items()}
+    reports.mkdir(parents=True, exist_ok=True)
+    if args.split == "test":
+        gate_path.write_text(json.dumps({
+            "schema_version": 1, "split": "test", "status": "started",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }, indent=2) + "\n")
+    candidate, receipts = asyncio.run(_rerank_pools(dataset, candidates))
+    out_dir = args.out_dir or reports / f"rerank-{args.split}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    _write_jsonl(out_dir / "candidate.jsonl", [{"query_id": qid, "ranking": ranking} for qid, ranking in candidate.items()])
+    _write_jsonl(out_dir / "receipts.jsonl", receipts)
+    _write_jsonl(out_dir / "samples.jsonl", [
+        {
+            "query_id": qid, "request_bytes": receipt["detail"]["request_bytes"], "location": args.location,
+            "model": receipt["model_requested"], "latency_ms": receipt["latency_ms"],
+            "status": receipt["status"], "fallback_reason": receipt["fallback_reason"],
+        }
+        for qid, receipt in zip(candidate, receipts)
+    ])
+    ranking = gate(dataset, dataset.pools, candidate)
+    latency = latency_gate(receipts)
+    report = render_report(dataset, dataset.pools, candidate, receipts, title=f"Code recall rerank ({args.split})")
+    report += (
+        "\n## Shadow\n\n"
+        "- shadow serves the baseline order (nDCG@5 gain 0.0 by definition) and sends the same Jev requests as active\n"
+        "\n## Latency gate\n\n"
+        f"- location: `{args.location}`\n"
+        f"- answered requests: {latency['n']} (need >= {LATENCY_MIN_SAMPLES})\n"
+        f"- p50: {_ms(latency['p50_ms'])}\n"
+        f"- p95: {_ms(latency['p95_ms'])} (max {LATENCY_P95_MAX_MS} ms, timeouts included)\n"
+        f"- gate: **{'PASS' if latency['passed'] else 'FAIL'}**\n"
+    )
+    (reports / f"rerank-{args.split}.md").write_text(report)
+    gate_path.write_text(json.dumps({
+        "schema_version": 1,
+        "status": "complete",
+        "split": args.split,
+        "commit": dataset.corpus["commit"],
+        "model": _common_value([r for r in receipts if r["model_returned"]], "model_returned"),
+        "rubric_version": RUBRIC_VERSION,
+        "location": args.location,
+        "run_date": datetime.now(timezone.utc).date().isoformat(),
+        "ranking": {key: ranking[key] for key in ("mean_gain", "ci_low", "ci_high", "recall_diff", "passed")},
+        "latency": latency,
+        "fallbacks": dict(Counter(r["fallback_reason"] for r in receipts if r["fallback_reason"])),
+        "passed": ranking["passed"] and latency["passed"],
+    }, indent=2) + "\n")
+    print(f"wrote {gate_path}")
+    return 0
+
+
 def _batch_file(root: Path, kind: str, batch: str) -> Path:
     return Path(root) / kind / f"batch-{batch}.{'csv' if kind == 'labels' else 'jsonl'}"
 
@@ -860,6 +1003,18 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--receipts", type=Path)
     report.add_argument("--out", type=Path)
     report.set_defaults(handler=_report)
+    divergence_parser = commands.add_parser(
+        "divergence", help="count dev queries where query(top_k=5) differs from the pool's top 5"
+    )
+    divergence_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    divergence_parser.set_defaults(handler=_divergence)
+    rerank_parser = commands.add_parser("rerank", help="rerank stored pools with Jev and write the comparison and gate file")
+    rerank_parser.add_argument("--root", type=Path, default=DATASET_ROOT)
+    rerank_parser.add_argument("--split", choices=SPLITS, default="dev")
+    rerank_parser.add_argument("--locked-final", action="store_true")
+    rerank_parser.add_argument("--location", required=True)
+    rerank_parser.add_argument("--out-dir", type=Path)
+    rerank_parser.set_defaults(handler=_rerank)
     args = parser.parse_args(argv)
     try:
         return args.handler(args)

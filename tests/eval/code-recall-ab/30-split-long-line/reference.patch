@@ -1,0 +1,14 @@
+--- a/voss/harness/code/semantic_index.py
++++ b/voss/harness/code/semantic_index.py
+@@ -34,8 +34,10 @@
+     # `end <= start` base case: a single line can't be subdivided line-wise
+     # return it whole even when oversize (the embedding window truncates it)
+     # Without this a >800-char single line recurses forever
+-    if len(text) <= max_chars or end <= start:
++    if len(text) <= max_chars:
+         return [(start, end, text)]
++    if end <= start:
++        return [(start, end, text[i : i + max_chars]) for i in range(0, len(text), max_chars)]
+     mid = start + max(1, (end - start + 1) // 2)
+     if mid >= end:
+         mid = end - 1  # both halves strictly smaller than [start, end]

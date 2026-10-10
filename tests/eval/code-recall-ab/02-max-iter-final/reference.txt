@@ -1,0 +1,1 @@
+voss/harness/agent.py:389 - HALTED_MAX_ITER_FINAL = "halted: max-iter", assigned as the final answer at voss/harness/agent.py:1224 when exit_reason is max-iter.

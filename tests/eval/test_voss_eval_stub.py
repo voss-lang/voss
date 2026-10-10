@@ -34,6 +34,7 @@ REQUIRED_FIELDS = {
     "surface",
     # V20 VRES-02: additive friction reducer dict (wasted_calls et al.).
     "friction",
+    "judgment_receipt_count",
 }
 
 

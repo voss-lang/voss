@@ -1,0 +1,41 @@
+prompt = '''Let `voss skill add` accept an explicit `github:owner/repo` source, cloning the same URL as the bare `owner/repo` shorthand. A `github:` value that is not a valid owner/repo should be rejected with a ValueError.'''
+mode = "edit"
+rubric = '''PASS if, after the change, `github:owner/repo` clones https://github.com/owner/repo.git, bare shorthand is unchanged, and an invalid github: value raises ValueError, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_skill_github_prefix.py" <<'EOF'
+import pytest
+
+from voss.harness.skill import fetch
+
+
+@pytest.fixture
+def cloned(monkeypatch, tmp_path):
+    urls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(fetch, "_git_clone", lambda url, staging: urls.append(url) or staging)
+    return urls
+
+
+def test_github_prefix_clones_github_repo(cloned, tmp_path):
+    fetch.fetch_bundle("github:acme/skills", tmp_path)
+    assert cloned == ["https://github.com/acme/skills.git"]
+
+
+def test_bare_shorthand_unchanged(cloned, tmp_path):
+    fetch.fetch_bundle("acme/skills", tmp_path)
+    assert cloned == ["https://github.com/acme/skills.git"]
+
+
+def test_invalid_github_prefix_rejected(cloned, tmp_path):
+    with pytest.raises(ValueError):
+        fetch.fetch_bundle("github:not a repo", tmp_path)
+    assert cloned == []
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_skill_github_prefix.py"
+'''
+timeout = 120

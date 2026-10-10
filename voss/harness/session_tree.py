@@ -123,6 +123,17 @@ def write_judgments_sidecar(cwd: Path, root_id: str, ledger) -> Path | None:
         "held_usd": ledger.held_usd,
         "receipts": [asdict(r) for r in ledger.receipts],
     }
+    try:
+        prior = json.loads(path.read_text())
+        merged = {r["call_id"]: r for r in prior["receipts"]}
+        merged.update({r["call_id"]: r for r in payload["receipts"]})
+        payload.update(
+            judgments_cost_usd=prior["judgments_cost_usd"] + ledger.observed_usd,
+            held_usd=prior["held_usd"] + ledger.held_usd,
+            receipts=list(merged.values()),
+        )
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
     path.write_text(json.dumps(payload, indent=2))
     path.chmod(0o600)
     return path

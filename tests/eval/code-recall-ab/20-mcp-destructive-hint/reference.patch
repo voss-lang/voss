@@ -1,0 +1,11 @@
+--- a/voss/harness/mcp/registry.py
++++ b/voss/harness/mcp/registry.py
+@@ -25,6 +25,8 @@
+     every plan-scoped tool non-mutating, defeating default-deny).
+     """
+     annotations = tool.get("annotations") or {}
++    if annotations.get("destructiveHint") is True:
++        return True
+     return annotations.get("readOnlyHint") is not True
+ 
+ 

@@ -1,0 +1,1 @@
+voss/harness/board/machine.py:565 - Board.dry_run_gate evaluates the gate predicates and returns (passed, failing_clauses) without mutating the board or appending transitions.

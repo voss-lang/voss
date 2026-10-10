@@ -1,0 +1,1 @@
+tui/diff.go:18 - diffTokenCap = 600; wordDiff (tui/diff.go:21) falls back to one delete plus one insert when the changed middle exceeds the cap instead of building the LCS table.

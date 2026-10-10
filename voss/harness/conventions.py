@@ -306,6 +306,21 @@ def _load_judgments_enabled(cwd) -> bool:
     return isinstance(section, dict) and section.get("enabled") is True
 
 
+def _load_judgments_code_recall(cwd) -> str:
+    """Load the optional `.voss/config.yml` judgments.code_recall mode; never raises."""
+    from pathlib import Path
+
+    try:
+        import yaml
+
+        data = yaml.safe_load((Path(cwd) / ".voss" / "config.yml").read_text())
+    except Exception:
+        return "off"
+    section = data.get("judgments") if isinstance(data, dict) else None
+    value = section.get("code_recall") if isinstance(section, dict) else None
+    return value if isinstance(value, str) and value in ("off", "shadow", "active") else "off"
+
+
 def _detect_project_facts(cwd) -> dict:
     """Infer project facts from the filesystem (D-01 fallback probes)."""
     from pathlib import Path

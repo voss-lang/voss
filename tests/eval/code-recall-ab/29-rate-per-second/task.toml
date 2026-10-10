@@ -1,0 +1,32 @@
+prompt = '''Writing `web_fetch = "2/s"` under `[net.rate_limits]` in config.toml is silently ignored. Accept a per-second string form and convert it to the per-minute rate (2/s becomes rate 120, burst 120). The `"60/min"` form and the inline-table form must keep working.'''
+mode = "edit"
+rubric = '''PASS if, after the change, "N/s" converts to rate and burst N*60 while the /min and table forms are unchanged, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_rate_per_second.py" <<'EOF'
+from voss.harness.config import get_net_rate_limits
+
+
+def test_per_second_and_existing_forms(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    config = tmp_path / "voss" / "config.toml"
+    config.parent.mkdir()
+    config.write_text(
+        "[net.rate_limits]\n"
+        'web_fetch = "2/s"\n'
+        'web_search = "30/min"\n'
+        "mcp_call = { rate = 10, burst = 20 }\n"
+    )
+    assert get_net_rate_limits() == {
+        "web_fetch": {"rate": 120, "burst": 120},
+        "web_search": {"rate": 30, "burst": 30},
+        "mcp_call": {"rate": 10, "burst": 20},
+    }
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_rate_per_second.py"
+'''
+timeout = 120

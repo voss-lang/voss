@@ -1,0 +1,29 @@
+prompt = '''Code chunking for the semantic index leaves a single very long line (minified JS, a giant literal) as one oversize chunk that the embedding model silently truncates. When one line is longer than the chunk size limit, split it into limit-sized pieces that all keep that line number. Splitting of multi-line regions should stay as it is.'''
+mode = "edit"
+rubric = '''PASS if, after the change, a single oversize line is sliced into limit-sized chunks with the same line number; multi-line splitting unchanged, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_split_long_line.py" <<'EOF'
+from voss.harness.code.semantic_index import _split_oversize
+
+
+def test_single_oversize_line_is_sliced():
+    line = "x" * 2000 + "\n"
+    chunks = _split_oversize(1, 1, [line], max_chars=800)
+    assert [(start, end) for start, end, _ in chunks] == [(1, 1)] * 3
+    assert [len(text) for _, _, text in chunks] == [800, 800, 401]
+    assert "".join(text for _, _, text in chunks) == line
+
+
+def test_multi_line_split_unchanged():
+    lines = ["a" * 500 + "\n"] * 3
+    chunks = _split_oversize(1, 3, lines, max_chars=800)
+    assert [(start, end) for start, end, _ in chunks] == [(1, 1), (2, 2), (3, 3)]
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_split_long_line.py"
+'''
+timeout = 120

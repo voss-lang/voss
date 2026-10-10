@@ -1,0 +1,1 @@
+voss/harness/board/machine.py:436 - Board.move compares the destination column's WIP cap with its card count, appends a refused transition delta with failing_clauses ['wip'], and raises BoardWIPError.

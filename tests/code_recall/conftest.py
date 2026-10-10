@@ -4,8 +4,10 @@ Wave-0 RED scaffold (V19-01). Imports of the planned Wave-1+ module
 """
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
+import httpx
 import pytest
 
 # Fixture repo: 3 small .py files with known symbol boundaries. alpha/beta
@@ -160,3 +162,56 @@ def stub_provider(monkeypatch):
 
     monkeypatch.setattr(model_router, "build_provider_for_model", _stub_build)
     return rec
+
+
+def score_body(levels: dict[str, float | dict]) -> dict:
+    answers = {}
+    for qid, level in levels.items():
+        probabilities = level if isinstance(level, dict) else {str(i): float(i == level) for i in range(4)}
+        score = min(3.0, sum(int(k) * p for k, p in probabilities.items()))
+        answers[qid] = {"type": "score", "score": score, "probabilities": probabilities, "confidence": 1.0}
+    return {"model": "jev-1.13.0", "answers": answers, "usage": {"input_tokens": 100, "output_tokens": 0}}
+
+
+def make_candidates(n: int, *, texts: list[str] | None = None, fresh: bool = True) -> list:
+    from voss.harness.code.semantic_index import Candidate
+    from voss.harness.memory_store import Hit
+
+    out = []
+    for i in range(n):
+        text = texts[i] if texts is not None else f"def f{i}():\n    return {i}\n"
+        hit = Hit(source="code", locator=f"code:pkg/m{i}.py:000", score=1.0 / (i + 1), excerpt=text[:160], line_start=1, line_end=2)
+        out.append(Candidate(hit=hit, path=f"pkg/m{i}.py", line_start=1, line_end=2, text=text, fresh=fresh))
+    return out
+
+
+class JevStub:
+    def __init__(self) -> None:
+        self.handler = lambda request: pytest.fail("unexpected Jev request")
+        self.requests: list[httpx.Request] = []
+        self.timeouts: list[int | None] = []
+
+    async def dispatch(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        response = self.handler(request)
+        return await response if inspect.isawaitable(response) else response
+
+
+@pytest.fixture
+def jev(monkeypatch):
+    from voss.harness import judgments
+    from voss_runtime.judgments import JevClient
+
+    stub = JevStub()
+
+    def factory(key, *, timeout_ms=None, ledger=None):
+        stub.timeouts.append(timeout_ms)
+        return JevClient(
+            key, model="jev-1.13.0", timeout_ms=5000 if timeout_ms is None else timeout_ms, max_request_bytes=24000,
+            max_calls=4, max_cost_usd=0.01, client=httpx.AsyncClient(transport=httpx.MockTransport(stub.dispatch)), ledger=ledger,
+        )
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    monkeypatch.delenv("VOSS_JUDGMENTS", raising=False)
+    monkeypatch.setattr(judgments, "make_client", factory)
+    return stub

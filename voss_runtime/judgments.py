@@ -168,6 +168,7 @@ class JudgmentReceipt:
     answers: dict
     artifact_revision: str | None
     schema_version: int = 1
+    detail: dict | None = None
 
 
 class JudgmentError(VossRuntimeError):

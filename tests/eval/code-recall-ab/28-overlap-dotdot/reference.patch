@@ -1,0 +1,19 @@
+--- a/voss/harness/swarm_store.py
++++ b/voss/harness/swarm_store.py
+@@ -4,6 +4,7 @@
+ """
+ from __future__ import annotations
+ 
++import os
+ import uuid
+ from datetime import datetime, timezone
+ from pathlib import Path
+@@ -33,7 +34,7 @@
+     Path normalization happens at WRITE time (task creation / policy build), not
+     at check time — the deny check fnmatches the raw path the agent passes.
+     """
+-    return str(Path(p))
++    return os.path.normpath(p)
+ 
+ 
+ class OwnershipOverlapError(ValueError):

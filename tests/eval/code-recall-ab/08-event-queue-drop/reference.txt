@@ -1,0 +1,1 @@
+voss/harness/server/renderer.py:58 - _put drops the oldest queued event when the queue is full; _emit hops to the loop thread with call_soon_threadsafe.
