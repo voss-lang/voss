@@ -1,0 +1,46 @@
+prompt = '''A .voss program with `ctx(budget: 1.5k tokens)` fails to parse. Support fractional token budgets with a k or M suffix (1.5k tokens = 1500, 2.5M tokens = 2500000). Whole-number budgets like `200k tokens` and `4000 tokens` must keep working.'''
+mode = "edit"
+rubric = '''PASS if, after the change, `1.5k tokens` and `2.5M tokens` parse to 1500 and 2500000 and whole-number budgets are unchanged, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_fractional_token_budget.py" <<'EOF'
+import dataclasses
+
+from voss.ast_nodes import BudgetArg
+from voss.parser import parse
+
+SOURCE = 'fn f(q: string) -> string {{\n    ctx(budget: {budget}) {{\n        yield q\n    }}\n}}\n'
+
+
+def _budget_args(node):
+    if isinstance(node, BudgetArg):
+        yield node
+    if dataclasses.is_dataclass(node):
+        for field in dataclasses.fields(node):
+            yield from _budget_args(getattr(node, field.name))
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            yield from _budget_args(item)
+
+
+def _token_budget(budget):
+    (arg,) = _budget_args(parse(SOURCE.format(budget=budget)))
+    return arg.value
+
+
+def test_fractional_token_budgets_with_suffix():
+    assert _token_budget("1.5k tokens") == 1500
+    assert _token_budget("2.5M tokens") == 2_500_000
+
+
+def test_whole_token_budgets_unchanged():
+    assert _token_budget("200k tokens") == 200_000
+    assert _token_budget("4000 tokens") == 4000
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_fractional_token_budget.py"
+'''
+timeout = 120

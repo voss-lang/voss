@@ -18,27 +18,33 @@ from typing import Any
 
 import click
 import httpx
+import yaml
 
 from voss import __version__ as VOSS_VERSION
 from voss.harness import auth as auth_mod
 from voss.harness.config import get_eval_judge_model, get_eval_max_turns
 from voss.harness.agent import run_turn
+from voss.harness.code.index import build_index
+from voss.harness.code.semantic_index import CodeIndex
 from voss.harness.net import NetSession
 from voss.harness.permissions import PermissionGate
 from voss.harness.render import PlainRenderer
 from voss.harness.session import SessionRecord, load, save
-from voss.harness.tools import make_toolset
+from voss.harness.tools import attach_code_recall_tool, make_toolset
 from voss_runtime import EpisodicMemory, configure, get_config
 from voss_runtime.providers import StubProvider, get as get_provider, has as has_provider
 from voss_runtime.providers.base import ModelProvider
 
 from .friction import friction
 from .judge import judge_run
+from .retrieval import materialize
 from .suite import TaskSpec, load_suite
 from .summary import write_summary
 
 SUITE_ROOT = Path("tests/eval")
 RESUME_CANCEL_DELAY_S = float(os.environ.get("EVAL_RESUME_CANCEL_DELAY_S", "0.05"))
+PINNED_INDEX_MARKER = ".index-complete"
+RECALL_READY_TIMEOUT_S = 600.0
 NO_CREDS_MESSAGE = "voss eval: no provider creds — pass --stub for hermetic smoke or run /login"
 
 
@@ -50,9 +56,30 @@ def _run_dir_name() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace(":", "")
 
 
-def _prepare_fixture(task_dir: Path, tmp: Path) -> Path:
+def pinned_corpus() -> Path:
+    root = materialize()
+    if not (root / PINNED_INDEX_MARKER).exists():
+        previous = get_config().default_embedding_model
+        configure(default_embedding_model=get_config().local_embedding_model)
+        try:
+            build_index(root)
+            CodeIndex(root).build(session_id="eval-pinned")
+        finally:
+            configure(default_embedding_model=previous)
+        (root / PINNED_INDEX_MARKER).touch()
+    return root
+
+
+def _prepare_fixture(task_dir: Path, tmp: Path, *, corpus: str | None = None) -> Path:
     cwd = tmp / "fixture"
-    shutil.copytree(task_dir / "fixture", cwd)
+    if corpus == "pinned":
+        shutil.copytree(
+            pinned_corpus(), cwd, ignore=shutil.ignore_patterns(".complete", PINNED_INDEX_MARKER)
+        )
+        if (task_dir / "fixture").is_dir():
+            shutil.copytree(task_dir / "fixture", cwd, dirs_exist_ok=True)
+    else:
+        shutil.copytree(task_dir / "fixture", cwd)
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=cwd, check=True)
     subprocess.run(["git", "add", "-A"], cwd=cwd, check=True)
     subprocess.run(
@@ -84,7 +111,28 @@ def _file_diff(cwd: Path) -> str:
     return completed.stdout if completed.returncode == 0 else ""
 
 
-def _run_checks(checks: list, cwd: Path) -> tuple[bool, list[dict]]:
+def _check_env() -> dict[str, str]:
+    env = {key: value for key, value in os.environ.items() if key != "TYPESAFE_API_KEY"}
+    env["PATH"] = os.pathsep.join(
+        part for part in (os.path.dirname(sys.executable), env.get("PATH")) if part
+    )
+    return env
+
+
+def _apply_overrides(
+    tasks: list[tuple[str, TaskSpec]], overrides: dict | None
+) -> list[tuple[str, TaskSpec]]:
+    if not overrides:
+        return tasks
+    return [
+        (task_id, TaskSpec.model_validate({**spec.model_dump(), **overrides}))
+        for task_id, spec in tasks
+    ]
+
+
+def _run_checks(
+    checks: list, cwd: Path, env: dict[str, str] | None = None
+) -> tuple[bool, list[dict]]:
     """Run all checks; return (gate_pass, results_list). Never short-circuits."""
     results = []
     for check in checks:
@@ -98,6 +146,7 @@ def _run_checks(checks: list, cwd: Path) -> tuple[bool, list[dict]]:
                     text=True,
                     timeout=getattr(check, "timeout", 60),
                     check=False,
+                    env=env,
                 )
                 passed = cp.returncode == 0
                 detail = cp.stdout[:200] if passed else cp.stderr[:200]
@@ -640,6 +689,22 @@ async def _drive_resume(
     return record, result.final, capped
 
 
+def _write_recall_config(cwd: Path, mode: str) -> None:
+    path = cwd / ".voss" / "config.yml"
+    data = (yaml.safe_load(path.read_text()) if path.exists() else None) or {}
+    data["judgments"] = {**(data.get("judgments") or {}), "enabled": True, "code_recall": mode}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+
+async def _wait_ready(svc) -> None:
+    deadline = time.monotonic() + RECALL_READY_TIMEOUT_S
+    while not svc.is_ready():
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"code index not ready after {RECALL_READY_TIMEOUT_S:.0f}s")
+        await asyncio.sleep(0.1)
+
+
 async def _drive_task(
     task_id: str,
     spec: TaskSpec,
@@ -655,6 +720,9 @@ async def _drive_task(
     permissions = PermissionGate(mode=spec.mode, auto_yes=spec.auto_approve_edits)
     net_session = _make_stub_net_session(spec, stub=stub)
     capped = False
+    prev_embedding = get_config().default_embedding_model
+    if spec.corpus == "pinned":
+        configure(default_embedding_model=get_config().local_embedding_model)
     try:
         if spec.surface == "cli:do":
             final, crash_reason, capped = await _drive_cli_do(spec, cwd, auth=auth_pref)
@@ -688,7 +756,41 @@ async def _drive_task(
                 model=None if stub else model,
             )
             return record, final, None, False
-        if task_id.startswith("05-"):
+        if spec.recall is not None:
+            from voss.harness import cli
+
+            _write_recall_config(cwd, spec.recall)
+            svc = cli._get_code_recall_service(cwd, session_id=record.id)
+            await _wait_ready(svc)
+            tools = make_toolset(cwd, net=net_session, background_indexing=False)
+            attach_code_recall_tool(tools, code_index_service=svc)
+            prev_cfg = get_config()
+            configure(max_iterations=max_turns)
+            try:
+                result = await cli._scoped_turn(
+                    cwd,
+                    spec.prompt,
+                    record.id,
+                    run_turn,
+                    lambda recall: run_turn(
+                        spec.prompt,
+                        tools=tools,
+                        cwd=cwd,
+                        renderer=PlainRenderer(),
+                        model=model,
+                        provider=provider,
+                        permissions=permissions,
+                        session_id=record.id,
+                        **recall,
+                    ),
+                )
+            finally:
+                configure(max_iterations=prev_cfg.max_iterations)
+            _add_run(record, result)
+            final = result.final
+            if result.run and result.run.exit_reason == "max-iter":
+                capped = True
+        elif task_id.startswith("05-"):
             record, final, capped = await _drive_resume(
                 record,
                 spec,
@@ -724,6 +826,7 @@ async def _drive_task(
     except Exception as exc:  # noqa: BLE001 - eval records failures as rows
         return record, "", f"{type(exc).__name__}: {str(exc)[:300]}", False
     finally:
+        configure(default_embedding_model=prev_embedding)
         if net_session is not None:
             await net_session.aclose()
     return record, final, None, capped
@@ -842,7 +945,7 @@ async def _run_suite_async(
                 continue
             start = time.monotonic()
             with tempfile.TemporaryDirectory(prefix=f"voss-eval-{task_id}-") as tmp:
-                cwd = _prepare_fixture(suite_root / task_id, Path(tmp))
+                cwd = _prepare_fixture(suite_root / task_id, Path(tmp), corpus=spec.corpus)
                 provider = _provider_for_task(
                     default_provider=default_provider,
                     spec=spec,
@@ -878,7 +981,9 @@ async def _run_suite_async(
                 # After diff (never pollutes the judge's file_diff input), before
                 # checks (model output is check-addressable for every surface).
                 (cwd / ".voss-eval-final.txt").write_text(final or "")
-                gate_pass, check_results = _run_checks(spec.checks, cwd)
+                gate_pass, check_results = _run_checks(
+                    spec.checks, cwd, env=_check_env() if spec.corpus == "pinned" else None
+                )
                 cost_usd, confidence = _extract_signals(record)
 
                 verdict = None
@@ -932,6 +1037,9 @@ async def _run_suite_async(
                     "input_tokens": _sum_input_tokens(record),
                     "surface": spec.surface,
                     "friction": friction(record),
+                    "judgment_receipt_count": sum(
+                        len(run.get("judgment_receipts") or []) for run in record.runs
+                    ),
                 }
                 _append_row(runs_path, row)
 
@@ -951,6 +1059,8 @@ def run_suite(
     model: str | None = None,
     max_turns: int | None = None,
     require_all_toolchains: bool = False,
+    overrides: dict | None = None,
+    judge: bool = True,
 ) -> Path:
     if k < 1:
         raise click.UsageError("-k must be at least 1")
@@ -969,6 +1079,7 @@ def run_suite(
     if not tasks:
         target = f"task {task!r}" if task is not None else f"suite {suite!r}"
         raise click.UsageError(f"no eval tasks found for {target}")
+    tasks = _apply_overrides(tasks, overrides)
 
     max_turns = max_turns if max_turns is not None else get_eval_max_turns()
 
@@ -992,7 +1103,7 @@ def run_suite(
     )
 
     default_provider, _ = _provider_for_eval(stub=stub, auth_pref=auth_pref)
-    judge_provider = _judge_provider_for_eval(auth_pref=auth_pref)
+    judge_provider = _judge_provider_for_eval(auth_pref=auth_pref) if judge else None
 
     runs_path = out / "runs.jsonl"
     if runs_path.exists():

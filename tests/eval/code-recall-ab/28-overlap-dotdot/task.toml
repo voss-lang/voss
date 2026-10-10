@@ -1,0 +1,30 @@
+prompt = '''Two swarm tasks can both own the same file if one spells the path with `..` segments (for example `src/util/../app.py` and `src/app.py`), because the ownership overlap check misses it. Make the check treat those as the same file; tasks ordered by depends_on may still share it.'''
+mode = "edit"
+rubric = '''PASS if, after the change, paths with .. segments that resolve to the same file count as an ownership overlap; depends_on ordering still allows sharing, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_overlap_dotdot.py" <<'EOF'
+import pytest
+
+from voss.harness.swarm_store import OwnershipOverlapError, Task, validate_no_overlap
+
+
+def test_dotdot_spelling_is_the_same_file():
+    first = Task(id="a", goal="g", owned_files=["src/app.py"])
+    second = Task(id="b", goal="g", owned_files=["src/util/../app.py"])
+    with pytest.raises(OwnershipOverlapError):
+        validate_no_overlap(second, [first])
+
+
+def test_dependency_ordering_and_disjoint_files_still_allowed():
+    first = Task(id="a", goal="g", owned_files=["src/app.py"])
+    validate_no_overlap(Task(id="b", goal="g", owned_files=["src/util/../app.py"], depends_on=["a"]), [first])
+    validate_no_overlap(Task(id="c", goal="g", owned_files=["src/other.py"]), [first])
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_overlap_dotdot.py"
+'''
+timeout = 120

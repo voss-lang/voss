@@ -1,0 +1,1 @@
+crates/voss-render/src/status_line.rs:11 - format builds the line with thousands separators, colors cost and context percent, and pads with dashes.

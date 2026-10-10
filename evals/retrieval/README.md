@@ -100,3 +100,5 @@ Frozen metrics:
 J3 thresholds: mean nDCG@5 gain >= 0.03, bootstrap 95% lower bound > 0, and recall@5 difference >= 0.
 
 The dev baseline report is `reports/baseline-dev.md` (`report --split dev`). Only J3's comparison run may use `report --split test --locked-final`. No other command or test reads test-split labels or computes a test-split metric.
+
+Locked test split used on 2026-10-04 by J3 (reports/rerank-test.json); any rubric or scope change needs a fresh locked split.

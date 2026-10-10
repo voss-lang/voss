@@ -1,0 +1,41 @@
+prompt = '''MCP server commands in .voss/mcp.yml can reference `${VAR}`, but there is no way to give a fallback. Support `${VAR:-default}`: use the default when VAR is unset, use VAR when it is set, and keep failing on a plain `${VAR}` that is unset.'''
+mode = "edit"
+rubric = '''PASS if, after the change, `${VAR:-default}` falls back when unset, prefers the set value, and plain unset `${VAR}` still raises, and the edit stays in the code responsible. FAIL if the behavior is wrong or unrelated code changes.'''
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+corpus = "pinned"
+
+[[checks]]
+type = "cmd"
+run = '''d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cat > "$d/test_mcp_env_default.py" <<'EOF'
+from pathlib import Path
+
+import pytest
+
+from voss.harness.mcp.config import McpConfigError, McpServerConfig, substitute_server
+
+CWD = Path("/work")
+
+
+def _args(*args):
+    return substitute_server(McpServerConfig(command=["srv"], args=list(args)), cwd=CWD).args
+
+
+def test_default_used_when_variable_unset(monkeypatch):
+    monkeypatch.delenv("VOSS_EVAL_PORT", raising=False)
+    assert _args("--port=${VOSS_EVAL_PORT:-8080}") == ["--port=8080"]
+
+
+def test_set_variable_wins_over_default(monkeypatch):
+    monkeypatch.setenv("VOSS_EVAL_PORT", "9090")
+    assert _args("--port=${VOSS_EVAL_PORT:-8080}", "{cwd}/data") == ["--port=9090", "/work/data"]
+
+
+def test_unset_variable_without_default_still_fails(monkeypatch):
+    monkeypatch.delenv("VOSS_EVAL_PORT", raising=False)
+    with pytest.raises(McpConfigError):
+        _args("--port=${VOSS_EVAL_PORT}")
+EOF
+python -m pytest -q -p no:cacheprovider "$d/test_mcp_env_default.py"
+'''
+timeout = 120

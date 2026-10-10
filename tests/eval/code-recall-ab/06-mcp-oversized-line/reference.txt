@@ -1,0 +1,1 @@
+voss/harness/mcp/server.py:63 - serve_stdio answers lines over LINE_LIMIT_BYTES with a -32700 'parse error: line too long' and continues; _read_line (voss/harness/mcp/server.py:214) discards the oversized buffer up to the next newline.

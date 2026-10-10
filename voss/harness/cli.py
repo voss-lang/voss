@@ -47,7 +47,7 @@ from .providers import OpenAIOAuthProvider
 from .render import make_renderer
 from .sandbox import SandboxError, jail_path
 from .multiagent import DEFAULT_PARENT_RESERVE, attach_multiagent_tools
-from .session_tree import SessionTreeManager, SessionTreeNode, finalize_node
+from .session_tree import SessionTreeManager, SessionTreeNode, finalize_node, write_judgments_sidecar
 from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
@@ -978,23 +978,26 @@ def _render_code_recall_text(cwd: Path, task_text: str, session_id: str | None =
         hits = svc.query(task_text.strip(), top_k=5)
         if not hits:
             return ""
-
-        from voss.harness.agent import _default_token_count
-
-        model = get_config().default_model
-        section = "## Code Recall\nTask-relevant code (semantic index):"
-        for h in hits:
-            parts = h.locator.split(":")
-            path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
-            anchor = f"{path}:{h.line_start}" if h.line_start else path
-            excerpt = (h.excerpt or "").replace("\n", " ")[:160]
-            block = f"\n- {anchor} (score {h.score:.2f})\n  {excerpt}"
-            if _default_token_count(section + block, model=model) > _CODE_RECALL_TOKEN_CAP:
-                break  # hard cap (VSEM-06)
-            section += block
-        return section
+        return _format_code_recall_section(hits)
     except Exception:  # noqa: BLE001 — injection is additive; failures render nothing
         return ""
+
+
+def _format_code_recall_section(hits) -> str:
+    from voss.harness.agent import _default_token_count
+
+    model = get_config().default_model
+    section = "## Code Recall\nTask-relevant code (semantic index):"
+    for h in hits:
+        parts = h.locator.split(":")
+        path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
+        anchor = f"{path}:{h.line_start}" if h.line_start else path
+        excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+        block = f"\n- {anchor} (score {h.score:.2f})\n  {excerpt}"
+        if _default_token_count(section + block, model=model) > _CODE_RECALL_TOKEN_CAP:
+            break  # hard cap (VSEM-06)
+        section += block
+    return section
 
 
 def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str | None = None) -> dict:
@@ -1010,6 +1013,60 @@ def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str 
         return {}
     text = _render_code_recall_text(cwd, task_text, session_id=session_id)
     return {"code_recall_text": text} if text else {}
+
+
+async def _render_code_recall_text_async(cwd: Path, task_text: str, session_id: str | None = None) -> str:
+    if not task_text or not task_text.strip():
+        return ""
+    try:
+        from voss.harness.code.rerank import recall
+        from voss.harness.config import get_code_recall_config
+
+        if not get_code_recall_config().get("inject", True):
+            return ""
+        svc = _get_code_recall_service(Path(cwd), session_id=session_id)
+        if not svc.is_ready():
+            return ""
+        hits = await recall(svc, task_text.strip(), k=5)
+        if hits is None:
+            hits = await asyncio.to_thread(svc.query, task_text.strip(), top_k=5)
+        return _format_code_recall_section(hits) if hits else ""
+    except Exception:
+        return ""
+
+
+async def _code_recall_kwargs_async(run_turn_fn, cwd: Path, task_text: str, session_id: str | None = None) -> dict:
+    try:
+        import inspect as _inspect
+
+        if "code_recall_text" not in _inspect.signature(run_turn_fn).parameters:
+            return {}
+    except (TypeError, ValueError):
+        return {}
+    text = await _render_code_recall_text_async(cwd, task_text, session_id=session_id)
+    return {"code_recall_text": text} if text else {}
+
+
+async def _scoped_turn(cwd, task_text, session_id, run_turn_fn, make_turn, *, sidecar_root=None):
+    from voss.harness.code.rerank import TurnScope
+    from voss.harness.judgments import code_recall_mode
+
+    mode = code_recall_mode(cwd)
+    if mode == "off":
+        recall_kwargs = await asyncio.to_thread(_code_recall_kwargs, run_turn_fn, cwd, task_text, session_id)
+        return await make_turn(recall_kwargs)
+    scope = TurnScope(cwd, task_text, mode)
+    try:
+        async with scope:
+            recall_kwargs = await _code_recall_kwargs_async(run_turn_fn, cwd, task_text, session_id)
+            result = await make_turn(recall_kwargs)
+    finally:
+        if sidecar_root is not None:
+            write_judgments_sidecar(Path(cwd), sidecar_root, scope.ledger)
+    if result.run is not None:
+        result.run.judgment_receipts = [asdict(r) for r in scope.ledger.receipts]
+        result.run.judgments_cost_usd = scope.ledger.observed_usd
+    return result
 
 
 def _pinned_memory_kwargs(run_turn_fn, cwd: Path, *, model: str, store=None) -> dict:
@@ -2240,24 +2297,27 @@ def do_cmd(
     except (TypeError, ValueError):
         pass
     result = _run_turn_cancellable(
-        _run_turn_with_teardown(
-            run_turn(
-                text,
-                tools=tools,
-                cwd=cwd,
-                renderer=renderer,
-                model=do_model,
-                provider=do_provider,
-                permissions=gate,
-                history=do_history,
-                session_id=do_record.id,
-                voss_md_text=voss_md_text,
-                project_index_text=project_index_text,
-                **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
-                **_pinned_memory_kwargs(run_turn, cwd, model=do_model, store=do_memory_store),
-                **_rt_kwargs,
+        _scoped_turn(
+            cwd, text, do_record.id, run_turn,
+            lambda recall: _run_turn_with_teardown(
+                run_turn(
+                    text,
+                    tools=tools,
+                    cwd=cwd,
+                    renderer=renderer,
+                    model=do_model,
+                    provider=do_provider,
+                    permissions=gate,
+                    history=do_history,
+                    session_id=do_record.id,
+                    voss_md_text=voss_md_text,
+                    project_index_text=project_index_text,
+                    **recall,
+                    **_pinned_memory_kwargs(run_turn, cwd, model=do_model, store=do_memory_store),
+                    **_rt_kwargs,
+                ),
+                None, tools=tools, cwd=cwd,
             ),
-            None, tools=tools, cwd=cwd,
         ),
         renderer=renderer,
     )
@@ -2667,29 +2727,34 @@ def _run_repl(
                     try:
                         renderer.show_thinking("starting Voss run")
                         run_turn = _resolve_run_turn(cwd)
-                        result = await _run_turn_with_teardown(
-                            run_turn(
-                                line,
-                                tools=tools,
-                                cwd=cwd,
-                                renderer=renderer,
-                                model=get_config().default_model,
-                                history=ctx.history,
-                                permissions=gate,
-                                provider=ctx.provider,
-                                session_id=record.id,
-                                cognition=bundle,
-                                prior_context=ctx.prior_context,
-                                voss_md_text=ctx.voss_md_text,
-                                project_index_text=ctx.project_index_text,
-                                **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                                **(await asyncio.to_thread(
-                                    _pinned_memory_kwargs, run_turn, cwd,
-                                    model=get_config().default_model, store=ctx.memory_store,
-                                )),
+                        pinned = await asyncio.to_thread(
+                            _pinned_memory_kwargs, run_turn, cwd,
+                            model=get_config().default_model, store=ctx.memory_store,
+                        )
+                        result = await _scoped_turn(
+                            cwd, line, record.id, run_turn,
+                            lambda recall: _run_turn_with_teardown(
+                                run_turn(
+                                    line,
+                                    tools=tools,
+                                    cwd=cwd,
+                                    renderer=renderer,
+                                    model=get_config().default_model,
+                                    history=ctx.history,
+                                    permissions=gate,
+                                    provider=ctx.provider,
+                                    session_id=record.id,
+                                    cognition=bundle,
+                                    prior_context=ctx.prior_context,
+                                    voss_md_text=ctx.voss_md_text,
+                                    project_index_text=ctx.project_index_text,
+                                    **recall,
+                                    **pinned,
+                                ),
+                                _multiagent_teardown,
+                                tools=tools, cwd=cwd,
                             ),
-                            _multiagent_teardown,
-                            tools=tools, cwd=cwd,
+                            sidecar_root=_chat_root.id,
                         )
                         ctx.prior_context = None
                     finally:
@@ -2792,26 +2857,30 @@ def _run_repl(
                 renderer.show_thinking("starting Voss run")
                 run_turn = _resolve_run_turn(cwd)
                 result = _run_turn_cancellable(
-                    _run_turn_with_teardown(
-                        run_turn(
-                            line,
-                            tools=tools,
-                            cwd=cwd,
-                            renderer=renderer,
-                            model=get_config().default_model,
-                            history=ctx.history,
-                            permissions=gate,
-                            provider=ctx.provider,
-                            session_id=record.id,
-                            cognition=bundle,
-                            prior_context=ctx.prior_context,
-                            voss_md_text=ctx.voss_md_text,
-                            project_index_text=ctx.project_index_text,
-                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                            **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model, store=ctx.memory_store),
+                    _scoped_turn(
+                        cwd, line, record.id, run_turn,
+                        lambda recall: _run_turn_with_teardown(
+                            run_turn(
+                                line,
+                                tools=tools,
+                                cwd=cwd,
+                                renderer=renderer,
+                                model=get_config().default_model,
+                                history=ctx.history,
+                                permissions=gate,
+                                provider=ctx.provider,
+                                session_id=record.id,
+                                cognition=bundle,
+                                prior_context=ctx.prior_context,
+                                voss_md_text=ctx.voss_md_text,
+                                project_index_text=ctx.project_index_text,
+                                **recall,
+                                **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model, store=ctx.memory_store),
+                            ),
+                            _multiagent_teardown,
+                            tools=tools, cwd=cwd,
                         ),
-                        _multiagent_teardown,
-                        tools=tools, cwd=cwd,
+                        sidecar_root=_chat_root.id,
                     ),
                     renderer=renderer,
                 )
@@ -4098,6 +4167,13 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
     default=False,
     help="Fail run if python3/cargo/node is absent (strict mode).",
 )
+@click.option(
+    "--ab",
+    "ab_spec",
+    default=None,
+    metavar="FIELD=A,B",
+    help="Run the suite twice, with task setting FIELD set to A then B, and compare.",
+)
 def eval_cmd(
     suite: str,
     stub: bool,
@@ -4109,13 +4185,50 @@ def eval_cmd(
     auth_pref: str,
     max_turns: int | None,
     require_all_toolchains: bool,
+    ab_spec: str | None,
 ) -> None:
     """Run the golden evaluation suite."""
     if os.environ.get("VOSS_DEV") != "1":
         click.echo("voss eval: internal tool — set VOSS_DEV=1 to run", err=True)
         raise click.exceptions.Exit(code=1)
 
-    from voss.eval.runner import run_suite
+    from voss.eval.runner import _run_dir_name, run_suite
+
+    if ab_spec is not None:
+        from voss.eval.ab import run_ab
+        from voss.eval.suite import TaskSpec
+
+        field, _, values = ab_spec.partition("=")
+        sides = values.split(",")
+        if field not in TaskSpec.model_fields or len(sides) != 2 or not all(sides):
+            raise click.UsageError(
+                f"--ab expects FIELD=A,B where FIELD is a task setting, got {ab_spec!r}"
+            )
+        metadata = None
+        if field == "recall":
+            from voss.harness.code.rerank import RUBRIC_VERSION
+            from voss.harness.config import get_judgments_config
+
+            metadata = {
+                "jev_model": get_judgments_config()["model"],
+                "rubric_version": RUBRIC_VERSION,
+                "generation_model": get_config().default_model,
+            }
+        out = run_ab(
+            suite=suite,
+            setting=field,
+            a=sides[0],
+            b=sides[1],
+            out=out_path or Path.cwd() / ".voss" / "eval" / _run_dir_name(),
+            metadata=metadata,
+            stub=stub,
+            live=live,
+            auth_pref=auth_pref,
+            max_turns=max_turns,
+            require_all_toolchains=require_all_toolchains,
+        )
+        click.echo(str(out / "ab.md"))
+        return
 
     run_suite(
         suite=suite,

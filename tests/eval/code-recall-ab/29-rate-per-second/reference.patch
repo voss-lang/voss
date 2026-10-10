@@ -1,0 +1,23 @@
+--- a/voss/harness/config.py
++++ b/voss/harness/config.py
+@@ -47,7 +47,7 @@
+ _NET_RATE_BLOCK = re.compile(r"^\[net\.rate_limits\][^\[]*", re.MULTILINE)
+ _MODEL_TIERS_BLOCK = re.compile(r"^\[model_tiers\][^\[]*", re.MULTILINE)
+ # `web_fetch = "60/min"` — quoted string form.
+-_RATE_STR = re.compile(r'^\s*(\w+)\s*=\s*"(\d+)/min"\s*$', re.MULTILINE)
++_RATE_STR = re.compile(r'^\s*(\w+)\s*=\s*"(\d+)/(min|s)"\s*$', re.MULTILINE)
+ # `web_fetch = { rate = 60, burst = 120 }` — one-line inline-table form.
+ _RATE_TABLE = re.compile(r"^\s*(\w+)\s*=\s*\{([^}]+)\}\s*$", re.MULTILINE)
+ # Inside-braces kv (rate / burst only).
+@@ -322,9 +322,9 @@
+         return {}
+     block = m.group(0)
+     result: dict[str, dict[str, int]] = {}
+-    for name, rate in _RATE_STR.findall(block):
++    for name, rate, unit in _RATE_STR.findall(block):
+         try:
+-            r = int(rate)
++            r = int(rate) * (60 if unit == "s" else 1)
+             result[name] = {"rate": r, "burst": r}
+         except ValueError:
+             warnings.warn(

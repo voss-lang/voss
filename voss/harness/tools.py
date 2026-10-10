@@ -290,11 +290,15 @@ def attach_code_recall_tool(tools: dict[str, "ToolEntry"], *, code_index_service
         ),
     )
     async def code_recall(query: str, top_k: int = 5) -> str:
+        from voss.harness.code.rerank import current_turn, recall
+
         query = query.strip()
         if not query:
             return "<error: empty query>"
         try:
-            hits = code_index_service.query(query, top_k=top_k)
+            hits = await recall(code_index_service, query, k=top_k, query=query) if current_turn() is not None else None
+            if hits is None:
+                hits = code_index_service.query(query, top_k=top_k)
         except Exception as exc:  # noqa: BLE001 — recall must not crash the turn
             return f"<error: code recall failed: {exc}>"
         if not hits:

@@ -441,7 +441,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         # are additive and self-guard (return "" on any failure / not-ready /
         # inject-off), so a turn never breaks because injection is unavailable
         try:
-            from ..cli import _render_project_index_text, _render_code_recall_text
+            from ..cli import _render_project_index_text, _scoped_turn
 
             project_index_text = _render_project_index_text(
                 session.cwd, session_id=session.id
@@ -451,30 +451,34 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             if session.swarm_owned_files:
                 code_recall_text = await asyncio.to_thread(_swarm_recall_text, session, text)
             else:
-                code_recall_text = _render_code_recall_text(
-                    session.cwd, text, session_id=session.id
-                )
+                code_recall_text = ""
         except Exception:
             project_index_text = ""
             code_recall_text = ""
 
-        result = await run_turn(
-            text,
-            tools=tools,
-            cwd=session.cwd,
-            renderer=renderer,
-            model=session.model,
-            provider=session.provider,
-            permissions=gate,
-            history=session.history,
-            session_id=session.id,
-            cognition=bundle,
-            voss_md_text=voss_md_text,
-            project_index_text=project_index_text,
-            code_recall_text=code_recall_text,
-            prior_context=session.prior_context,
-            **memory_kwargs,
-        )
+        def make_turn(recall: dict):
+            return run_turn(
+                text,
+                tools=tools,
+                cwd=session.cwd,
+                renderer=renderer,
+                model=session.model,
+                provider=session.provider,
+                permissions=gate,
+                history=session.history,
+                session_id=session.id,
+                cognition=bundle,
+                voss_md_text=voss_md_text,
+                project_index_text=project_index_text,
+                code_recall_text=recall.get("code_recall_text", ""),
+                prior_context=session.prior_context,
+                **memory_kwargs,
+            )
+
+        if session.swarm_owned_files:
+            result = await make_turn({"code_recall_text": code_recall_text})
+        else:
+            result = await _scoped_turn(session.cwd, text, session.id, run_turn, make_turn)
         # Consume resume context once: deep history now flows via session.history
         session.prior_context = None
         renderer.show_final(

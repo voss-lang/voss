@@ -1,0 +1,13 @@
+--- a/voss/eval/summary.py
++++ b/voss/eval/summary.py
+@@ -21,7 +21,9 @@
+     pairs = [
+         (row["confidence"], 1.0 if row["success"] else 0.0)
+         for row in rows
+-        if row.get("confidence") is not None and row.get("success") is not None
++        if row.get("confidence") is not None
++        and row.get("success") is not None
++        and not row.get("capped")
+     ]
+     if len(pairs) < 2:
+         return None, len(pairs)

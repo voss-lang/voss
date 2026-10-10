@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "setting": "recall",
+  "a": "off",
+  "b": "active",
+  "jev_model": "jev-1.13.0",
+  "rubric_version": "code_recall.rerank.v1",
+  "generation_model": "claude-sonnet-5-5",
+  "max_turns": 30,
+  "auth": "claude",
+  "a_judgment_receipts": 0,
+  "b_judgment_receipts": 37,
+  "compare": {
+    "n_tasks": 30,
+    "n_skipped": 0,
+    "a_pass_rate": 0.9666666666666667,
+    "b_pass_rate": 0.9666666666666667,
+    "mean_diff": 0.0,
+    "ci_low": -0.1,
+    "ci_high": 0.1,
+    "a_only": [
+      "30-split-long-line"
+    ],
+    "b_only": [
+      "05-background-watchdog"
+    ],
+    "disagreements": [
+      "05-background-watchdog",
+      "30-split-long-line"
+    ],
+    "regressions": [],
+    "unconfirmed": [],
+    "no_difference": false,
+    "passed": true
+  },
+  "passed": true
+}
