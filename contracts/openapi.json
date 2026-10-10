@@ -203,6 +203,89 @@
         "title": "CognitionOverflow",
         "type": "object"
       },
+      "CommandCatalog": {
+        "properties": {
+          "commands": {
+            "items": {
+              "$ref": "#/components/schemas/CommandInfo"
+            },
+            "title": "Commands",
+            "type": "array"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commands"
+        ],
+        "title": "CommandCatalog",
+        "type": "object"
+      },
+      "CommandInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "CommandInfo",
+        "type": "object"
+      },
+      "CommandRequest": {
+        "properties": {
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Args",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CommandRequest",
+        "type": "object"
+      },
+      "CommandResult": {
+        "properties": {
+          "stderr": {
+            "default": "",
+            "title": "Stderr",
+            "type": "string"
+          },
+          "stdout": {
+            "default": "",
+            "title": "Stdout",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "title": "CommandResult",
+        "type": "object"
+      },
       "ConfidenceUpdated": {
         "properties": {
           "message_id": {
@@ -2051,6 +2134,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/commands": {
+      "get": {
+        "operationId": "list_commands_commands_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Commands"
+      }
+    },
     "/doctor": {
       "get": {
         "operationId": "doctor_doctor_get",
@@ -2639,6 +2740,55 @@
           }
         },
         "summary": "Clear History"
+      }
+    },
+    "/session/{session_id}/command": {
+      "post": {
+        "operationId": "execute_command_session__session_id__command_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute Command"
       }
     },
     "/session/{session_id}/cost": {

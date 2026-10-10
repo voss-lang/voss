@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -48,16 +49,30 @@ var helpGroups = []struct {
 	{"Control", []string{"/help", "/exit", "/mode", "/model", "/auth"}},
 }
 
-func commandNames() []string {
-	names := make([]string, len(slashCommands))
-	for i, c := range slashCommands {
+func (m chatModel) commands() []slashCommand {
+	commands := slices.Clone(slashCommands)
+	for _, remote := range m.serverCommands {
+		if slices.ContainsFunc(commands, func(c slashCommand) bool {
+			return c.name == remote.Name || contains(c.aliases, remote.Name)
+		}) {
+			continue
+		}
+		commands = append(commands, slashCommand{remote.Name, remote.Description, nil})
+	}
+	return commands
+}
+
+func (m chatModel) commandNames() []string {
+	commands := m.commands()
+	names := make([]string, len(commands))
+	for i, c := range commands {
 		names[i] = c.name
 	}
 	return names
 }
 
-func lookupCommand(name string) (slashCommand, bool) {
-	for _, c := range slashCommands {
+func (m chatModel) lookupCommand(name string) (slashCommand, bool) {
+	for _, c := range m.commands() {
 		if c.name == name || contains(c.aliases, name) {
 			return c, true
 		}
@@ -65,12 +80,12 @@ func lookupCommand(name string) (slashCommand, bool) {
 	return slashCommand{}, false
 }
 
-func slashHelp(name string) string {
-	c, _ := lookupCommand(name)
+func (m chatModel) slashHelp(name string) string {
+	c, _ := m.lookupCommand(name)
 	return c.help
 }
 
-func helpText() string {
+func (m chatModel) helpText() string {
 	var out []string
 	placed := map[string]bool{}
 	section := func(header string, cmds []slashCommand) {
@@ -90,7 +105,7 @@ func helpText() string {
 	for _, g := range helpGroups {
 		var cmds []slashCommand
 		for _, n := range g.names {
-			if c, ok := lookupCommand(n); ok && c.name == n {
+			if c, ok := m.lookupCommand(n); ok && c.name == n {
 				cmds = append(cmds, c)
 				placed[n] = true
 			}
@@ -98,7 +113,7 @@ func helpText() string {
 		section(g.header, cmds)
 	}
 	var other []slashCommand
-	for _, c := range slashCommands {
+	for _, c := range m.commands() {
 		if !placed[c.name] {
 			other = append(other, c)
 		}
@@ -127,7 +142,7 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		m.add(roleBlock("warning", glyphs.Warn+" invalid slash command: "+err.Error()))
 		return nil
 	}
-	cmd, ok := lookupCommand(args[0])
+	cmd, ok := m.lookupCommand(args[0])
 	if !ok {
 		m.add(roleBlock("warning", glyphs.Warn+" unknown command: "+text+". /help for list."))
 		return nil
@@ -138,7 +153,7 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		m.quitting = true
 		return tea.Quit
 	case "/help":
-		m.add(output(helpText(), "")...)
+		m.add(output(m.helpText(), "")...)
 	case "/mode":
 		m.add(output(m.setMode(args))...)
 	case "/model", "/auth":
@@ -175,8 +190,35 @@ func (m *chatModel) slash(text string) tea.Cmd {
 		}
 	case "/doctor":
 		return doctorCommand(m.ctx, m.client, m.cwd, args)
+	default:
+		m.commanding = cmd.name
+		client, ctx, id := m.client, m.ctx, m.sessionID
+		return func() tea.Msg {
+			result, err := client.ExecuteCommand(ctx, id, cmd.name, args)
+			return commandResultMsg{id, result, err}
+		}
 	}
 	return nil
+}
+
+type commandListMsg struct {
+	catalog voss.CommandCatalog
+	err     error
+}
+
+type commandResultMsg struct {
+	id     string
+	result voss.CommandResult
+	err    error
+}
+
+func (m chatModel) loadCommands() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
+		defer cancel()
+		catalog, err := m.client.ListCommands(ctx)
+		return commandListMsg{catalog, err}
+	}
 }
 
 func memoryCommand(ctx context.Context, client *voss.Client, cwd, name string, args []string) tea.Cmd {

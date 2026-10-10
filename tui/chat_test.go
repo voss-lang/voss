@@ -49,6 +49,8 @@ func newFakeServer(t *testing.T) (*fakeServer, *voss.Client) {
 		failSend := f.failSend
 		f.mu.Unlock()
 		switch {
+		case r.URL.Path == "/commands":
+			_, _ = w.Write([]byte(`{"v":1,"commands":[]}`))
 		case conflict:
 			w.WriteHeader(http.StatusConflict)
 			_, _ = w.Write([]byte(`{"detail":"a turn is already running"}`))

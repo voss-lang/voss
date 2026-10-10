@@ -50,12 +50,22 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `GET` | `/session/:id/events` | SSE event stream for the session | `text/event-stream` |
 | `POST` | `/session/:id/abort` | Cancel the in-flight turn | `202` |
 | `POST` | `/session/:id/permission` | Reply to a pending permission request | `200` |
+| `GET` | `/commands` | Read-only slash command catalog | `{v:1, commands:[{name,description}]}` |
+| `POST` | `/session/:id/command` | Execute a listed command. Body `{name,args?:string[]}` | `{v:1, stdout, stderr}` |
 | `GET` | `/doctor` | Auth/config/tooling status | `DoctorReport` |
 | `GET` | `/openapi.json` | OpenAPI 3.1 spec | spec |
 
 **Voss-native (additive):** `POST /session/:id/budget` (set/inspect token-or-cost envelope) · `GET /session/:id/confidence` (turn confidence rollup). Paths mirror OpenCode for everything shared so existing SDK clients work unmodified.
 
 **Concurrency:** one running turn per session. `POST /message` while a turn runs → `409`.
+
+The command catalog currently exposes `/tools`, `/skills`, and `/agents`. Each
+accepts no arguments and uses the session's workspace. They list metadata without
+starting a model turn or changing conversation history. Unknown commands return
+`400`; unsupported arguments return usage text in `stderr`. Clients render
+`stdout` as system output and `stderr` as a warning. Catalog loading does not
+connect MCP servers; `/tools` connects for discovery and closes those connections
+after listing. Listed tools remain subject to permission checks when invoked.
 
 Conversation and model/auth status questions use the `ambient` phase. Work intents use the tool-enabled `run` phase; prefix a request with `run ` to select that path explicitly. Swarm sessions always run their assigned tasks. Permission `mode` remains independent of phase. Status events report phase changes and return to `ambient` on completion, cancellation, or failure.
 
