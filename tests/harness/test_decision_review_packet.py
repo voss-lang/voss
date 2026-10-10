@@ -7,18 +7,24 @@ from types import SimpleNamespace
 
 import pytest
 
+from voss.harness.code.rerank import request_size
 from voss.harness.decision_review import (
     CHECK_STATUSES,
+    NO_CHECKS,
+    OPTIONS,
     VERIFICATION_NOTE_CHARS,
     CheckResult,
     Criterion,
     build_packet,
+    build_request,
     candidate_from_diff,
     checks_from_artifact,
     collect_commit,
     collect_working_tree,
     is_stale,
     load_checks,
+    questions_for,
+    state_for,
     touched_paths,
     tree_digest,
 )
@@ -269,3 +275,103 @@ def test_candidate_from_diff_matches_tree_digest(tmp_path: Path):
     (tmp_path / "a.py").write_text("a\n")
     candidate = candidate_from_diff(tmp_path, "--- a/a.py\n+++ b/a.py\n")
     assert candidate == {"kind": "working_tree", "touched_paths": ["a.py"], "tree_digest": tree_digest(tmp_path, ["a.py"])}
+
+
+MODEL = "jev-1.13.0"
+
+
+def _size(built) -> int:
+    state, questions, _ = built
+    return request_size(MODEL, state, questions)
+
+
+def test_state_without_checks_says_no_checks_recorded():
+    state = state_for(_packet(checks=[]))
+    assert state["checks"] == NO_CHECKS == "no checks recorded"
+    assert state["criteria"] == [{"id": "AC-1", "text": "adds foo"}, {"id": "AC-2", "text": "adds bar"}]
+    assert "verification_note" not in state
+
+
+def test_state_keeps_each_check_status_unchanged():
+    checks = [CheckResult(f"c{i}", status) for i, status in enumerate(CHECK_STATUSES)]
+    state = state_for(_packet(checks=checks))
+    assert state["checks"] == [{"name": f"c{i}", "status": status} for i, status in enumerate(CHECK_STATUSES)]
+
+
+def test_verification_note_has_its_own_key_and_no_status():
+    state = state_for(_packet(verification_note="Reviewer A ran the suite"))
+    assert state["verification_note"] == "Reviewer A ran the suite"
+    assert all(c["name"] != "verification_note" for c in state["checks"])
+
+
+def test_questions_are_three_way_choices_naming_each_criterion():
+    packet = _packet()
+    questions = questions_for(packet.criteria)
+    assert list(questions) == ["AC-1", "AC-2"]
+    for c in packet.criteria:
+        wire = questions[c.id].to_wire()
+        assert wire["type"] == "choice"
+        assert set(wire["criteria"]) == {"supported", "contradicted", "insufficient_evidence"} == set(OPTIONS)
+        assert c.id in wire["instructions"] and c.text in wire["instructions"]
+        assert not re.search(r"tests? pass", wire["instructions"], re.IGNORECASE)
+
+
+def test_small_request_fits_unchanged():
+    packet = _packet()
+    state, questions, trimmed = build_request(packet, model=MODEL, max_bytes=24000)
+    assert trimmed == {"code": False, "diff": False}
+    assert state == state_for(packet)
+    assert list(questions) == ["AC-1", "AC-2"]
+
+
+def test_slightly_oversize_trims_code_first_and_keeps_its_beginning():
+    packet = _packet(code="### a.py\n" + "x = 1\n" * 400, diff="+++ b/a.py\n+foo\n")
+    full = request_size(MODEL, state_for(packet), questions_for(packet.criteria))
+    built = build_request(packet, model=MODEL, max_bytes=full - 100)
+    state, _, trimmed = built
+    assert trimmed == {"code": True, "diff": False}
+    assert packet.code.startswith(state["code"]) and len(state["code"]) < len(packet.code)
+    assert state["diff"] == packet.diff
+    assert _size(built) <= full - 100
+
+
+def test_empty_code_and_still_oversize_trims_the_diff_beginning_first():
+    packet = _packet(code="", diff="+++ b/a.py\n" + "+line\n" * 400)
+    full = request_size(MODEL, state_for(packet), questions_for(packet.criteria))
+    built = build_request(packet, model=MODEL, max_bytes=full - 100)
+    state, _, trimmed = built
+    assert trimmed == {"code": False, "diff": True}
+    assert state["code"] == ""
+    assert packet.diff.startswith(state["diff"]) and len(state["diff"]) < len(packet.diff)
+    assert [c["id"] for c in state["criteria"]] == ["AC-1", "AC-2"]
+
+
+def test_code_is_emptied_before_the_diff_is_touched():
+    packet = _packet(code="c" * 2000, diff="+++ b/a.py\n" + "+d\n" * 400)
+    without_code = request_size(MODEL, state_for(packet, code_limit=0), questions_for(packet.criteria))
+    state, _, trimmed = build_request(packet, model=MODEL, max_bytes=without_code - 10)
+    assert trimmed == {"code": True, "diff": True}
+    assert state["code"] == ""
+    assert packet.diff.startswith(state["diff"])
+
+
+def test_criteria_and_checks_alone_over_the_cap_return_none():
+    packet = _packet(criteria=["requirement " + "z" * 3000])
+    floor = request_size(MODEL, state_for(packet, code_limit=0, diff_limit=0), questions_for(packet.criteria))
+    assert build_request(packet, model=MODEL, max_bytes=floor - 1) is None
+    assert build_request(packet, model=MODEL, max_bytes=floor) is not None
+
+
+def test_non_ascii_diff_with_many_newlines_stays_under_the_byte_cap():
+    packet = _packet(code="", diff="+++ b/a.py\n" + "+héllo ✓ 日本\n" * 500)
+    for cap in (3000, 5000, 9000):
+        built = build_request(packet, model=MODEL, max_bytes=cap)
+        assert built is not None
+        assert _size(built) <= cap
+
+
+def test_trimming_never_changes_the_packet_id():
+    packet = _packet(code="### a.py\n" + "x = 1\n" * 400)
+    before = packet.packet_id
+    build_request(packet, model=MODEL, max_bytes=1500)
+    assert packet.packet_id == before == _packet(code="### a.py\n" + "x = 1\n" * 400).packet_id
