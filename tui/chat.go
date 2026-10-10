@@ -48,6 +48,7 @@ type chatModel struct {
 	modelChoices   []voss.ModelChoice
 	serverCommands []voss.CommandInfo
 	commanding     string
+	code           *codePanel
 
 	turn     turn
 	mode     string
@@ -197,6 +198,9 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				stderr = *msg.result.Stderr
 			}
 			m.add(output(stdout, stderr)...)
+			if msg.result.Code != nil {
+				m.showCodeResults(*msg.result.Code)
+			}
 		}
 		return m, m.drain()
 	case modelListMsg:
@@ -263,6 +267,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.home = homeRows(meta)
 		m.turn = turn{model: meta.Model, phase: "ambient"}
 		m.commanding = ""
+		m.code = nil
 		m.blocks, m.rendered, m.sent = nil, nil, nil
 		m.live, m.lastResponse, m.toast = "", "", ""
 		m.offline, m.navMode, m.liveTick = false, false, false
@@ -282,6 +287,10 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.MouseWheelMsg:
 		var cmd tea.Cmd
+		if m.code != nil && m.turn.permission == nil {
+			m.code.view, cmd = m.code.view.Update(msg)
+			return m, cmd
+		}
 		m.vp, cmd = m.vp.Update(msg)
 		m.follow = m.vp.AtBottom()
 		return m, cmd
@@ -333,7 +342,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		if !m.turn.busy || msg.gen != m.tickGen {
+		if (!m.turn.busy && m.commanding == "") || msg.gen != m.tickGen {
 			return m, nil
 		}
 		m.frame++
@@ -382,7 +391,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.PasteMsg:
 		m.kills.lastKey = ""
-		if m.search.active || m.navMode {
+		if m.search.active || m.navMode || m.code != nil {
 			return m, nil
 		}
 		if len(strings.Split(msg.Content, "\n")) > pasteChipLines {
@@ -412,6 +421,10 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.replyPermission(p.Id, choice)
 		}
 		return m, nil
+	}
+
+	if m.code != nil && m.turn.permission == nil {
+		return m.codeKey(msg)
 	}
 
 	if m.search.active {
@@ -593,7 +606,7 @@ func (m *chatModel) dispatch(text string) tea.Cmd {
 // order until a line starts the next turn.
 func (m *chatModel) drain() tea.Cmd {
 	var cmds []tea.Cmd
-	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing && m.commanding == "" &&
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing && m.commanding == "" && m.code == nil &&
 		m.pal.kind != paletteSession && m.pal.kind != paletteModel && m.pal.kind != paletteAuth {
 		text := m.queue[0]
 		m.queue = m.queue[1:]
@@ -654,6 +667,9 @@ func (m chatModel) View() tea.View {
 		transcript = overlayToast(transcript, glyphs.ToolCall+" "+m.turn.thinking, m.width)
 	}
 	screen := transcript + "\n" + m.bottom()
+	if m.code != nil {
+		screen = m.code.screen(m.width, m.height)
+	}
 	if p := m.turn.permission; p != nil {
 		screen = m.r.permissionModal(*p, m.cwd, m.width)
 		screen += strings.Repeat("\n", max(m.height-lipgloss.Height(screen), 0))
@@ -676,7 +692,7 @@ func (m chatModel) bottom() string {
 		out += "\n  loading model controls…"
 	}
 	if m.commanding != "" {
-		out += "\n  loading " + m.commanding + "…"
+		out += "\n  " + ansi.Truncate(m.commandProgress(), max(m.width-2, 1), "…")
 	}
 	if len(m.queue) > 0 {
 		out += "\n" + queueChip(m.queue, m.width)
@@ -715,6 +731,9 @@ func (m chatModel) working() string {
 // layout sizes the transcript to the space the bottom area leaves and keeps
 // it on the newest line while following.
 func (m *chatModel) layout() {
+	if m.code != nil {
+		m.code.resize(m.width, m.height)
+	}
 	m.vp.SetWidth(m.r.width)
 	m.vp.SetHeight(max(m.height-lipgloss.Height(m.bottom()), 1))
 	if len(m.blocks) == 0 && m.live == "" && !m.turn.busy {
@@ -831,7 +850,7 @@ func (m chatModel) choosePalette() (tea.Model, tea.Cmd) {
 	m.recentCommands = append([]string{name}, m.recentCommands...)[:min(len(m.recentCommands)+1, 10)]
 	m.editor.Reset()
 	line := "/" + strings.TrimLeft(name, "/")
-	if m.turn.busy || m.resuming || m.selecting {
+	if m.turn.busy || m.resuming || m.selecting || m.clearing || m.commanding != "" {
 		m.queue = append(m.queue, line)
 		return m, nil
 	}

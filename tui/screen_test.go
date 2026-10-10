@@ -15,6 +15,14 @@ import (
 
 // screenCases drive a model into a state; the golden is the whole screen.
 var screenCases = map[string]func(d *driver, events chan voss.TypedEvent){
+	"code_results": func(d *driver, events chan voss.TypedEvent) {
+		results := codeFixture()
+		d.send(commandResultMsg{id: "sess-1", result: voss.CommandResult{Code: &results}})
+	},
+	"code_no_matches": func(d *driver, events chan voss.TypedEvent) {
+		results := voss.CodeResults{Query: "/symbol missing"}
+		d.send(commandResultMsg{id: "sess-1", result: voss.CommandResult{Code: &results}})
+	},
 	"home": func(d *driver, events chan voss.TypedEvent) {},
 	"finished_turn": func(d *driver, events chan voss.TypedEvent) {
 		for _, ev := range []voss.TypedEvent{
