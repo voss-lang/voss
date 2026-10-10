@@ -57,7 +57,7 @@ func newFakeServer(t *testing.T) (*fakeServer, *voss.Client) {
 		case failSend && strings.HasSuffix(r.URL.Path, "/message"):
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			_, _ = w.Write([]byte(`{"detail":"empty message"}`))
-		case strings.HasSuffix(r.URL.Path, "/permission"):
+		case strings.HasSuffix(r.URL.Path, "/permission"), strings.HasSuffix(r.URL.Path, "/diff"):
 			_, _ = w.Write([]byte(`{"v":1,"status":"ok"}`))
 		default:
 			w.WriteHeader(http.StatusAccepted)
