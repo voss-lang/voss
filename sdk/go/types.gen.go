@@ -164,6 +164,31 @@ type CognitionOverflow struct {
 	V                  *int   `json:"v,omitempty"`
 }
 
+// CommandCatalog defines model for CommandCatalog.
+type CommandCatalog struct {
+	Commands []CommandInfo `json:"commands"`
+	V        *int          `json:"v,omitempty"`
+}
+
+// CommandInfo defines model for CommandInfo.
+type CommandInfo struct {
+	Description string `json:"description"`
+	Name        string `json:"name"`
+}
+
+// CommandRequest defines model for CommandRequest.
+type CommandRequest struct {
+	Args *[]string `json:"args,omitempty"`
+	Name string    `json:"name"`
+}
+
+// CommandResult defines model for CommandResult.
+type CommandResult struct {
+	Stderr *string `json:"stderr,omitempty"`
+	Stdout *string `json:"stdout,omitempty"`
+	V      *int    `json:"v,omitempty"`
+}
+
 // ConfidenceUpdated defines model for ConfidenceUpdated.
 type ConfidenceUpdated struct {
 	MessageId *string `json:"message_id,omitempty"`
@@ -628,6 +653,9 @@ type PatchObserveSettingsObserveSettingsPatchJSONRequestBody = ObserveSettingsBo
 
 // CreateSessionSessionPostJSONRequestBody defines body for CreateSessionSessionPost for application/json ContentType.
 type CreateSessionSessionPostJSONRequestBody = CreateSessionBody
+
+// ExecuteCommandSessionSessionIdCommandPostJSONRequestBody defines body for ExecuteCommandSessionSessionIdCommandPost for application/json ContentType.
+type ExecuteCommandSessionSessionIdCommandPostJSONRequestBody = CommandRequest
 
 // PostMessageSessionSessionIdMessagePostJSONRequestBody defines body for PostMessageSessionSessionIdMessagePost for application/json ContentType.
 type PostMessageSessionSessionIdMessagePostJSONRequestBody = MessageBody

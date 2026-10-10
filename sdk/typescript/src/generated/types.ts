@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Commands */
+        get: operations["list_commands_commands_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/doctor": {
         parameters: {
             query?: never;
@@ -189,6 +206,23 @@ export interface paths {
         put?: never;
         /** Clear History */
         post: operations["clear_history_session__session_id__clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/{session_id}/command": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Execute Command */
+        post: operations["execute_command_session__session_id__command_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -531,6 +565,48 @@ export interface components {
              * @enum {string}
              */
             type: "cognition_overflow";
+            /**
+             * V
+             * @default 1
+             */
+            v: number;
+        };
+        /** CommandCatalog */
+        CommandCatalog: {
+            /** Commands */
+            commands: components["schemas"]["CommandInfo"][];
+            /**
+             * V
+             * @default 1
+             */
+            v: number;
+        };
+        /** CommandInfo */
+        CommandInfo: {
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /** CommandRequest */
+        CommandRequest: {
+            /** Args */
+            args?: string[];
+            /** Name */
+            name: string;
+        };
+        /** CommandResult */
+        CommandResult: {
+            /**
+             * Stderr
+             * @default
+             */
+            stderr: string;
+            /**
+             * Stdout
+             * @default
+             */
+            stdout: string;
             /**
              * V
              * @default 1
@@ -1397,6 +1473,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_commands_commands_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandCatalog"];
+                };
+            };
+        };
+    };
     doctor_doctor_get: {
         parameters: {
             query?: {
@@ -1845,6 +1941,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_command_session__session_id__command_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommandRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandResult"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -56,6 +56,7 @@ from ..swarm_store import (
 from ..tools import attach_memory_tools, attach_mcp_tools, make_toolset
 from ..memory_gateway import open_memory_store
 from ..memory_store import MemoryStore
+from . import commands
 from . import events as E
 from . import models as model_selection
 from .renderer import EventBusRenderer
@@ -848,6 +849,18 @@ def create_app(token: str | None = None) -> FastAPI:
         s.history = EpisodicMemory(capacity=40)
         s.prior_context = None
         return Response(status_code=204)
+
+    @app.get("/commands", response_model=commands.CommandCatalog)
+    def list_commands() -> commands.CommandCatalog:
+        return commands.CommandCatalog(commands=list(commands.COMMANDS))
+
+    @app.post("/session/{session_id}/command", response_model=commands.CommandResult)
+    async def execute_command(session_id: str, body: commands.CommandRequest) -> commands.CommandResult:
+        s = _require(session_id)
+        try:
+            return await commands.execute(s.cwd, body)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
 
     @app.get("/models", response_model=model_selection.ModelCatalog)
     def list_models():
