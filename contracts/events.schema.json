@@ -244,6 +244,90 @@
       "title": "ConfidenceUpdated",
       "type": "object"
     },
+    "DiffHunk": {
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "start": {
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start",
+        "lines"
+      ],
+      "title": "DiffHunk",
+      "type": "object"
+    },
+    "DiffProposed": {
+      "properties": {
+        "hunks": {
+          "items": {
+            "$ref": "#/components/schemas/DiffHunk"
+          },
+          "title": "Hunks",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "diff.proposed",
+          "default": "diff.proposed",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "hunks",
+        "type"
+      ],
+      "title": "DiffProposed",
+      "type": "object"
+    },
+    "DiffResolved": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "diff.resolved",
+          "default": "diff.resolved",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "DiffResolved",
+      "type": "object"
+    },
     "FinalEvent": {
       "properties": {
         "confidence": {
@@ -1235,6 +1319,8 @@
           "cognition_loaded": "#/components/schemas/CognitionLoaded",
           "cognition_overflow": "#/components/schemas/CognitionOverflow",
           "confidence.updated": "#/components/schemas/ConfidenceUpdated",
+          "diff.proposed": "#/components/schemas/DiffProposed",
+          "diff.resolved": "#/components/schemas/DiffResolved",
           "final": "#/components/schemas/FinalEvent",
           "gate.updated": "#/components/schemas/GateUpdated",
           "instructions_overflow": "#/components/schemas/InstructionsOverflow",
@@ -1270,6 +1356,12 @@
         },
         {
           "$ref": "#/components/schemas/PermissionUpdated"
+        },
+        {
+          "$ref": "#/components/schemas/DiffProposed"
+        },
+        {
+          "$ref": "#/components/schemas/DiffResolved"
         },
         {
           "$ref": "#/components/schemas/BannerEvent"

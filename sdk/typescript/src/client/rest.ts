@@ -49,6 +49,7 @@ export function createVossClient(baseUrl: string, token: string) {
     async createSession(cwd?: string): Promise<string> {
       const body: CreateSessionBody = {
         auth: "auto",
+        review_diffs: false,
         ...(cwd === undefined ? {} : { cwd }),
       };
       const result = await client.POST("/session", { body });

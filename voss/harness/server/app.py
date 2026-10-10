@@ -59,6 +59,7 @@ from ..memory_store import MemoryStore
 from . import commands
 from . import events as E
 from . import models as model_selection
+from .diffs import DiffReply, DiffReviewRenderer
 from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
 
@@ -359,7 +360,10 @@ async def _run_ambient_turn(
 async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     """Drive one turn; publish events; persist. Runs as session.task."""
     loop = asyncio.get_running_loop()
-    renderer = EventBusRenderer(session.queue, session_id=session.id, loop=loop, model=session.model)
+    renderer = (
+        DiffReviewRenderer(session, loop=loop) if session.review_diffs else
+        EventBusRenderer(session.queue, session_id=session.id, loop=loop, model=session.model)
+    )
 
     # VSWARM-04 spawn-gate: a builder session created before its assignment
     # holds a set (unsignaled) gate_event and runs ZERO turns until the
@@ -515,6 +519,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
 
 
 class CreateSessionBody(BaseModel):
+    review_diffs: bool = False
     parentID: str | None = None
     title: str | None = None
     cwd: str | None = None
@@ -777,6 +782,7 @@ def create_app(token: str | None = None) -> FastAPI:
             if res.source == "claude-agent" and not s.model.startswith("claude-"):
                 s.model = model_selection.SUBSCRIPTION_MODELS["claude"][0].id
             s.auth = res.source
+            s.review_diffs = body.review_diffs
             return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
         model = (
             (selected.model if selected else body.model)
@@ -793,6 +799,7 @@ def create_app(token: str | None = None) -> FastAPI:
             model = model_selection.SUBSCRIPTION_MODELS["claude"][0].id
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
         s.auth = res.source
+        s.review_diffs = body.review_diffs
         if selected:
             s.record.model_auth = selected.choice.auth
             s.record.model_provider = selected.choice.provider if selected.choice.auth == "api" else None
@@ -938,6 +945,17 @@ def create_app(token: str | None = None) -> FastAPI:
             fut.set_result(body.choice)
             return {"v": 1, "status": "ok"}
         return {"v": 1, "status": "stale"}
+
+    @app.post("/session/{session_id}/diff")
+    async def reply_diff(session_id: str, body: DiffReply) -> dict:
+        s = _require(session_id)
+        pending = s.pending_diffs.get(body.id)
+        if pending is None or pending.future.done():
+            return {"v": 1, "status": "stale"}
+        if body.decisions and len(body.decisions) != pending.count:
+            raise HTTPException(422, "Supply one decision per hunk, or an empty list to cancel.")
+        pending.future.set_result(body.decisions)
+        return {"v": 1, "status": "ok"}
 
 
     @app.get(

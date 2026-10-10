@@ -87,6 +87,9 @@ func TestResumeOpensSavedContextAndCancelsStream(t *testing.T) {
 		t.Fatalf("stream remained open: %+v", msg)
 	}
 	requests := f.requestsTo("/session")
+	if len(requests) != 1 || requests[0].body["review_diffs"] != true {
+		t.Fatalf("session did not enable edit review: %+v", requests)
+	}
 	if len(requests) != 1 || requests[0].body["resume"] != "saved name" || conn.meta.ID != "saved" || conn.meta.Model != "saved-model" {
 		t.Fatalf("resume = %+v, meta = %+v", requests, conn.meta)
 	}

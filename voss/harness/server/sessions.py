@@ -8,11 +8,14 @@ import asyncio
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from voss_runtime import EpisodicMemory
 
 from .. import session as session_store
+
+if TYPE_CHECKING:
+    from .diffs import PendingDiff
 
 QUEUE_MAXSIZE = 256
 
@@ -30,6 +33,8 @@ class ServerSession:
     )
     task: asyncio.Task | None = None
     pending: dict[str, Future] = field(default_factory=dict)
+    pending_diffs: dict[str, PendingDiff] = field(default_factory=dict)
+    review_diffs: bool = False
     title: str = ""
     # prior RunRecords from a resumed session, surfaced on the first turn
     # then cleared (deep history thereafter flows via `history`)

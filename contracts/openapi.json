@@ -463,6 +463,11 @@
             ],
             "title": "Resume"
           },
+          "review_diffs": {
+            "default": false,
+            "title": "Review Diffs",
+            "type": "boolean"
+          },
           "title": {
             "anyOf": [
               {
@@ -550,6 +555,116 @@
         "title": "CreateTaskBody",
         "type": "object"
       },
+      "DiffHunk": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file",
+          "start",
+          "lines"
+        ],
+        "title": "DiffHunk",
+        "type": "object"
+      },
+      "DiffProposed": {
+        "properties": {
+          "hunks": {
+            "items": {
+              "$ref": "#/components/schemas/DiffHunk"
+            },
+            "title": "Hunks",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "diff.proposed",
+            "default": "diff.proposed",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hunks",
+          "type"
+        ],
+        "title": "DiffProposed",
+        "type": "object"
+      },
+      "DiffReply": {
+        "properties": {
+          "decisions": {
+            "items": {
+              "enum": [
+                "accept",
+                "reject",
+                "skip"
+              ],
+              "type": "string"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "decisions"
+        ],
+        "title": "DiffReply",
+        "type": "object"
+      },
+      "DiffResolved": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "diff.resolved",
+            "default": "diff.resolved",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "DiffResolved",
+        "type": "object"
+      },
       "EventEnvelope": {
         "description": "OpenAPI schema anchor (H1.14).\n\nForced into the OpenAPI components so a typed client codegens a tagged\nenum over the full event union, even though no route returns it directly.",
         "properties": {
@@ -562,6 +677,8 @@
                 "cognition_loaded": "#/components/schemas/CognitionLoaded",
                 "cognition_overflow": "#/components/schemas/CognitionOverflow",
                 "confidence.updated": "#/components/schemas/ConfidenceUpdated",
+                "diff.proposed": "#/components/schemas/DiffProposed",
+                "diff.resolved": "#/components/schemas/DiffResolved",
                 "final": "#/components/schemas/FinalEvent",
                 "gate.updated": "#/components/schemas/GateUpdated",
                 "instructions_overflow": "#/components/schemas/InstructionsOverflow",
@@ -597,6 +714,12 @@
               },
               {
                 "$ref": "#/components/schemas/PermissionUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/DiffProposed"
+              },
+              {
+                "$ref": "#/components/schemas/DiffResolved"
               },
               {
                 "$ref": "#/components/schemas/BannerEvent"
@@ -2932,6 +3055,57 @@
           }
         },
         "summary": "Cost"
+      }
+    },
+    "/session/{session_id}/diff": {
+      "post": {
+        "operationId": "reply_diff_session__session_id__diff_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiffReply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reply Diff Session  Session Id  Diff Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reply Diff"
       }
     },
     "/session/{session_id}/events": {
