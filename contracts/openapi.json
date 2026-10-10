@@ -341,6 +341,16 @@
               }
             ]
           },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InspectionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stderr": {
             "default": "",
             "title": "Stderr",
@@ -780,6 +790,24 @@
           "content"
         ],
         "title": "HistoryTurn",
+        "type": "object"
+      },
+      "InspectionResult": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "text"
+        ],
+        "title": "InspectionResult",
         "type": "object"
       },
       "InstructionsOverflow": {

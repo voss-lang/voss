@@ -862,7 +862,7 @@ def create_app(token: str | None = None) -> FastAPI:
     async def execute_command(session_id: str, body: commands.CommandRequest) -> commands.CommandResult:
         s = _require(session_id)
         try:
-            return await commands.execute(s.cwd, body)
+            return await commands.execute(s.cwd, body, record=s.record)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 

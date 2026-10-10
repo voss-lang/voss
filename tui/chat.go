@@ -49,6 +49,7 @@ type chatModel struct {
 	serverCommands []voss.CommandInfo
 	commanding     string
 	code           *codePanel
+	inspection     *inspectionPanel
 
 	turn     turn
 	mode     string
@@ -201,6 +202,9 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.result.Code != nil {
 				m.showCodeResults(*msg.result.Code)
 			}
+			if msg.result.Inspection != nil {
+				m.showInspection(*msg.result.Inspection)
+			}
 		}
 		return m, m.drain()
 	case modelListMsg:
@@ -268,6 +272,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.turn = turn{model: meta.Model, phase: "ambient"}
 		m.commanding = ""
 		m.code = nil
+		m.inspection = nil
 		m.blocks, m.rendered, m.sent = nil, nil, nil
 		m.live, m.lastResponse, m.toast = "", "", ""
 		m.offline, m.navMode, m.liveTick = false, false, false
@@ -287,6 +292,10 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.MouseWheelMsg:
 		var cmd tea.Cmd
+		if m.inspection != nil && m.turn.permission == nil {
+			m.inspection.view, cmd = m.inspection.view.Update(msg)
+			return m, cmd
+		}
 		if m.code != nil && m.turn.permission == nil {
 			m.code.view, cmd = m.code.view.Update(msg)
 			return m, cmd
@@ -391,7 +400,7 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.PasteMsg:
 		m.kills.lastKey = ""
-		if m.search.active || m.navMode || m.code != nil {
+		if m.search.active || m.navMode || m.code != nil || m.inspection != nil {
 			return m, nil
 		}
 		if len(strings.Split(msg.Content, "\n")) > pasteChipLines {
@@ -425,6 +434,9 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if m.code != nil && m.turn.permission == nil {
 		return m.codeKey(msg)
+	}
+	if m.inspection != nil && m.turn.permission == nil {
+		return m.inspectionKey(msg)
 	}
 
 	if m.search.active {
@@ -606,7 +618,7 @@ func (m *chatModel) dispatch(text string) tea.Cmd {
 // order until a line starts the next turn.
 func (m *chatModel) drain() tea.Cmd {
 	var cmds []tea.Cmd
-	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing && m.commanding == "" && m.code == nil &&
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting && !m.resuming && !m.selecting && !m.clearing && m.commanding == "" && m.code == nil && m.inspection == nil &&
 		m.pal.kind != paletteSession && m.pal.kind != paletteModel && m.pal.kind != paletteAuth {
 		text := m.queue[0]
 		m.queue = m.queue[1:]
@@ -670,6 +682,9 @@ func (m chatModel) View() tea.View {
 	if m.code != nil {
 		screen = m.code.screen(m.width, m.height)
 	}
+	if m.inspection != nil {
+		screen = m.inspection.screen(m.width, m.height)
+	}
 	if p := m.turn.permission; p != nil {
 		screen = m.r.permissionModal(*p, m.cwd, m.width)
 		screen += strings.Repeat("\n", max(m.height-lipgloss.Height(screen), 0))
@@ -731,6 +746,9 @@ func (m chatModel) working() string {
 // layout sizes the transcript to the space the bottom area leaves and keeps
 // it on the newest line while following.
 func (m *chatModel) layout() {
+	if m.inspection != nil {
+		m.inspection.resize(m.width, m.height)
+	}
 	if m.code != nil {
 		m.code.resize(m.width, m.height)
 	}

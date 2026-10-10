@@ -27,6 +27,8 @@ func TestCommandCatalogAndDispatch(t *testing.T) {
 			t.Error(err)
 		}
 		switch body["name"] {
+		case "/btrace":
+			_, _ = w.Write([]byte(`{"stdout":"No recorded budget timeline.","inspection":{"title":"Budget trace","text":"No recorded budget timeline."}}`))
 		case "/symbol":
 			_, _ = w.Write([]byte(`{"stdout":"app.py:1","code":{"query":"/symbol sample_entry","items":[{"file":"app.py","line":1,"name":"sample_entry","language":"python","source":"index","snippet":"def sample_entry(): pass"}],"truncated":false}}`))
 		case "/skills":
@@ -67,5 +69,9 @@ func TestCommandCatalogAndDispatch(t *testing.T) {
 	result, err = client.ExecuteCommand(ctx, "sess-1", "/symbol", []string{"sample_entry"})
 	if err != nil || result.Code == nil || len(result.Code.Items) != 1 || result.Code.Items[0].Line != 1 || result.Code.Items[0].Snippet != "def sample_entry(): pass" {
 		t.Fatalf("code results = %+v, %v", result, err)
+	}
+	result, err = client.ExecuteCommand(ctx, "sess-1", "/btrace", nil)
+	if err != nil || result.Inspection == nil || result.Inspection.Title != "Budget trace" || result.Inspection.Text != "No recorded budget timeline." {
+		t.Fatalf("inspection = %+v, %v", result, err)
 	}
 }

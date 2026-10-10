@@ -15,6 +15,18 @@ import (
 
 // screenCases drive a model into a state; the golden is the whole screen.
 var screenCases = map[string]func(d *driver, events chan voss.TypedEvent){
+	"inspection_decision": func(d *driver, events chan voss.TypedEvent) {
+		result := inspectionFixture()
+		d.send(commandResultMsg{id: "sess-1", result: voss.CommandResult{Inspection: &result}})
+	},
+	"inspection_budget": func(d *driver, events chan voss.TypedEvent) {
+		result := voss.InspectionResult{Title: "Budget trace", Text: "Recorded budget timeline (2 iterations)\niter | prompt | completion | cache_create | cache_read | total | cumulative | cost_usd | exit\n0 | 10 | 5 | 3 | 2 | 20 | 20 | 0.001 | -\n1 | 7 | 11 | 13 | 17 | 48 | 68 | 0.002 | budget (budget exhausted)"}
+		d.send(commandResultMsg{id: "sess-1", result: voss.CommandResult{Inspection: &result}})
+	},
+	"inspection_source": func(d *driver, events chan voss.TypedEvent) {
+		result := voss.InspectionResult{Title: "Voss / Python", Text: "Voss source: simple.voss\n\nfn greet(name: string) -> string {\n    return \"hello \" + name\n}\n\nGenerated Python: generated in memory\n\ndef greet(name: str) -> str:\n    return \"hello \" + name"}
+		d.send(commandResultMsg{id: "sess-1", result: voss.CommandResult{Inspection: &result}})
+	},
 	"code_results": func(d *driver, events chan voss.TypedEvent) {
 		results := codeFixture()
 		d.send(commandResultMsg{id: "sess-1", result: voss.CommandResult{Code: &results}})

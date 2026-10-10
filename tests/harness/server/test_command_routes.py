@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from dataclasses import asdict
 from types import SimpleNamespace
 
 import httpx
@@ -38,6 +39,7 @@ def test_catalog_requires_auth_and_does_not_discover_resources(client, monkeypat
     assert response.status_code == 200
     assert {c["name"] for c in response.json()["commands"]} == {
         "/tools", "/skills", "/agents", "/symbol", "/refs", "/refresh",
+        "/probable", "/btrace", "/vdiff",
     }
     assert all(c["description"] for c in response.json()["commands"])
     assert client.get("/commands", headers={"Authorization": "Bearer wrong"}).status_code == 401
@@ -107,6 +109,177 @@ def test_dispatch_rejects_unknown_commands_and_reports_usage(client, monkeypatch
     assert execute(client, "/skills", ["extra"]).json()["stderr"] == "usage: /skills"
     assert execute(client, "/skills", "wrong type").status_code == 422
     assert client.post("/session/missing/command", json={"name": "/agents"}).status_code == 404
+
+
+def recorded_run():
+    from voss.harness.session import IterationRecord, RunRecord
+
+    return asdict(RunRecord(
+        id="synthetic-run", started_at="2026-10-10T00:00:00Z", ended_at="2026-10-10T00:00:01Z",
+        decisions=[
+            {"title": "choose parser", "body": "first decision body", "confidence": 0.82},
+            {"title": "emit tests", "body": "second decision body", "confidence": 0.47},
+        ],
+        iterations=[IterationRecord(index=0, prompt_tokens=10, completion_tokens=5,
+                                    cache_creation_input_tokens=3, cache_read_input_tokens=2,
+                                    cost_usd=0.001, exit_reason="done")],
+    ))
+
+
+def test_inspectors_use_latest_current_run_without_saving_or_invoking_provider(client):
+    from voss.harness.voss_inspect import render_budget_timeline, render_decision_sequence
+
+    older = recorded_run()
+    older["decisions"][0]["body"] = "obsolete decision"
+    run = recorded_run()
+    client.session.record.runs.extend([older, run])
+    before = {p: p.read_bytes() for p in client.session.cwd.rglob("*") if p.is_file()}
+    for name, title, expected in [
+        ("/probable", "Probable decision", render_decision_sequence(run)),
+        ("/btrace", "Budget trace", render_budget_timeline(run)),
+    ]:
+        response = execute(client, name)
+        assert response.status_code == 200
+        result = response.json()
+        assert result["stderr"] == ""
+        assert result["stdout"] == expected
+        assert result["inspection"] == {"title": title, "text": expected}
+        assert "obsolete decision" not in result["stdout"]
+    assert {p: p.read_bytes() for p in client.session.cwd.rglob("*") if p.is_file()} == before
+    assert client.session.record.runs == [older, run]
+    assert client.session.history.turns == []
+    assert client.session.queue.empty()
+    assert client.session.task is None
+
+
+def test_inspectors_read_saved_session_by_id_prefix_or_name(client):
+    from voss.harness import session as session_store
+
+    saved = client.app.state.sessions.create(cwd=client.session.cwd, model="stub", provider=object(), title="saved run")
+    saved.record.runs.append(recorded_run())
+    path = session_store.save(saved.record, saved.history)
+    before = path.read_bytes()
+    for target in (saved.id[:8], "saved run"):
+        result = execute(client, "/probable", [target, "--decision", "1"]).json()
+        assert result["stderr"] == ""
+        assert "second decision body" in result["stdout"]
+        assert "first decision body" not in result["stdout"]
+        assert "confidence: 0.47" in result["stdout"]
+        assert "Recorded budget timeline" in execute(client, "/btrace", [target]).json()["stdout"]
+    assert path.read_bytes() == before
+    assert execute(client, "/probable", [saved.id, "--decision", "99"]).json()["stderr"].startswith("/probable failed:")
+
+
+@pytest.mark.parametrize("name", ["/probable", "/btrace"])
+def test_inspectors_report_empty_and_missing_sessions(client, name):
+    result = execute(client, name).json()
+    assert result["inspection"]["text"] == "No recorded runs. Run a task first."
+    result = execute(client, name, ["missing-session"]).json()
+    assert result["inspection"] is None
+    assert "no session" in result["stderr"]
+    run = recorded_run()
+    run["decisions"], run["iterations"] = [], []
+    client.session.record.runs.append(run)
+    expected = "No recorded decisions." if name == "/probable" else "No recorded budget timeline."
+    assert execute(client, name).json()["inspection"]["text"] == expected
+
+
+def test_inspectors_reject_legacy_session_from_another_workspace(client, tmp_path):
+    from voss.harness import session as session_store
+
+    other = client.app.state.sessions.create(cwd=tmp_path / "other", model="stub", provider=object())
+    other.record.runs.append(recorded_run())
+    path = session_store.save(other.record, other.history)
+    legacy = session_store.legacy_state_dir()
+    legacy.mkdir(parents=True, exist_ok=True)
+    path.rename(legacy / path.name)
+    result = execute(client, "/probable", [other.id]).json()
+    assert result["stdout"] == "" and result["inspection"] is None
+    assert "different workspace" in result["stderr"]
+
+
+@pytest.mark.parametrize(("name", "args"), [
+    ("/probable", ["--decision"]), ("/probable", ["--decision", "bad"]),
+    ("/probable", ["--decision", "-1"]), ("/probable", ["--decision", "0", "--decision", "1"]),
+    ("/probable", ["one", "two"]), ("/probable", [""]), ("/probable", ["--unknown"]),
+    ("/btrace", ["one", "two"]), ("/btrace", ["--decision", "0"]),
+    ("/vdiff", []), ("/vdiff", ["one.voss", "two.voss"]), ("/vdiff", [" "]),
+])
+def test_inspector_usage_errors_do_not_open_a_panel(client, name, args):
+    result = execute(client, name, args).json()
+    assert result["stderr"]
+    assert result["stdout"] == "" and result["inspection"] is None
+
+
+def test_vdiff_compiles_preview_without_changing_workspace(client):
+    source = client.session.cwd / "simple.voss"
+    source.write_text('fn greet(name: string) -> string {\n    return "hello " + name\n}\n')
+    before = {p: p.read_bytes() for p in client.session.cwd.rglob("*") if p.is_file()}
+    result = execute(client, "/vdiff", ["simple.voss"]).json()
+    assert result["stderr"] == ""
+    assert "fn greet" in result["stdout"] and "def greet" in result["stdout"]
+    assert "generated in memory" in result["stdout"]
+    assert result["inspection"] == {"title": "Voss / Python", "text": result["stdout"]}
+    assert {p: p.read_bytes() for p in client.session.cwd.rglob("*") if p.is_file()} == before
+
+
+def test_vdiff_reports_invalid_source_and_rejects_workspace_escape(client, tmp_path):
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.voss"
+    outside.write_text('fn outside() -> string { return "outside fixture" }')
+    (tmp_path / "link.voss").symlink_to(outside)
+    (tmp_path / "broken.voss").write_text("fn broken(")
+    (tmp_path / "wrong.py").write_text("print('fixture')")
+    (tmp_path / "directory.voss").mkdir()
+    for path in ("missing.voss", "broken.voss", "wrong.py", "directory.voss", "link.voss", str(outside), "../" + outside.name):
+        response = execute(client, "/vdiff", [path])
+        assert response.status_code == 200
+        result = response.json()
+        assert result["stdout"] == "" and result["inspection"] is None
+        assert result["stderr"].startswith("/vdiff failed:")
+
+
+def test_vdiff_reads_cached_harness_output_but_rejects_external_cache(client, tmp_path):
+    source = tmp_path / "voss" / "harness" / "agent" / "sample.voss"
+    source.parent.mkdir(parents=True)
+    source.write_text('fn sample() -> string { return "fixture" }')
+    cached = tmp_path / ".voss-cache" / "harness" / "sample.py"
+    cached.parent.mkdir(parents=True)
+    cached.write_text("def sample(): return 'cached fixture'\n")
+    args = [str(source.relative_to(tmp_path))]
+    result = execute(client, "/vdiff", args).json()
+    assert "cached fixture" in result["stdout"]
+    assert "Generated Python: .voss-cache/harness/sample.py" in result["stdout"]
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.py"
+    cached.rename(outside)
+    cached.symlink_to(outside)
+    result = execute(client, "/vdiff", args).json()
+    assert "cached artifact escapes cwd" in result["stderr"]
+    assert result["inspection"] is None and result["stdout"] == ""
+
+
+@pytest.mark.asyncio
+async def test_inspection_keeps_server_responsive(client, monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+    inspect = commands._inspect
+
+    def slow_inspect(*args):
+        entered.set()
+        assert release.wait(5)
+        return inspect(*args)
+
+    monkeypatch.setattr(commands, "_inspect", slow_inspect)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client.app), base_url="http://test",
+                                headers={"Authorization": "Bearer test-commands"}) as api:
+        task = asyncio.create_task(api.post(f"/session/{client.session.id}/command", json={"name": "/btrace"}))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            response = await asyncio.wait_for(api.get(f"/session/{client.session.id}"), 1)
+            assert response.status_code == 200
+            assert not task.done()
+        finally:
+            release.set()
+            result = await task
+        assert result.json()["inspection"]["title"] == "Budget trace"
 
 
 @pytest.mark.asyncio

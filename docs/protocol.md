@@ -77,6 +77,18 @@ after source changes and returns file/symbol counts in `stdout`. These commands
 run in a worker thread without blocking the server event loop or starting a model
 turn. Index writes are limited to the rebuildable `.voss-cache/code` cache.
 
+`/probable [session] [--decision N]`, `/btrace [session]`, and `/vdiff <file.voss>`
+return an optional `inspection: {title, text}` payload for a read-only panel,
+along with the same text in `stdout`. Decision and budget views use the latest
+completed run of the current session, or a saved session resolved by ID prefix or
+name in the same workspace. `--decision` selects a zero-based decision index.
+Fresh sessions and runs without inspection data return a no-data message.
+`/vdiff` uses the existing compiler preview, including cached harness output when
+available, and rejects sources or cached artifacts outside the workspace.
+Invalid arguments and lookup/compiler errors appear in `stderr` without a panel.
+Inspection runs in a worker thread and does not change history, call the session's
+provider, or write workspace files.
+
 Conversation and model/auth status questions use the `ambient` phase. Work intents use the tool-enabled `run` phase; prefix a request with `run ` to select that path explicitly. Swarm sessions always run their assigned tasks. Permission `mode` remains independent of phase. Status events report phase changes and return to `ambient` on completion, cancellation, or failure.
 
 ## 5. Message & parts schema

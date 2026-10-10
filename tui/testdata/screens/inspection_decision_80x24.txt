@@ -1,0 +1,24 @@
+  Probable decision
+
+  Recorded decision 1
+  Previous: [0] choose parser
+  Next: none
+
+  [1] emit tests
+  confidence: 0.47
+  previous: 0
+  next: none
+  body:
+  Verify the parser against the saved fixtures.
+
+
+
+
+
+
+
+
+
+
+
+  ↑/↓ scroll · PgUp/PgDn page · Esc/Enter close

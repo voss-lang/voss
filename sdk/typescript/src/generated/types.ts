@@ -622,6 +622,7 @@ export interface components {
         /** CommandResult */
         CommandResult: {
             code?: components["schemas"]["CodeResults"] | null;
+            inspection?: components["schemas"]["InspectionResult"] | null;
             /**
              * Stderr
              * @default
@@ -770,6 +771,13 @@ export interface components {
              * @enum {string}
              */
             role: "user" | "assistant" | "system";
+        };
+        /** InspectionResult */
+        InspectionResult: {
+            /** Text */
+            text: string;
+            /** Title */
+            title: string;
         };
         /** InstructionsOverflow */
         InstructionsOverflow: {
