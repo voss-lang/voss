@@ -112,9 +112,12 @@ for you.
 - **Kill switch.** With `VOSS_JUDGMENTS=off` every call raises
   `JudgmentError` with outcome `disabled` before any request is made.
 - **Key.** The runtime reads the key only from the `TYPESAFE_API_KEY`
-  environment variable. The `voss` CLI and `voss serve` copy a keychain key
-  into that variable at startup. Standalone Python callers set it
-  themselves. The key is never stored in `RuntimeConfig`.
+  environment variable. `voss run` copies a keychain key into that variable
+  before executing a compiled program. `voss judge` resolves its key when
+  invoked. TUI and server startup do not read the Jev keychain entry or export
+  it to child processes. Direct Python callers, including scripts launched
+  from the TUI, set the variable themselves. The key is never stored in
+  `RuntimeConfig`.
 - **Limits.** Model, timeout, request size, calls per turn, and dollar cap
   come from the `judgments_*` fields of `RuntimeConfig`.
 - **Questions.** `questions` maps an ID to a `ChoiceQuestion`,

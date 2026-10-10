@@ -212,9 +212,6 @@ def main(ctx: click.Context) -> None:
     Bare `voss` (no subcommand) drops into the agent REPL.
     Interactive commands: run `voss chat`, then /help
     """
-    from voss.harness.judgments import bridge_judgments_env
-
-    bridge_judgments_env()
     if ctx.invoked_subcommand is None:
         if _should_use_native_tui():
             binary = _find_voss_tui()
@@ -224,12 +221,16 @@ def main(ctx: click.Context) -> None:
 
 
 def _find_voss_tui() -> str | None:
-    """Locate the native client: $VOSS_TUI_BIN, else `voss-tui` on PATH."""
+    """Locate the native client: explicit override, checkout build, then PATH."""
     import shutil
 
     explicit = os.environ.get("VOSS_TUI_BIN")
     if explicit:
         return explicit if Path(explicit).exists() else None
+    name = "voss-tui.exe" if sys.platform == "win32" else "voss-tui"
+    local = Path(__file__).resolve().parent.parent / "tui" / name
+    if local.is_file():
+        return str(local)
     return shutil.which("voss-tui")
 
 
@@ -348,6 +349,9 @@ def run(
             cache_dir=cache_dir,
             verbose=verbose,
         )
+        from .harness.judgments import bridge_judgments_env
+
+        bridge_judgments_env()
         hermetic_env_set = os.environ.get("VOSS_HERMETIC") == "1"
         res = auth_mod.resolve(preference="auto")
         should_stub = hermetic_env_set or res.source == "none"

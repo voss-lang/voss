@@ -13,6 +13,7 @@ import uuid
 from concurrent.futures import Future
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,6 +25,7 @@ from starlette.responses import JSONResponse, Response
 
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
 
+from .. import ambient
 from .. import auth as auth_mod
 from .. import cognition as cognition_mod
 from .. import config as harness_config
@@ -322,10 +324,41 @@ def _swarm_recall_text(session: ServerSession, text: str) -> str:
 # turn runner
 
 
+async def _run_ambient_turn(
+    session: ServerSession, text: str, mode: str, route: str, renderer: EventBusRenderer,
+) -> None:
+    status = ambient.status_answer(
+        provider=model_selection.provider_label(session.provider, session.auth),
+        model=session.model, mode=mode,
+    )
+    if route == "local":
+        session.history.add(text, role="user")
+        session.history.add(status, role="assistant")
+        renderer.show_final(status, confidence=1.0, cost_usd=0.0)
+        return
+    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    response = await ambient.complete(
+        text, provider=session.provider, model=session.model, cwd=session.cwd,
+        history=session.history, status=status, prior_context=session.prior_context,
+    )
+    session.record.runs.append(asdict(session_store.RunRecord(
+        id=uuid.uuid4().hex[:12], started_at=started,
+        ended_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        goal=text, cost_usd=response.cost_usd, exit_reason="done",
+        iteration_total_prompt_tokens=response.prompt_tokens,
+        iteration_total_completion_tokens=response.completion_tokens,
+    )))
+    renderer.status(
+        model=session.model, tokens=response.total_tokens,
+        cost_usd=response.cost_usd, ctx_pct=0.0,
+    )
+    renderer.show_final(response.text, confidence=1.0, cost_usd=response.cost_usd)
+
+
 async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     """Drive one turn; publish events; persist. Runs as session.task."""
     loop = asyncio.get_running_loop()
-    renderer = EventBusRenderer(session.queue, session_id=session.id, loop=loop)
+    renderer = EventBusRenderer(session.queue, session_id=session.id, loop=loop, model=session.model)
 
     # VSWARM-04 spawn-gate: a builder session created before its assignment
     # holds a set (unsignaled) gate_event and runs ZERO turns until the
@@ -340,6 +373,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     if os.environ.get("VOSS_SERVE_FAKE_TURN"):
         try:
             renderer.show_user(text)
+            renderer.set_phase("run")
             renderer.show_thinking("planning 1/1")
             renderer.show_plan(_FakePlan(), cost_usd=0.0)
             renderer.stream_delta("hello ")
@@ -347,6 +381,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             renderer.finalize_stream(role="assistant", confidence=0.9, cost_usd=0.0)
             renderer.show_final(f"echo: {text}", confidence=0.9, cost_usd=0.0)
         finally:
+            renderer.set_phase("ambient")
             renderer.session_idle()
             session.task = None
         return
@@ -354,6 +389,11 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     mcp_client = None
     try:
         renderer.show_user(text)
+        route = "voss_run" if session.swarm_id or session.gate_event is not None else ambient.route(text)
+        renderer.set_phase("run" if route == "voss_run" else "ambient")
+        if route != "voss_run":
+            await _run_ambient_turn(session, text, mode, route, renderer)
+            return
         tools = make_toolset(session.cwd, renderer=renderer)
         mcp_client = await attach_mcp_tools(tools, session.cwd)
         if session.memory_store is None:
@@ -459,9 +499,13 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         if mcp_client is not None:
             await mcp_client.aclose()
         try:
+            session.record.total_cost_usd = sum(
+                float(r.get("cost_usd", 0.0) or 0.0) for r in session.record.runs
+            )
             session_store.save(session.record, session.history)
         except Exception:
             pass
+        renderer.set_phase("ambient")
         renderer.session_idle()
         session.task = None
 

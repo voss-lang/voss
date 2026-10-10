@@ -1392,6 +1392,22 @@ pub struct SessionIdle {
 #[doc = "      \"title\": \"Model\","]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
+#[doc = "    \"phase\": {"]
+#[doc = "      \"title\": \"Phase\","]
+#[doc = "      \"default\": null,"]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"string\","]
+#[doc = "          \"enum\": ["]
+#[doc = "            \"ambient\","]
+#[doc = "            \"run\""]
+#[doc = "          ]"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"tokens\": {"]
 #[doc = "      \"title\": \"Tokens\","]
 #[doc = "      \"type\": \"integer\""]
@@ -1416,9 +1432,83 @@ pub struct StatusEvent {
     pub cost_usd: f64,
     pub ctx_pct: f64,
     pub model: ::std::string::String,
+    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    pub phase: ::std::option::Option<StatusEventPhase>,
     pub tokens: i64,
     #[serde(default = "defaults::default_u64::<i64, 1>")]
     pub v: i64,
+}
+#[doc = "`StatusEventPhase`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"ambient\","]
+#[doc = "    \"run\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum StatusEventPhase {
+    #[serde(rename = "ambient")]
+    Ambient,
+    #[serde(rename = "run")]
+    Run,
+}
+impl ::std::fmt::Display for StatusEventPhase {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Ambient => f.write_str("ambient"),
+            Self::Run => f.write_str("run"),
+        }
+    }
+}
+impl ::std::str::FromStr for StatusEventPhase {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "ambient" => Ok(Self::Ambient),
+            "run" => Ok(Self::Run),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for StatusEventPhase {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for StatusEventPhase {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for StatusEventPhase {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 #[doc = "`StreamDelta`"]
 #[doc = r""]

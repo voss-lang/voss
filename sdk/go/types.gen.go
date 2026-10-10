@@ -91,6 +91,24 @@ func (e ModelSelectionBodyAuth) Valid() bool {
 	}
 }
 
+// Defines values for StatusEventPhase.
+const (
+	Ambient StatusEventPhase = "ambient"
+	Run     StatusEventPhase = "run"
+)
+
+// Valid indicates whether the value is a known member of the StatusEventPhase enum.
+func (e StatusEventPhase) Valid() bool {
+	switch e {
+	case Ambient:
+		return true
+	case Run:
+		return true
+	default:
+		return false
+	}
+}
+
 // Alternative defines model for Alternative.
 type Alternative struct {
 	Probability float32 `json:"probability"`
@@ -388,13 +406,17 @@ type SessionIdle struct {
 
 // StatusEvent defines model for StatusEvent.
 type StatusEvent struct {
-	CostUsd float32 `json:"cost_usd"`
-	CtxPct  float32 `json:"ctx_pct"`
-	Model   string  `json:"model"`
-	Tokens  int     `json:"tokens"`
-	Type    string  `json:"type"`
-	V       *int    `json:"v,omitempty"`
+	CostUsd float32           `json:"cost_usd"`
+	CtxPct  float32           `json:"ctx_pct"`
+	Model   string            `json:"model"`
+	Phase   *StatusEventPhase `json:"phase,omitempty"`
+	Tokens  int               `json:"tokens"`
+	Type    string            `json:"type"`
+	V       *int              `json:"v,omitempty"`
 }
+
+// StatusEventPhase defines model for StatusEvent.Phase.
+type StatusEventPhase string
 
 // StreamDelta defines model for StreamDelta.
 type StreamDelta struct {

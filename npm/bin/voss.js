@@ -88,7 +88,11 @@ if (!useDevSource && !fs.existsSync(pythonBin)) {
 // (e.g. a Voss repo checkout) shadow the vendored `voss` package and
 // trigger ModuleNotFoundError for vendored-only deps like `portalocker`.
 const childEnv = { ...process.env };
-const tuiBin = path.join(pkgDir, 'bin', isWindows ? 'voss-tui.exe' : 'voss-tui');
+const tuiName = isWindows ? 'voss-tui.exe' : 'voss-tui';
+const devTuiBin = path.join(repoRoot, 'tui', tuiName);
+const tuiBin = useDevSource && fs.existsSync(devTuiBin)
+  ? devTuiBin
+  : path.join(pkgDir, 'bin', tuiName);
 if (!childEnv.VOSS_TUI_BIN && fs.existsSync(tuiBin)) {
   childEnv.VOSS_TUI_BIN = tuiBin;
 }

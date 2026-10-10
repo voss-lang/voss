@@ -49,6 +49,7 @@ type turn struct {
 	pendingTool   string
 	streamedChars int
 	model         string
+	phase         string
 	tokens        int
 	costUSD       float64
 	ctxPct        float64
@@ -60,6 +61,7 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 	switch e := ev.(type) {
 	case voss.UserEvent:
 		t.busy = true
+		t.phase = "run"
 		t.streamedChars = 0
 		return t, []block{userBlock(e.Task)}
 	case voss.ThinkingEvent:
@@ -149,12 +151,16 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		t.tokens = e.Tokens
 		t.costUSD = float64(e.CostUsd)
 		t.ctxPct = float64(e.CtxPct)
+		if e.Phase != nil {
+			t.phase = string(*e.Phase)
+		}
 	case voss.PermissionUpdated:
 		t.permission = &e
 	case voss.SessionIdle:
 		var out []block
 		t, out = flush(t, "")
 		t.busy = false
+		t.phase = "ambient"
 		t.pendingTool = ""
 		t.permission = nil
 		t.interrupted = false

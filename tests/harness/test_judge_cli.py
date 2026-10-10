@@ -66,6 +66,21 @@ def test_demo(transport):
     assert [q["type"] for q in questions.values()] == ["choice", "score", "noul"]
 
 
+def test_main_judge_resolves_keychain_without_startup_bridge(transport, monkeypatch):
+    from voss.cli import main
+
+    monkeypatch.delenv("TYPESAFE_API_KEY")
+    lookups = []
+    monkeypatch.setattr(j.auth, "load_provider_key", lambda key: lookups.append(key) or "keychain-test-key")
+    monkeypatch.setattr(j, "bridge_judgments_env", lambda: pytest.fail("startup bridge must not run"))
+    result = CliRunner().invoke(main, ["judge", "--demo"])
+    assert result.exit_code == 0, result.output
+    assert lookups == ["TYPESAFE_API_KEY"]
+    assert len(transport) == 1
+    assert transport[0].headers["Authorization"] == "Bearer keychain-test-key"
+    assert "keychain-test-key" not in result.output
+
+
 def test_request_file(transport, tmp_path):
     payload = {"state": {"code": "return 1"}, "questions": {"pick": {"type": "choice", "instructions": "Pick", "criteria": {"a": None, "b": "B"}}}}
     path = tmp_path / "request.json"

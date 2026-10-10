@@ -1001,6 +1001,11 @@ export interface components {
             ctx_pct: number;
             /** Model */
             model: string;
+            /**
+             * Phase
+             * @default null
+             */
+            phase: ("ambient" | "run") | null;
             /** Tokens */
             tokens: number;
             /**

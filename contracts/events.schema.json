@@ -596,6 +596,22 @@
           "title": "Model",
           "type": "string"
         },
+        "phase": {
+          "anyOf": [
+            {
+              "enum": [
+                "ambient",
+                "run"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phase"
+        },
         "tokens": {
           "title": "Tokens",
           "type": "integer"
