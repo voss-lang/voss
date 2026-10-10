@@ -136,6 +136,13 @@ index automatically. Code results open in a scrollable panel: arrows, mouse whee
 and PgUp/PgDn scroll; Esc or Enter returns to chat. File paths, line numbers, and
 snippets also remain in the transcript. Indexing runs in the background with an
 elapsed-time indicator; `/refresh` reports file and symbol counts when finished.
+Use `/probable [session] [--decision N]` to inspect recorded decisions and confidence,
+or `/btrace [session]` for per-iteration token usage and cost. Both default to the
+current session's latest completed run; saved sessions accept an ID prefix or name.
+Decision numbers start at zero. `/vdiff <file.voss>` shows source and generated
+Python without executing it or changing workspace files. These read-only panels
+use the same scrolling and close keys as code results, and retain their output in
+the transcript. Queued work resumes after the panel closes.
 The remaining slash commands are available through Textual.
 
 ## Local MCP servers and skills

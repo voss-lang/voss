@@ -1,0 +1,40 @@
+  Voss / Python
+
+  Voss source: simple.voss
+
+  fn greet(name: string) -> string {
+      return "hello " + name
+  }
+
+  Generated Python: generated in memory
+
+  def greet(name: str) -> str:
+      return "hello " + name
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑/↓ scroll · PgUp/PgDn page · Esc/Enter close
