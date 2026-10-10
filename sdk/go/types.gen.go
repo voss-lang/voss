@@ -201,10 +201,11 @@ type CommandRequest struct {
 
 // CommandResult defines model for CommandResult.
 type CommandResult struct {
-	Code   *CodeResults `json:"code,omitempty"`
-	Stderr *string      `json:"stderr,omitempty"`
-	Stdout *string      `json:"stdout,omitempty"`
-	V      *int         `json:"v,omitempty"`
+	Code       *CodeResults      `json:"code,omitempty"`
+	Inspection *InspectionResult `json:"inspection,omitempty"`
+	Stderr     *string           `json:"stderr,omitempty"`
+	Stdout     *string           `json:"stdout,omitempty"`
+	V          *int              `json:"v,omitempty"`
 }
 
 // ConfidenceUpdated defines model for ConfidenceUpdated.
@@ -285,6 +286,12 @@ type HistoryTurn struct {
 
 // HistoryTurnRole defines model for HistoryTurn.Role.
 type HistoryTurnRole string
+
+// InspectionResult defines model for InspectionResult.
+type InspectionResult struct {
+	Text  string `json:"text"`
+	Title string `json:"title"`
+}
 
 // InstructionsOverflow defines model for InstructionsOverflow.
 type InstructionsOverflow struct {
