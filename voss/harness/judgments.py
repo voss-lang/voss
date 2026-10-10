@@ -20,9 +20,10 @@ from voss_runtime.judgments import (
 )
 
 from . import auth, config
-from .conventions import _load_judgments_code_recall, _load_judgments_enabled
+from .conventions import _load_judgments_code_recall, _load_judgments_enabled, _load_judgments_review
 
 CODE_RECALL_MODES = ("off", "shadow", "active")
+REVIEW_MODES = ("off", "shadow")
 
 
 def judgments_state(cwd) -> Literal["killed", "disabled", "enabled"]:
@@ -51,6 +52,12 @@ def code_recall_mode(cwd) -> Literal["off", "shadow", "active"]:
     if judgments_state(cwd) != "enabled" or resolve_api_key() is None:
         return "off"
     return _load_judgments_code_recall(cwd)
+
+
+def review_mode(cwd) -> Literal["off", "shadow"]:
+    if judgments_state(cwd) != "enabled" or resolve_api_key() is None:
+        return "off"
+    return _load_judgments_review(cwd)
 
 
 def make_client(api_key: str, *, timeout_ms: int | None = None, ledger: JudgmentLedger | None = None) -> JevClient:
