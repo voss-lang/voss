@@ -62,7 +62,10 @@ def _run_every_path(tmp_path, monkeypatch, svc):
     monkeypatch.setattr(appmod.session_store, "save", lambda record, history: None)
     session = appmod.create_app("token").state.sessions.create(cwd=tmp_path, model="m", provider=object())
     asyncio.run(appmod._run_turn(session, TASK, "plan"))
-    assert len(outputs) == len(PATHS)
+    errors = []
+    while not session.queue.empty():
+        errors.append(getattr(session.queue.get_nowait(), "text", ""))
+    assert len(outputs) == len(PATHS), [e for e in errors if "[error:" in e]
     return outputs
 
 

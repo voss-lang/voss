@@ -52,6 +52,15 @@ def _recording_run_turn():
     return run_turn, calls
 
 
+def _turn_errors(session) -> list[str]:
+    errors = []
+    while not session.queue.empty():
+        text = getattr(session.queue.get_nowait(), "text", "")
+        if "[error:" in text:
+            errors.append(text)
+    return errors
+
+
 def _build_app(monkeypatch, svc):
     run_turn, calls = _recording_run_turn()
     monkeypatch.setattr(appmod, "_resolve_provider", lambda pref: (_FakeRes(), object()))
@@ -94,6 +103,7 @@ async def test_swarm_builder_keeps_scoped_recall_and_never_reranks(jev, tmp_path
     s = app.state.sessions.create(cwd=tmp_path, model="m", provider=object())
     s.swarm_owned_files = ["a.py"]
     await appmod._run_turn(s, TASK, "plan")
+    assert calls, _turn_errors(s)
     expected = appmod._swarm_recall_text(s, TASK)
     assert "code:a.py:0" in expected and "code:b.py:0" not in expected
     assert calls == [{"code_recall_text": expected, "scope": None}]
@@ -129,6 +139,7 @@ async def test_off_injects_the_legacy_section_and_calls_nothing(jev, tmp_path, m
     app, calls = _build_app(monkeypatch, svc)
     s = app.state.sessions.create(cwd=tmp_path, model="m", provider=object())
     await appmod._run_turn(s, TASK, "plan")
+    assert calls, _turn_errors(s)
     expected = cli._render_code_recall_text(tmp_path, TASK)
     assert expected and calls == [{"code_recall_text": expected, "scope": None}]
     assert jev.requests == [] and svc.candidate_calls == 0
@@ -142,6 +153,7 @@ async def test_unready_index_injects_nothing(jev, tmp_path, monkeypatch, mode):
     app, calls = _build_app(monkeypatch, svc)
     s = app.state.sessions.create(cwd=tmp_path, model="m", provider=object())
     await appmod._run_turn(s, TASK, "plan")
+    assert calls, _turn_errors(s)
     assert [c["code_recall_text"] for c in calls] == [""]
     assert jev.requests == [] and svc.candidate_calls == 0
 
