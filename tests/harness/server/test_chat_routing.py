@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from voss.harness.agent import Plan, TurnResult
+from voss.harness.agent import Plan, ToolCall, TurnResult
 from voss.harness.server import app as appmod
 from voss_runtime.providers.base import ProviderResponse
 
@@ -100,6 +100,70 @@ async def test_status_question_is_local_and_uses_session_selection(server, monke
         assert "Permission mode: edit" in answer
         assert provider.requests == []
         assert s.history.last(2)[-1]["content"] == answer
+
+
+async def test_why_keeps_last_completed_plan_across_chat_and_failed_turns(server, monkeypatch):
+    app, provider, cwd = server
+    plan = Plan(
+        rationale="Inspect the parser first", confidence=0.82,
+        steps=[ToolCall(name="fs_read", why="locate the parser"), ToolCall(name="fs_grep")],
+        open_question="Which grammar?", final_when_done="Report the parser location",
+    )
+
+    async def run(text, **kwargs):
+        return TurnResult(plan, plan.confidence, "done", [], 0, None)
+
+    monkeypatch.setattr(appmod, "run_turn", run)
+    async with client(app) as api:
+        s = await session(api, app, cwd)
+        path = f"/session/{s.id}/command"
+        assert (await api.post(path, json={"name": "/why"})).json()["stderr"]
+        await send(api, s, "run inspect the parser")
+        expected = (
+            "  rationale: Inspect the parser first\n  confidence: 0.82\n  steps:\n"
+            "    1. fs_read — locate the parser\n    2. fs_grep\n"
+            "  open question: Which grammar?\n  final-when-done: Report the parser location"
+        )
+        assert (await api.post(path, json={"name": "/why"})).json()["stdout"] == expected
+        assert provider.requests == []
+        await send(api, s, "hello")
+        assert len(provider.requests) == 1
+
+        entered = asyncio.Event()
+
+        async def blocked(text, **kwargs):
+            entered.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(appmod, "run_turn", blocked)
+        await api.post(f"/session/{s.id}/message", json={"parts": [{"text": "run another task"}]})
+        await asyncio.wait_for(entered.wait(), 2)
+        assert (await api.post(path, json={"name": "/why"})).json()["stdout"] == expected
+        assert (await api.post(path, json={"name": "/budget", "args": ["5"]})).status_code == 409
+        task = s.task
+        await api.post(f"/session/{s.id}/abort")
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        async def failed(text, **kwargs):
+            raise RuntimeError("synthetic failure")
+
+        monkeypatch.setattr(appmod, "run_turn", failed)
+        s.queue = asyncio.Queue()
+        await send(api, s, "run a failing task")
+        assert (await api.post(path, json={"name": "/why"})).json()["stdout"] == expected
+        assert len(provider.requests) == 1
+        plan = Plan(rationale="Use the updated grammar", confidence=0.95)
+        monkeypatch.setattr(appmod, "run_turn", run)
+        await send(api, s, "run the updated plan")
+        assert (await api.post(path, json={"name": "/why"})).json()["stdout"] == (
+            "  rationale: Use the updated grammar\n  confidence: 0.95"
+        )
+        assert (await api.post(path, json={"name": "/budget", "args": ["5"]})).status_code == 200
+        resumed = await api.post("/session", json={"cwd": str(cwd), "resume": s.id})
+        assert resumed.status_code == 201
+        assert (await api.post(path, json={"name": "/budget"})).json()["stdout"] == "  budget: unbounded"
+        assert (await api.post(path, json={"name": "/why"})).json()["stderr"] == "no plan yet — run a turn first"
 
 
 @pytest.mark.parametrize("text,swarm", [("fix the test failure", False), ("hello", True)])

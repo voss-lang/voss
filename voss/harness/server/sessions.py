@@ -15,6 +15,7 @@ from voss_runtime import EpisodicMemory
 from .. import session as session_store
 
 if TYPE_CHECKING:
+    from ..agent import Plan
     from .diffs import PendingDiff
 
 QUEUE_MAXSIZE = 256
@@ -57,6 +58,8 @@ class ServerSession:
     memory_store: Any = None
     auth: str = ""
     switching: bool = False
+    budget_usd: float | None = None
+    last_plan: Plan | None = None
 
     @property
     def busy(self) -> bool:

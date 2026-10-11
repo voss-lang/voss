@@ -39,7 +39,7 @@ def test_catalog_requires_auth_and_does_not_discover_resources(client, monkeypat
     assert response.status_code == 200
     assert {c["name"] for c in response.json()["commands"]} == {
         "/tools", "/skills", "/agents", "/symbol", "/refs", "/refresh",
-        "/probable", "/btrace", "/vdiff",
+        "/probable", "/btrace", "/vdiff", "/budget", "/why",
     }
     assert all(c["description"] for c in response.json()["commands"])
     assert client.get("/commands", headers={"Authorization": "Bearer wrong"}).status_code == 401
@@ -109,6 +109,48 @@ def test_dispatch_rejects_unknown_commands_and_reports_usage(client, monkeypatch
     assert execute(client, "/skills", ["extra"]).json()["stderr"] == "usage: /skills"
     assert execute(client, "/skills", "wrong type").status_code == 422
     assert client.post("/session/missing/command", json={"name": "/agents"}).status_code == 404
+
+
+def test_budget_reports_session_spending_and_can_be_cleared(client):
+    client.session.record.runs.append({"cost_usd": 1.25, "judgments_cost_usd": 0.25})
+    assert execute(client, "/budget").json()["stdout"] == "  budget: unbounded"
+    assert execute(client, "/budget", ["$5.00"]).json()["stdout"] == "  budget: $5.00 (used $1.5000)"
+    assert execute(client, "/budget").json()["stdout"] == "  budget: $5.00 (used $1.5000)"
+    cost = client.get(f"/session/{client.session.id}/cost").json()
+    assert cost["budget_usd"] == 5.0
+    assert cost["total_usd"] == 1.5
+    assert "already over budget" in execute(client, "/budget", ["1"]).json()["stdout"]
+    assert execute(client, "/budget", ["0"]).json()["stdout"] == "  budget: cleared (unbounded)"
+    assert execute(client, "/budget").json()["stdout"] == "  budget: unbounded"
+    assert client.get(f"/session/{client.session.id}/cost").json()["budget_usd"] is None
+    assert client.session.history.turns == []
+    assert client.session.queue.empty()
+    assert not list(client.session.cwd.rglob("*"))
+
+
+@pytest.mark.parametrize("args", [["bad"], ["-1"], ["nan"], ["inf"], ["-inf"], ["1e309"], ["1", "2"]])
+def test_invalid_budget_keeps_previous_setting(client, args):
+    assert execute(client, "/budget", ["5"]).status_code == 200
+    result = execute(client, "/budget", args).json()
+    assert result["stderr"]
+    assert result["stdout"] == ""
+    assert execute(client, "/budget").json()["stdout"] == "  budget: $5.00 (used $0.0000)"
+
+
+def test_budget_is_scoped_to_active_session_and_cannot_change_while_busy(client):
+    execute(client, "/budget", ["5"])
+    other = client.app.state.sessions.create(cwd=client.session.cwd, model="synthetic", provider=object())
+    response = client.post(f"/session/{other.id}/command", json={"name": "/budget"})
+    assert response.json()["stdout"] == "  budget: unbounded"
+    client.session.switching = True
+    assert execute(client, "/budget", ["10"]).status_code == 409
+    assert execute(client, "/budget", ["0"]).status_code == 409
+    assert execute(client, "/budget").json()["stdout"] == "  budget: $5.00 (used $0.0000)"
+
+
+def test_why_reports_no_plan_and_rejects_arguments(client):
+    assert execute(client, "/why").json()["stderr"] == "no plan yet — run a turn first"
+    assert execute(client, "/why", ["extra"]).json()["stderr"] == "usage: /why"
 
 
 def recorded_run():
