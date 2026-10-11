@@ -96,3 +96,5 @@ Threshold policy: start at 0.80, tune on dev only, and record the value used for
 Release bar: the false-supported point estimate on the locked split is at most 5%. The Wilson 95% interval is reported but does not gate.
 
 A 50-pair locked half cannot prove a false-supported rate of 5% or less. Even with zero errors over 30 negatives, the Wilson upper bound is above 11%. The report says this plainly.
+
+Locked test split used on 2026-10-11 by J4 (reports/review-test.json); any rubric, threshold, or packet change needs a fresh locked split.

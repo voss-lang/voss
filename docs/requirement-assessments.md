@@ -161,5 +161,8 @@ candidates or cards. Jev spend is not counted against `/budget`.
 
 ## Recommendation
 
-Whether to recommend `review: shadow` is pending the locked evaluation in
-`evals/review/reports/review-release.md`.
+Use `judgments.review: shadow` in projects that have opted into judgments.
+On the locked evaluation, Jev called an unmet requirement met 0 times in 33
+(0%, Wilson 95% upper bound 10.4%), under the 5% bar. It labeled only 24% of
+requirements and caught 3 of 15 contradictions, so expect most results to be
+"unclear". Details are in `evals/review/reports/review-release.md`.
