@@ -69,7 +69,7 @@ def test_dev_run_writes_report_rows_receipts_and_markdown(monkeypatch, root, tre
     for request in seen:
         body = json.loads(request.content)
         assert set(body["questions"]) == {"AC-1", "AC-2"}
-        assert body["state"]["code"] == "### pkg.py\na = 1"
+        assert body["state"]["code"] == "### pkg.py\na = 2"
     reports = root / "reports"
     report = json.loads((reports / "review-dev.json").read_text())
     rows = read_jsonl(reports / "review-dev" / "rows.jsonl")
@@ -282,7 +282,7 @@ def test_baseline_b_records_the_real_reviewer_per_fixture(root, tree, reviewer):
         fixture = next(row for row in dev.values() if row["title"] == card.original_idea)
         assert card.acceptance_criteria == "\n".join(fixture["criteria"])
         assert card.file_diff == DIFF
-        assert card.repo_context == "### pkg.py\na = 1"
+        assert card.repo_context == "### pkg.py\na = 2"
         expected = {"failed_check": "tests: failed", "skipped_check": "tests: skipped", "no_checks": dr.NO_CHECKS}
         assert card.artifact_text == expected.get(fixture["kind"], "tests: passed")
 
