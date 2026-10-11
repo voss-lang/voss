@@ -136,10 +136,7 @@ def _save_session(session: ServerSession, args: list[str]) -> CommandResult:
     name = " ".join(args).strip()
     if args and not name:
         return CommandResult(stderr="usage: /save-session [name]")
-    record = replace(
-        session.record, name=name or session.record.name, model=session.model,
-        total_cost_usd=sum(float(run.get("cost_usd", 0.0) or 0.0) for run in session.record.runs),
-    )
+    record = replace(session.record, name=name or session.record.name, model=session.model)
     try:
         path = session_store.save(record, session.history)
     except OSError as exc:

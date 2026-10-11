@@ -122,6 +122,7 @@ def test_save_session_persists_current_history_name_model_and_cost(client):
     s.history.add("synthetic answer", role="assistant")
     s.model = "selected-model"
     s.record.model_auth = "codex"
+    s.record.total_cost_usd = 1.25
     s.record.runs.append({"cost_usd": 1.25, "judgments_cost_usd": 0.25})
     assert not session_store.session_path(s.id, s.cwd).exists()
 
@@ -139,6 +140,14 @@ def test_save_session_persists_current_history_name_model_and_cost(client):
     saved, history = session_store.load(s.id, cwd=s.cwd)
     assert saved.name == "Named conversation" and len(history.turns) == 3
     assert s.queue.empty() and s.task is None
+
+
+def test_save_session_preserves_cost_from_older_sessions_without_run_records(client):
+    client.session.record.total_cost_usd = 4.25
+    assert client.session.record.runs == []
+    assert execute(client, "/save-session").json()["stderr"] == ""
+    saved, _ = session_store.load(client.session.id, cwd=client.session.cwd)
+    assert saved.total_cost_usd == 4.25
 
 
 def test_failed_save_session_keeps_name_and_releases_busy_state(client, monkeypatch):
