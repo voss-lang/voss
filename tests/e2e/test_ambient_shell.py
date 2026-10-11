@@ -78,3 +78,16 @@ def test_work_intent_promotes_to_run_loop(
     assert result.returncode == 0, result.output
     assert "promoted run" in result.output
     assert "ambient provider should not be called" not in result.output
+
+
+def test_stub_runner_uses_python_repl_even_when_native_tui_is_installed(cli_runner, tmp_path, monkeypatch):
+    native = tmp_path / "voss-tui"
+    native.write_text("#!/bin/sh\nexit 79\n")
+    native.chmod(0o700)
+    monkeypatch.setenv("VOSS_TUI_BIN", str(native))
+    monkeypatch.setenv("VOSS_USE_TUI", "1")
+
+    result = cli_runner.run(stdin="status\n/exit\n", timeout=20.0)
+
+    assert result.returncode == 0, result.output
+    assert "Phase: ambient" in result.output
