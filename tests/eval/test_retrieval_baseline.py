@@ -68,6 +68,24 @@ def test_materialize_rebuilds_cache_when_files_were_deleted(monkeypatch, tmp_pat
 
 
 @pytest.mark.slow
+def test_materialize_keeps_a_tree_another_run_published_after_the_stale_check(monkeypatch, tmp_path):
+    monkeypatch.setattr(retrieval.tempfile, "gettempdir", lambda: str(tmp_path))
+    corpus = materialize(PINNED_COMMIT)
+    published = corpus.stat().st_ino
+    complete = retrieval._complete
+    calls = []
+
+    def stale_on_first_check(dest):
+        calls.append(dest)
+        return len(calls) > 1 and complete(dest)
+
+    monkeypatch.setattr(retrieval, "_complete", stale_on_first_check)
+
+    assert materialize(PINNED_COMMIT) == corpus
+    assert corpus.stat().st_ino == published
+
+
+@pytest.mark.slow
 def test_stored_pools_reproduce_at_pinned_commit():
     stored_files = sorted((DATASET / "baseline").glob("*.jsonl"))
     if not stored_files:

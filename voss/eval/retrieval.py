@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import csv
 import errno
+import fcntl
 import hashlib
 import json
 import math
@@ -399,6 +400,12 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _complete(dest: Path) -> bool:
+    marker = dest / ".complete"
+    files = marker.read_text().splitlines() if marker.is_file() else []
+    return bool(files) and all((dest / f).is_file() for f in files)
+
+
 def materialize(commit: str = PINNED_COMMIT) -> Path:
     repo = Path(__file__).resolve().parents[2]
     probe = subprocess.run(
@@ -407,12 +414,14 @@ def materialize(commit: str = PINNED_COMMIT) -> Path:
     if probe.returncode:
         raise DatasetError("pinned commit not available; fetch origin/master")
     dest = Path(tempfile.gettempdir()) / f"voss-retrieval-{commit[:12]}"
-    marker = dest / ".complete"
-    if marker.exists():
-        files = marker.read_text().splitlines()
-        if files and all((dest / f).exists() for f in files):
-            return dest
-        shutil.rmtree(dest, ignore_errors=True)
+    if _complete(dest):
+        return dest
+    if dest.exists():
+        with open(dest.parent / f"{dest.name}.lock", "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if _complete(dest):
+                return dest
+            shutil.rmtree(dest, ignore_errors=True)
     staging = Path(tempfile.mkdtemp(prefix=f"{dest.name}.", dir=dest.parent))
     try:
         proc = subprocess.Popen(
