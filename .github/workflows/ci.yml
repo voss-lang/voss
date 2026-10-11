@@ -22,6 +22,11 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
+      run_nightly_stubs:
+        description: Run the full nightly stub suite, including slow and end-to-end tests
+        required: false
+        default: false
+        type: boolean
       upload_coverage_baseline:
         description: Upload the master coverage baseline to Codecov
         required: false
@@ -39,7 +44,7 @@ jobs:
   # push to master and nowhere else, and cost ~12m of a ~29m job. They now run
   # on the nightly schedule instead; push and PR share one marker set.
   stub:
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule' || inputs.run_nightly_stubs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -47,6 +52,9 @@ jobs:
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          # Retrieval evals materialize a pinned historical commit.
+          fetch-depth: ${{ (github.event_name == 'schedule' || inputs.run_nightly_stubs) && '0' || '1' }}
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -87,8 +95,8 @@ jobs:
       # nothing is waiting on it.
       - run: pytest -q -m "$PYTEST_MARKERS" -n 2 $IGNORES $COV
         env:
-          PYTEST_MARKERS: ${{ github.event_name == 'schedule' && 'not live' || 'not live and not slow' }}
-          IGNORES: ${{ (github.event_name == 'schedule' || github.event_name == 'release') && '' || '--ignore=tests/e2e' }}
+          PYTEST_MARKERS: ${{ (github.event_name == 'schedule' || inputs.run_nightly_stubs) && 'not live' || 'not live and not slow' }}
+          IGNORES: ${{ (github.event_name != 'schedule' && github.event_name != 'release' && !inputs.run_nightly_stubs) && '--ignore=tests/e2e' || '' }}
           COV: ${{ matrix.python-version == '3.12' && '--cov=voss_runtime --cov-report=term-missing --cov-report=xml' || '' }}
           PYTHONFAULTHANDLER: "1"
           VOSS_EXIT_DIAG: "1"
@@ -227,7 +235,7 @@ jobs:
           fi
 
   live:
-    if: (github.event_name == 'workflow_dispatch' && !inputs.upload_coverage_baseline) || github.event_name == 'schedule' || github.event_name == 'release'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.upload_coverage_baseline && !inputs.run_nightly_stubs) || github.event_name == 'schedule' || github.event_name == 'release'
     runs-on: ubuntu-latest
     services:
       ollama:
