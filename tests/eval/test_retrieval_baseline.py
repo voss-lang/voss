@@ -32,6 +32,17 @@ def test_materialize_pinned_commit_is_cached_without_git_metadata(monkeypatch):
 
 
 @pytest.mark.slow
+def test_materialize_rebuilds_cache_when_files_were_deleted(monkeypatch, tmp_path):
+    monkeypatch.setattr(retrieval.tempfile, "gettempdir", lambda: str(tmp_path))
+    corpus = materialize(PINNED_COMMIT)
+    source = corpus / "voss" / "harness" / "code" / "semantic_index.py"
+    source.unlink()
+
+    assert materialize(PINNED_COMMIT) == corpus
+    assert source.is_file()
+
+
+@pytest.mark.slow
 def test_stored_pools_reproduce_at_pinned_commit():
     stored_files = sorted((DATASET / "baseline").glob("*.jsonl"))
     if not stored_files:

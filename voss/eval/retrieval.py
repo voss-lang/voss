@@ -406,8 +406,11 @@ def materialize(commit: str = PINNED_COMMIT) -> Path:
     if probe.returncode:
         raise DatasetError("pinned commit not available; fetch origin/master")
     dest = Path(tempfile.gettempdir()) / f"voss-retrieval-{commit[:12]}"
-    if (dest / ".complete").exists():
-        return dest
+    marker = dest / ".complete"
+    if marker.exists():
+        files = marker.read_text().splitlines()
+        if files and all((dest / f).exists() for f in files):
+            return dest
     staging = Path(tempfile.mkdtemp(prefix=f"{dest.name}.", dir=dest.parent))
     try:
         proc = subprocess.Popen(
@@ -417,7 +420,8 @@ def materialize(commit: str = PINNED_COMMIT) -> Path:
             archive.extractall(staging, filter=_data_or_skip)
         if proc.wait():
             raise DatasetError(f"git archive {commit} failed")
-        (staging / ".complete").touch()
+        files = sorted(str(p.relative_to(staging)) for p in staging.rglob("*") if p.is_file())
+        (staging / ".complete").write_text("\n".join(files))
         shutil.rmtree(dest, ignore_errors=True)
         staging.rename(dest)
     finally:
