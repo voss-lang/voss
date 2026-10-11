@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from voss.eval import runner
+from voss.eval.retrieval import materialize
 from voss.eval.suite import load_suite, load_task
 
 SUITE = Path(__file__).parent / "code-recall-ab"
@@ -47,9 +49,19 @@ def test_sources_map_every_task_to_dev_only_groups() -> None:
             assert splits.get(group) == {"dev"}, (task_id, group)
 
 
+@pytest.fixture(scope="module")
+def reference_corpus(tmp_path_factory):
+    root = tmp_path_factory.mktemp("reference-corpus") / "source"
+    shutil.copytree(materialize(), root, ignore=shutil.ignore_patterns(".voss-cache"))
+    return root
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize("task_id", TASK_IDS)
-def test_check_fails_untouched_and_passes_with_reference(task_id: str, tmp_path: Path) -> None:
+def test_check_fails_untouched_and_passes_with_reference(
+    task_id: str, tmp_path: Path, reference_corpus: Path, monkeypatch,
+) -> None:
+    monkeypatch.setattr(runner, "pinned_corpus", lambda: reference_corpus)
     task_dir = SUITE / task_id
     checks = load_task(task_dir).checks
     cwd = runner._prepare_fixture(task_dir, tmp_path, corpus="pinned")

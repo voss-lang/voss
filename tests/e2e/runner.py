@@ -174,6 +174,8 @@ class CliRunner:
         env["XDG_CONFIG_HOME"] = str(self.state_home / "config")
         env["HOME"] = str(self.state_home / "home")
         env["VOSS_TEST_STUB_RESPONSE"] = self.default_response
+        # These subprocess tests stub the Python REPL, not the installed Go TUI.
+        env["VOSS_USE_TUI"] = "0"
         if self.responses:
             env["VOSS_TEST_STUB_RESPONSES"] = json.dumps(self.responses)
         # Block accidental HF Hub / transformers downloads — they make

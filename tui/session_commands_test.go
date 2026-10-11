@@ -79,3 +79,60 @@ func TestBudgetAndWhyAgainstFakeTurnServer(t *testing.T) {
 		t.Fatalf("budget was not cleared: %+v, %v", cost, err)
 	}
 }
+
+func TestSaveSessionAgainstFakeTurnServer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cwd := t.TempDir()
+	client, err := voss.Spawn(ctx, voss.LaunchOptions{
+		Executable: testExecutable(t), Cwd: cwd,
+		Env: map[string]string{"VOSS_SERVE_FAKE_TURN": "1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	id, err := client.CreateSession(ctx, voss.SessionOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamCtx, stopStream := context.WithCancel(ctx)
+	defer stopStream()
+	events, err := client.Events(streamCtx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := newDriver(t, client, events)
+	d.m.sessionID = id
+	d.until("memory command catalog", func() bool {
+		_, save := d.m.lookupCommand("/save")
+		_, session := d.m.lookupCommand("/save-session")
+		_, forget := d.m.lookupCommand("/forget")
+		return save && session && forget
+	})
+	d.typeText("/save-s")
+	if d.m.pal.kind != paletteSlash || len(d.m.pal.names) != 1 || d.m.pal.names[0] != "/save-session" {
+		t.Fatalf("save-session absent from palette: %+v", d.m.pal)
+	}
+	d.press("esc")
+	d.m.editor.Reset()
+
+	submit := func(command, want string) {
+		t.Helper()
+		d.typeText(command)
+		d.press("enter")
+		d.until(command, func() bool {
+			return d.m.commanding == "" && strings.Contains(d.transcript(), want)
+		})
+	}
+	submit("/save", "usage: /save <note text>")
+	submit("/forget *", "confirmation required")
+	submit("/save-session Named conversation", "saved:")
+	saved, err := client.ListSavedSessions(ctx, cwd)
+	if err != nil || len(saved) != 1 || saved[0].Name != "Named conversation" || saved[0].Turns != 0 {
+		t.Fatalf("saved conversation mismatch: %+v, %v", saved, err)
+	}
+	if d.m.turn.busy || strings.Contains(d.transcript(), "echo:") {
+		t.Fatal("save command started a model turn")
+	}
+}

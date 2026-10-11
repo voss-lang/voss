@@ -866,12 +866,18 @@ def create_app(token: str | None = None) -> FastAPI:
     @app.post("/session/{session_id}/command", response_model=commands.CommandResult)
     async def execute_command(session_id: str, body: commands.CommandRequest) -> commands.CommandResult:
         s = _require(session_id)
-        if body.name == "/budget" and body.args and s.busy:
-            raise HTTPException(409, "a turn or model switch is already running")
+        mutating = body.name in {"/save-session", "/save", "/forget"} or (body.name == "/budget" and bool(body.args))
+        if mutating and s.busy:
+            raise HTTPException(409, "a turn, command, or model switch is already running")
+        if mutating:
+            s.commanding = True
         try:
             return await commands.execute(s, body)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
+        finally:
+            if mutating:
+                s.commanding = False
 
     @app.get("/models", response_model=model_selection.ModelCatalog)
     def list_models():

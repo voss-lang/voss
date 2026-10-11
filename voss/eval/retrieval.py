@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import contextlib
 import csv
+import errno
 import hashlib
 import json
 import math
@@ -418,8 +419,11 @@ def materialize(commit: str = PINNED_COMMIT) -> Path:
         if proc.wait():
             raise DatasetError(f"git archive {commit} failed")
         (staging / ".complete").touch()
-        shutil.rmtree(dest, ignore_errors=True)
-        staging.rename(dest)
+        try:
+            staging.rename(dest)
+        except OSError as exc:
+            if exc.errno not in (errno.EEXIST, errno.ENOTEMPTY) or not (dest / ".complete").exists():
+                raise
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     return dest

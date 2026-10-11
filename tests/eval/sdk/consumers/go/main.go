@@ -72,7 +72,7 @@ func main() {
 	c := voss.AttachClient(baseURL, os.Getenv("VOSS_TOKEN"))
 	defer c.Close() // no-op for attach; keeps the no-orphan idiom
 
-	id, err := c.CreateSession(ctx, cwd)
+	id, err := c.CreateSession(ctx, voss.SessionOptions{Cwd: cwd})
 	fatal(err)
 	// Open the stream BEFORE posting so the turn is observed from the start.
 	ch, err := c.Events(ctx, id)
