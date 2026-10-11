@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from contextlib import contextmanager
 from dataclasses import asdict
 from types import SimpleNamespace
 
@@ -10,6 +11,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from voss.harness.server import app as appmod, commands
+from voss.harness import session as session_store
+from voss.harness.memory_store import MemoryStore
 
 
 @pytest.fixture
@@ -35,11 +38,13 @@ def test_catalog_requires_auth_and_does_not_discover_resources(client, monkeypat
     monkeypatch.setattr(commands, "make_toolset", unexpected)
     monkeypatch.setattr(commands, "default_skill_registry", unexpected)
     monkeypatch.setattr(commands, "default_subagent_registry", unexpected)
+    monkeypatch.setattr(commands, "open_memory_store", unexpected)
     response = client.get("/commands")
     assert response.status_code == 200
     assert {c["name"] for c in response.json()["commands"]} == {
         "/tools", "/skills", "/agents", "/symbol", "/refs", "/refresh",
         "/probable", "/btrace", "/vdiff", "/budget", "/why",
+        "/save-session", "/save", "/forget",
     }
     assert all(c["description"] for c in response.json()["commands"])
     assert client.get("/commands", headers={"Authorization": "Bearer wrong"}).status_code == 401
@@ -109,6 +114,161 @@ def test_dispatch_rejects_unknown_commands_and_reports_usage(client, monkeypatch
     assert execute(client, "/skills", ["extra"]).json()["stderr"] == "usage: /skills"
     assert execute(client, "/skills", "wrong type").status_code == 422
     assert client.post("/session/missing/command", json={"name": "/agents"}).status_code == 404
+
+
+def test_save_session_persists_current_history_name_model_and_cost(client):
+    s = client.session
+    s.history.add("synthetic prompt")
+    s.history.add("synthetic answer", role="assistant")
+    s.model = "selected-model"
+    s.record.model_auth = "codex"
+    s.record.runs.append({"cost_usd": 1.25, "judgments_cost_usd": 0.25})
+    assert not session_store.session_path(s.id, s.cwd).exists()
+
+    result = execute(client, "/save-session", ["Named", "conversation"]).json()
+    assert result["stderr"] == "" and result["stdout"].startswith("saved: ")
+    saved, history = session_store.load(s.id, cwd=s.cwd)
+    assert saved.name == "Named conversation"
+    assert saved.model == "selected-model" and saved.model_auth == "codex"
+    assert saved.total_cost_usd == 1.25 and saved.judgments_cost_usd == 0.25
+    assert history.last(10) == s.history.last(10)
+    assert client.get(f"/session/{s.id}").json()["title"] == saved.name
+    assert client.get("/sessions/saved", params={"cwd": str(s.cwd)}).json()["sessions"][0]["name"] == saved.name
+    s.history.add("another turn")
+    assert execute(client, "/save-session").json()["stderr"] == ""
+    saved, history = session_store.load(s.id, cwd=s.cwd)
+    assert saved.name == "Named conversation" and len(history.turns) == 3
+    assert s.queue.empty() and s.task is None
+
+
+def test_failed_save_session_keeps_name_and_releases_busy_state(client, monkeypatch):
+    record, title = client.session.record, client.session.title
+
+    def fail(*args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(session_store, "save", fail)
+    result = execute(client, "/save-session", ["new name"]).json()
+    assert result["stderr"] == "/save-session failed: disk full"
+    assert result["stdout"] == ""
+    assert client.session.record is record and client.session.title == title
+    assert not client.session.busy
+
+
+def test_save_and_forget_use_local_memory_without_renaming_conversation(client, monkeypatch):
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda _: None)
+    name = client.session.record.name
+    result = execute(client, "/save", ["synthetic", "note"]).json()
+    assert result["stderr"] == ""
+    path = client.session.cwd / result["stdout"].removeprefix("note saved: ")
+    assert path.is_file() and "synthetic note" in path.read_text()
+    assert client.session.id in path.read_text()
+    assert client.session.record.name == name
+    assert execute(client, "/forget", ["note:*", "--yes"]).json()["stdout"] == "tombstoned: 1 entries"
+    assert client.session.memory_store.recall("synthetic", source="notes") == []
+    assert execute(client, "/forget", ["note:missing", "--yes"]).json()["stdout"] == "tombstoned: 0 entries"
+    assert client.session.history.turns == [] and client.session.queue.empty()
+
+
+@pytest.mark.parametrize("name,args", [
+    ("/save", []), ("/save", [" "]), ("/save-session", [" "]),
+    ("/forget", []), ("/forget", ["*"]), ("/forget", ["*", "--no"]),
+    ("/forget", ["*", "--yes", "extra"]), ("/forget", [" ", "--yes"]),
+])
+def test_invalid_memory_commands_do_not_open_store_or_save(client, monkeypatch, name, args):
+    def unexpected(*args, **kwargs):
+        pytest.fail("invalid command must not access storage")
+
+    monkeypatch.setattr(commands, "open_memory_store", unexpected)
+    monkeypatch.setattr(session_store, "save", unexpected)
+    result = execute(client, name, args).json()
+    assert result["stdout"] == "" and result["stderr"].startswith("usage: ")
+    assert not client.session.busy
+
+
+def test_memory_commands_honor_configured_remote_backend(client, monkeypatch):
+    from tests.harness.test_memory_gateway import FakeRemoteClient
+    from voss.harness.memory_gateway import MemoryApiClient
+
+    config = client.session.cwd / ".voss" / "config.yml"
+    config.parent.mkdir()
+    config.write_text("memory:\n  retained_backend: laravel\n  service_project: demo\n")
+    remote = FakeRemoteClient()
+    monkeypatch.setattr(MemoryApiClient, "from_env", classmethod(lambda cls: remote))
+    result = execute(client, "/save", ["synthetic remote note"]).json()
+    assert result["stdout"] == "note saved: memory:demo:new-1"
+    assert remote.created[0]["body"] == "synthetic remote note"
+    assert remote.created[0]["provenance"]["session_id"] == client.session.id
+    assert not list((client.session.cwd / ".voss" / "memory" / "notes").glob("*.md"))
+    assert execute(client, "/forget", ["memory:demo:m1"]).json()["stderr"]
+    assert execute(client, "/forget", ["*", "--yes"]).json()["stderr"].startswith("/forget failed:")
+    assert remote.deleted == []
+    assert execute(client, "/forget", ["memory:demo:m1", "--yes"]).json()["stdout"] == "tombstoned: 1 entries"
+    assert remote.deleted[0]["id"] == "m1" and remote.deleted[0]["expected_revision"] == 1
+
+
+def test_memory_backend_error_is_reported_without_success_or_local_fallback(client):
+    config = client.session.cwd / ".voss" / "config.yml"
+    config.parent.mkdir()
+    config.write_text("memory:\n  retained_backend: laravel\n")
+    result = execute(client, "/save", ["synthetic note"]).json()
+    assert result["stdout"] == "" and "memory.service_project is required" in result["stderr"]
+    assert not (config.parent / "memory").exists()
+    assert not client.session.busy
+
+
+def test_save_reports_lock_contention_without_claiming_a_note_was_saved(client, monkeypatch):
+    @contextmanager
+    def busy_lock(*args):
+        yield None
+
+    monkeypatch.setattr(MemoryStore, "_lock", busy_lock)
+    result = execute(client, "/save", ["synthetic note"]).json()
+    assert result["stdout"] == "" and result["stderr"] == "/save failed: memory store is busy; retry"
+    assert not list((client.session.cwd / ".voss" / "memory" / "notes").glob("*.md"))
+    assert not client.session.busy
+
+
+@pytest.mark.parametrize("name,args", [
+    ("/save-session", []), ("/save", ["note"]), ("/forget", ["*", "--yes"]),
+])
+def test_memory_mutations_reject_busy_session(client, name, args):
+    client.session.switching = True
+    assert execute(client, name, args).status_code == 409
+    assert not list(client.session.cwd.rglob("*"))
+
+
+@pytest.mark.asyncio
+async def test_save_session_blocks_conflicting_work_without_blocking_reads(client, monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+    save = session_store.save
+
+    def slow_save(*args):
+        entered.set()
+        assert release.wait(5)
+        return save(*args)
+
+    monkeypatch.setattr(session_store, "save", slow_save)
+    path = f"/session/{client.session.id}"
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client.app), base_url="http://test",
+                                headers={"Authorization": "Bearer test-commands"}) as api:
+        task = asyncio.create_task(api.post(path + "/command", json={"name": "/save-session"}))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            response = await asyncio.wait_for(api.get(path), 1)
+            assert response.json()["busy"]
+            for suffix, body in [
+                ("/command", {"name": "/save", "args": ["note"]}),
+                ("/command", {"name": "/budget", "args": ["5"]}),
+                ("/clear", {}), ("/message", {"parts": [{"type": "text", "text": "new turn"}]}),
+                ("/model", {"model": "other"}),
+            ]:
+                assert (await api.post(path + suffix, json=body)).status_code == 409
+        finally:
+            release.set()
+            result = await task
+        assert result.json()["stderr"] == ""
+        assert not (await api.get(path)).json()["busy"]
 
 
 def test_budget_reports_session_spending_and_can_be_cleared(client):

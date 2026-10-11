@@ -122,6 +122,9 @@ is restored on the server, and saved messages appear in the transcript. The pick
 shows and searches each session's first prompt. `/clear` drops active conversation
 memory while keeping the visible transcript. Saved history updates on the next turn.
 Use `/memory` for a workspace summary and `/recall <query> [--top N]` to search it.
+Use `/save-session [name]` to save or rename the conversation, and `/save <note text>`
+to retain a memory note. `/forget <pattern> --yes` forgets matching memories;
+the Laravel backend requires an exact `memory:<project>:<id>` locator.
 Use `/model` (or `/models`) to search models and `/auth` to choose Claude, Codex,
 or API authentication. `/model gpt-6.1-sol` and `/auth claude` switch directly.
 Subscription choices reuse your local Claude/Codex login; API choices require a

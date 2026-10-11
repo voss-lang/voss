@@ -58,12 +58,13 @@ class ServerSession:
     memory_store: Any = None
     auth: str = ""
     switching: bool = False
+    commanding: bool = False
     budget_usd: float | None = None
     last_plan: Plan | None = None
 
     @property
     def busy(self) -> bool:
-        return self.switching or (self.task is not None and not self.task.done())
+        return self.switching or self.commanding or (self.task is not None and not self.task.done())
 
 
 class SessionManager:
