@@ -104,6 +104,16 @@ open question and final-when-done text in `stdout`. No completed plan returns
 leave that plan unchanged. Resume starts without a last plan; saved run records
 are not reconstructed into one. Neither command invokes a provider or writes files.
 
+`/save-session [name]` snapshots the current conversation, model selection and costs
+to the existing session store, optionally renaming it. `/save <note text>` writes
+a note to the configured memory backend with session provenance; it does not rename
+the conversation. `/forget <pattern> --yes` requires explicit confirmation and uses
+the backend's existing forget behavior. Local memory supports locator patterns;
+Laravel accepts only an exact `memory:<project>:<id>` locator. Results use `stdout`,
+while usage and storage errors use `stderr`. These commands run without a model call.
+They return `409` while the session is busy and block new turns, model changes,
+history clearing and other session mutations until storage work completes.
+
 Conversation and model/auth status questions use the `ambient` phase. Work intents use the tool-enabled `run` phase; prefix a request with `run ` to select that path explicitly. Swarm sessions always run their assigned tasks. Permission `mode` remains independent of phase. Status events report phase changes and return to `ambient` on completion, cancellation, or failure.
 
 ## 5. Message & parts schema

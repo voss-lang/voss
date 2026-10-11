@@ -45,6 +45,7 @@ var helpGroups = []struct {
 }{
 	{"Editing", []string{"/diff", "/apply", "/discard"}},
 	{"Session", []string{"/resume", "/budget", "/cost", "/clear", "/save-session"}},
+	{"Memory", []string{"/memory", "/recall", "/save", "/forget"}},
 	{"Insight", []string{"/why", "/probable", "/btrace", "/vdiff", "/tools", "/analyze"}},
 	{"Control", []string{"/help", "/exit", "/mode", "/model", "/auth"}},
 }
@@ -209,6 +210,10 @@ func (m chatModel) commandProgress() string {
 		label = "indexing workspace"
 	} else if m.commanding == "/symbol" || m.commanding == "/refs" {
 		label = "searching code (indexing if needed)"
+	} else if m.commanding == "/save-session" || m.commanding == "/save" {
+		label = "saving"
+	} else if m.commanding == "/forget" {
+		label = "forgetting memories"
 	}
 	glyph := glyphs.Working
 	if m.frame >= 0 {

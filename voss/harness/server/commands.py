@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import math
+from dataclasses import replace
 from itertools import islice
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from .. import session as session_store
+from ..memory_api_client import MemoryApiError
+from ..memory_gateway import MemoryGatewayError, open_memory_store
 from ..skill_registry import default_skill_registry
 from ..subagents import default_subagent_registry, register_agent_files
 from ..tools import attach_mcp_tools, make_toolset
@@ -59,6 +62,9 @@ class CommandResult(BaseModel):
 
 
 COMMANDS = (
+    CommandInfo(name="/save-session", description="save the conversation: /save-session [name]"),
+    CommandInfo(name="/save", description="save a memory note: /save <note text>"),
+    CommandInfo(name="/forget", description="forget matching memories: /forget <pattern> --yes"),
     CommandInfo(name="/budget", description="show/set advisory session USD budget: /budget [<usd>] (0 clears)"),
     CommandInfo(name="/why", description="explain the last plan (rationale, confidence, step why)"),
     CommandInfo(name="/tools", description="list built-in and MCP tools"),
@@ -91,6 +97,10 @@ async def execute(session: ServerSession, request: CommandRequest) -> CommandRes
     cwd, record = session.cwd, session.record
     if request.name not in {command.name for command in COMMANDS}:
         raise ValueError("Unknown command. Use /help for available commands.")
+    if request.name == "/save-session":
+        return await asyncio.to_thread(_save_session, session, request.args)
+    if request.name in {"/save", "/forget"}:
+        return await asyncio.to_thread(_memory, session, request)
     if request.name == "/budget":
         return _budget(session, request.args)
     if request.name == "/why":
@@ -120,6 +130,45 @@ async def execute(session: ServerSession, request: CommandRequest) -> CommandRes
     finally:
         if client is not None:
             await client.aclose()
+
+
+def _save_session(session: ServerSession, args: list[str]) -> CommandResult:
+    name = " ".join(args).strip()
+    if args and not name:
+        return CommandResult(stderr="usage: /save-session [name]")
+    record = replace(session.record, name=name or session.record.name, model=session.model)
+    try:
+        path = session_store.save(record, session.history)
+    except OSError as exc:
+        return CommandResult(stderr=f"/save-session failed: {exc}")
+    session.record, session.title = record, record.name
+    return CommandResult(stdout=f"saved: {path}")
+
+
+def _memory(session: ServerSession, request: CommandRequest) -> CommandResult:
+    name, args = request.name, request.args
+    text = " ".join(args).strip()
+    if name == "/save" and not text:
+        return CommandResult(stderr="usage: /save <note text>")
+    if name == "/forget" and (
+        len(args) != 2 or not args[0].strip() or args[0].startswith("--") or args[1] != "--yes"
+    ):
+        return CommandResult(stderr="usage: /forget <pattern> --yes (confirmation required)")
+    try:
+        if session.memory_store is None:
+            session.memory_store = open_memory_store(session.cwd, session_id=session.id)
+        if name == "/forget":
+            count = session.memory_store.forget(args[0], confirm=True)
+            return CommandResult(stdout=f"tombstoned: {count} entries")
+        path = session.memory_store.write_note(text, session_id=session.id)
+        if isinstance(path, Path):
+            if not path.is_file():
+                return CommandResult(stderr="/save failed: memory store is busy; retry")
+            if path.is_relative_to(session.cwd):
+                path = path.relative_to(session.cwd)
+        return CommandResult(stdout=f"note saved: {path}")
+    except (OSError, ValueError, NotImplementedError, MemoryApiError, MemoryGatewayError) as exc:
+        return CommandResult(stderr=f"{name} failed: {exc}")
 
 
 def _budget(session: ServerSession, args: list[str]) -> CommandResult:

@@ -18,6 +18,7 @@ from .bos_decisions import (
 from .sandbox import scrubbed_env
 from .swarm_agents import is_native, resolve_agent_argv
 from .swarm_filebus import read_result_file, write_shared_context, write_task_file
+from .swarm_review import schedule_candidate_review
 from .swarm_store import CANDIDATE_READY, DONE, Role, SwarmStore, Task
 from .swarm_watch import OwnershipWatcher, detect_violations, revert_paths
 from .swarm_worktree import (
@@ -273,6 +274,7 @@ async def run_cli_member(
                 "summary": summary,
             },
         )
+        schedule_candidate_review(repo_root, swarm_id, task.id, task.goal, candidate_head, violations)
     else:
         store.mark_done(swarm_id, task.id, summary=summary)
         remove_member_worktree(repo_root, mw)
