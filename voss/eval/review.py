@@ -204,9 +204,13 @@ def freeze(args: argparse.Namespace) -> int:
     if kinds != expected:
         print(f"fixtures per kind {dict(kinds)}, expected {dict(expected)}; nothing frozen", file=sys.stderr)
         return 1
-    split_of = _assign_splits({row["id"]: [row] for row in rows}, args.seed)
+    locked_only = corpus.get("locked_only", False)
+    if locked_only:
+        split_of = dict.fromkeys((row["id"] for row in rows), "test")
+    else:
+        split_of = _assign_splits({row["id"]: [row] for row in rows}, args.seed)
     counts = {split: _split_counts([row for row in rows if split_of[row["id"]] == split]) for split in SPLITS}
-    if counts["dev"]["pairs"] != counts["test"]["pairs"]:
+    if not locked_only and counts["dev"]["pairs"] != counts["test"]["pairs"]:
         print(f"dev has {counts['dev']['pairs']} pairs, test {counts['test']['pairs']}; nothing frozen", file=sys.stderr)
         return 1
     if counts["test"]["negatives"] < corpus["min_locked_negatives"]:
@@ -222,7 +226,7 @@ def freeze(args: argparse.Namespace) -> int:
         "commit": corpus["commit"],
         "rubric_version": corpus["rubric_version"],
         "seed": args.seed,
-        "split_algorithm": (
+        "split_algorithm": "every fixture is test" if locked_only else (
             "each fixture is one group, so all of its criteria share a split; for each kind in sorted order, "
             "sort fixture ids and shuffle with one random.Random(seed); concatenate; assign alternately dev, test "
             "starting with dev"

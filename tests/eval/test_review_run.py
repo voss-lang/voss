@@ -16,6 +16,7 @@ from voss.harness.board.reviewer_b import ReviewerB, _ReviewerBOutput
 from voss_runtime.providers.base import ProviderResponse
 
 LOCATION = "test-loc"
+LOCKED_2 = DATASET.parent / "review-locked-2"
 INSUFFICIENT = {"supported": 0.05, "contradicted": 0.05, "insufficient_evidence": 0.9}
 LEANING = {"supported": 0.7, "contradicted": 0.2, "insufficient_evidence": 0.1}
 ROW_KEYS = {"fixture", "criterion", "kind", "gold", "flag", "label", "probabilities"}
@@ -219,8 +220,8 @@ def test_tune_refuses_a_test_report(tmp_path, capsys):
     assert "dev report" in capsys.readouterr().err
 
 
-def test_corpus_rubric_matches_the_evaluator():
-    assert json.loads((DATASET / "corpus.json").read_text())["rubric_version"] == dr.RUBRIC_VERSION
+def test_locked_corpus_rubric_matches_the_evaluator():
+    assert json.loads((LOCKED_2 / "corpus.json").read_text())["rubric_version"] == dr.RUBRIC_VERSION
 
 
 class FakeProvider:

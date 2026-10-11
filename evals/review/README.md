@@ -98,3 +98,5 @@ Release bar: the false-supported point estimate on the locked split is at most 5
 A 50-pair locked half cannot prove a false-supported rate of 5% or less. Even with zero errors over 30 negatives, the Wilson upper bound is above 11%. The report says this plainly.
 
 Locked test split used on 2026-10-11 by J4 (reports/review-test.json); any rubric, threshold, or packet change needs a fresh locked split.
+
+That locked run gave Jev the code from before each change, so the code contradicted the diff. After the fix, both halves of this dataset are development data. `reports/review-dev.json` is the dev run under rubric `review.requirements.v2`. `reports/review-test-rerun/` is a diagnostic rerun of the used test half with the same setup; it is not a release result. The fresh locked split lives in `evals/review-locked-2/`.

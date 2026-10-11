@@ -1,0 +1,17 @@
+{
+  "repo": "voss",
+  "commit": "c1a27046aef3096e460b1c24b59d8066e5c2f792",
+  "rubric_version": "review.requirements.v2",
+  "locked_only": true,
+  "kinds": {
+    "missing_criterion": {"fixtures": 4, "criteria": 3, "supported": 1},
+    "contradicted": {"fixtures": 4, "criteria": 3, "supported": 1},
+    "failed_check": {"fixtures": 3, "criteria": 2, "supported": 1},
+    "skipped_check": {"fixtures": 2, "criteria": 2, "supported": 1},
+    "no_checks": {"fixtures": 3, "criteria": 2, "supported": 0},
+    "ambiguous": {"fixtures": 3, "criteria": 2, "supported": 0},
+    "supported": {"fixtures": 2, "criteria": 2, "supported": 2}
+  },
+  "expected_pairs": 50,
+  "min_locked_negatives": 30
+}
