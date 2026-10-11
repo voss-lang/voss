@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -13,6 +16,28 @@ DATASET = Path(__file__).resolve().parents[2] / "evals" / "retrieval"
 
 def read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def test_concurrent_materialization_reuses_the_first_complete_archive(tmp_path, monkeypatch):
+    repo = Path(__file__).resolve().parents[2]
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    monkeypatch.setattr(retrieval.tempfile, "gettempdir", lambda: str(tmp_path))
+    dest = tmp_path / f"voss-retrieval-{commit[:12]}"
+    ready = threading.Barrier(2)
+    rename = Path.rename
+
+    def publish(path, target):
+        if target == dest:
+            ready.wait(timeout=30)
+        return rename(path, target)
+
+    monkeypatch.setattr(Path, "rename", publish)
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        futures = [workers.submit(materialize, commit) for _ in range(2)]
+        assert [future.result(timeout=60) for future in futures] == [dest, dest]
+    assert (dest / ".complete").is_file()
+    assert (dest / "README.md").is_file()
+    assert list(tmp_path.iterdir()) == [dest]
 
 
 @pytest.mark.slow
