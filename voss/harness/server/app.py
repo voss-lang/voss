@@ -30,7 +30,7 @@ from .. import auth as auth_mod
 from .. import cognition as cognition_mod
 from .. import config as harness_config
 from .. import session as session_store
-from ..agent import run_turn
+from ..agent import Plan, run_turn
 from ..observe import admission as observe_admission
 from ..observe import bos_drain, repository as observe_repository
 from ..bos_ledger import BosEventLedger
@@ -71,11 +71,6 @@ class _FakeResolution:
 
     source = "fake"
     detail = "VOSS_SERVE_FAKE_TURN"
-
-
-class _FakePlan:
-    confidence = 0.9
-    steps: list = []
 
 
 class _BearerASGI:
@@ -380,10 +375,12 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             renderer.show_user(text)
             renderer.set_phase("run")
             renderer.show_thinking("planning 1/1")
-            renderer.show_plan(_FakePlan(), cost_usd=0.0)
+            plan = Plan(rationale="fake turn", confidence=0.9)
+            renderer.show_plan(plan, cost_usd=0.0)
             renderer.stream_delta("hello ")
             renderer.stream_delta("from fake turn")
             renderer.finalize_stream(role="assistant", confidence=0.9, cost_usd=0.0)
+            session.last_plan = plan
             renderer.show_final(f"echo: {text}", confidence=0.9, cost_usd=0.0)
         finally:
             renderer.set_phase("ambient")
@@ -485,6 +482,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             result = await _scoped_turn(session.cwd, text, session.id, run_turn, make_turn)
         # Consume resume context once: deep history now flows via session.history
         session.prior_context = None
+        session.last_plan = result.plan
         renderer.show_final(
             result.final, confidence=result.confidence, cost_usd=result.cost_usd
         )
@@ -868,8 +866,10 @@ def create_app(token: str | None = None) -> FastAPI:
     @app.post("/session/{session_id}/command", response_model=commands.CommandResult)
     async def execute_command(session_id: str, body: commands.CommandRequest) -> commands.CommandResult:
         s = _require(session_id)
+        if body.name == "/budget" and body.args and s.busy:
+            raise HTTPException(409, "a turn or model switch is already running")
         try:
-            return await commands.execute(s.cwd, body, record=s.record)
+            return await commands.execute(s, body)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 
@@ -935,7 +935,8 @@ def create_app(token: str | None = None) -> FastAPI:
         runs = s.record.runs
         chat = sum(float(r.get("cost_usd", 0.0) or 0.0) for r in runs)
         judgments = sum(float(r.get("judgments_cost_usd", 0.0) or 0.0) for r in runs)
-        return {"v": 1, "total_usd": chat + judgments, "judgments_usd": judgments, "turns": len(runs)}
+        return {"v": 1, "total_usd": chat + judgments, "judgments_usd": judgments,
+                "turns": len(runs), "budget_usd": s.budget_usd}
 
     @app.post("/session/{session_id}/permission")
     def reply_permission(session_id: str, body: PermissionReply) -> dict:

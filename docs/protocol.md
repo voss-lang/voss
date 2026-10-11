@@ -51,7 +51,7 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `POST` | `/session/:id/abort` | Cancel the in-flight turn | `202` |
 | `POST` | `/session/:id/permission` | Reply to a pending permission request | `200` |
 | `POST` | `/session/:id/diff` | Reply to an edit proposal. Body `{id,decisions}` | `{v:1,status:"ok"\|"stale"}` |
-| `GET` | `/commands` | Read-only slash command catalog | `{v:1, commands:[{name,description}]}` |
+| `GET` | `/commands` | Slash command catalog | `{v:1, commands:[{name,description}]}` |
 | `POST` | `/session/:id/command` | Execute a listed command. Body `{name,args?:string[]}` | `{v:1, stdout, stderr, code?}` |
 | `GET` | `/doctor` | Auth/config/tooling status | `DoctorReport` |
 | `GET` | `/openapi.json` | OpenAPI 3.1 spec | spec |
@@ -89,6 +89,20 @@ available, and rejects sources or cached artifacts outside the workspace.
 Invalid arguments and lookup/compiler errors appear in `stderr` without a panel.
 Inspection runs in a worker thread and does not change history, call the session's
 provider, or write workspace files.
+
+`/budget [<usd>]` shows or sets an advisory budget for the active server session;
+`0` clears it. Values must be finite and non-negative. Setting or clearing while
+a turn or model switch runs returns `409`. Spending includes model and judgment
+costs, matching `GET /session/:id/cost`, which also returns nullable `budget_usd`.
+Go `/cost` shows the budget and percentage used when set. This matches Textual's
+advisory behavior: it does not stop turns or replace per-run budget enforcement.
+The setting is not persisted and starts unbounded when a session is resumed.
+
+`/why` returns the last completed agent plan's rationale, confidence, step reasons,
+open question and final-when-done text in `stdout`. No completed plan returns
+`no plan yet — run a turn first` in `stderr`. Ambient chat and failed/aborted turns
+leave that plan unchanged. Resume starts without a last plan; saved run records
+are not reconstructed into one. Neither command invokes a provider or writes files.
 
 Conversation and model/auth status questions use the `ambient` phase. Work intents use the tool-enabled `run` phase; prefix a request with `run ` to select that path explicitly. Swarm sessions always run their assigned tasks. Permission `mode` remains independent of phase. Status events report phase changes and return to `ambient` on completion, cancellation, or failure.
 
