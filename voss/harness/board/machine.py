@@ -333,6 +333,10 @@ class Board:
             reviewer is not None or reviewer_a is not None or reviewer_b is not None
         )
         self._cwd = cwd
+        from voss.harness.judgments import review_mode
+        if self._reviewer_b is not None and review_mode(cwd) == "shadow":
+            from .review_shadow import ShadowReviewer
+            self._reviewer_b = ShadowReviewer(self._reviewer_b, cwd=cwd, manager=manager)
         self._cfg = cfg
         self._team_ceiling = team_ceiling
         self._root_node_id = root_node_id

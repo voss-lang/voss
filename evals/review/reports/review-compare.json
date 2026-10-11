@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "informational": true,
+  "split": "test",
+  "negative_fixtures": 19,
+  "compared_fixtures": 19,
+  "reviewer_b_errors": 0,
+  "reviewer_b_passes": {
+    "k": 0,
+    "n": 19,
+    "rate": 0.0,
+    "ci": [
+      0.0,
+      0.16818436536845052
+    ]
+  },
+  "jev_fixture_false_supported": {
+    "k": 0,
+    "n": 19,
+    "rate": 0.0,
+    "ci": [
+      0.0,
+      0.16818436536845052
+    ]
+  },
+  "jev_pair_false_supported": {
+    "k": 0,
+    "n": 33,
+    "rate": 0.0,
+    "ci": [
+      0.0,
+      0.10427343003561192
+    ]
+  },
+  "threshold": 0.8
+}

@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "split": "dev",
+  "commit": "c1a27046aef3096e460b1c24b59d8066e5c2f792",
+  "rubric_version": "review.requirements.v1",
+  "threshold": 0.8,
+  "model": "jev-1.13.0",
+  "location": "Ben's Mac, local",
+  "run_date": "2026-10-10",
+  "metrics": {
+    "false_supported": {
+      "k": 1,
+      "n": 31,
+      "rate": 0.03225806451612903,
+      "ci": [
+        0.00571707408694444,
+        0.16194457176169622
+      ]
+    },
+    "contradicted_recall": {
+      "k": 12,
+      "n": 14,
+      "rate": 0.8571428571428571,
+      "ci": [
+        0.600580922361363,
+        0.9599069262620787
+      ]
+    },
+    "abstention": {
+      "k": 21,
+      "n": 48,
+      "rate": 0.4375
+    },
+    "coverage": 0.5625,
+    "failed": 0,
+    "ambiguous": {
+      "count": 2,
+      "pairs": [
+        "rv-020/AC-2",
+        "rv-038/AC-2"
+      ]
+    },
+    "brier": 0.04734583333333334,
+    "by_kind": {
+      "missing_criterion": {
+        "supported": {
+          "abstained": 2,
+          "supported": 2
+        },
+        "insufficient_evidence": {
+          "abstained": 5,
+          "contradicted": 1
+        },
+        "contradicted": {
+          "contradicted": 1,
+          "abstained": 1
+        }
+      },
+      "contradicted": {
+        "supported": {
+          "supported": 4
+        },
+        "contradicted": {
+          "contradicted": 7,
+          "abstained": 1
+        }
+      },
+      "failed_check": {
+        "supported": {
+          "supported": 3
+        },
+        "contradicted": {
+          "contradicted": 2
+        }
+      },
+      "skipped_check": {
+        "supported": {
+          "abstained": 1,
+          "supported": 1
+        },
+        "insufficient_evidence": {
+          "abstained": 1
+        },
+        "contradicted": {
+          "contradicted": 1
+        }
+      },
+      "no_checks": {
+        "insufficient_evidence": {
+          "abstained": 5
+        },
+        "contradicted": {
+          "contradicted": 1
+        }
+      },
+      "ambiguous": {
+        "insufficient_evidence": {
+          "abstained": 4,
+          "supported": 1
+        }
+      },
+      "supported": {
+        "supported": {
+          "supported": 3,
+          "abstained": 1
+        }
+      }
+    },
+    "passed": true
+  },
+  "receipts": {
+    "calls": 21,
+    "answered": 21,
+    "cost_usd_total": 0.0017283840000000003,
+    "cost_usd_mean": 8.230400000000002e-05,
+    "latency_p50_ms": 307.79887503013015,
+    "latency_p95_ms": 413.6869413079694,
+    "request_bytes_median": 5523,
+    "request_bytes_max": 11864,
+    "models": [
+      "jev-1.13.0"
+    ]
+  },
+  "release_bar": {
+    "false_supported_max": 0.05,
+    "basis": "point estimate on the locked split",
+    "interval": "Wilson 95%, reported, not gating"
+  },
+  "passed": null
+}
