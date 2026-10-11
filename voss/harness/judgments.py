@@ -20,9 +20,10 @@ from voss_runtime.judgments import (
 )
 
 from . import auth, config
-from .conventions import _load_judgments_code_recall, _load_judgments_enabled
+from .conventions import _load_judgments_code_recall, _load_judgments_enabled, _load_judgments_review
 
 CODE_RECALL_MODES = ("off", "shadow", "active")
+REVIEW_MODES = ("off", "shadow")
 
 
 def judgments_state(cwd) -> Literal["killed", "disabled", "enabled"]:
@@ -51,6 +52,12 @@ def code_recall_mode(cwd) -> Literal["off", "shadow", "active"]:
     if judgments_state(cwd) != "enabled" or resolve_api_key() is None:
         return "off"
     return _load_judgments_code_recall(cwd)
+
+
+def review_mode(cwd) -> Literal["off", "shadow"]:
+    if judgments_state(cwd) != "enabled" or resolve_api_key() is None:
+        return "off"
+    return _load_judgments_review(cwd)
 
 
 def make_client(api_key: str, *, timeout_ms: int | None = None, ledger: JudgmentLedger | None = None) -> JevClient:
@@ -169,6 +176,118 @@ def run_cmd(request_file: Path | None, demo: bool, as_json: bool) -> None:
         _render_result(result)
 
 
+def _review_footer(receipt: dict) -> str:
+    cost = "unknown" if receipt["cost_usd"] is None else f"${receipt['cost_usd']:.6f}"
+    model = receipt["model_returned"] or receipt["model_requested"]
+    return f"packet {receipt['artifact_revision']}; model {model}; cost {cost}; {receipt['latency_ms']:.0f} ms"
+
+
+@judge_cmd.command("review")
+@click.option("--criterion", "criteria", multiple=True, help="One acceptance criterion. Repeat for more.")
+@click.option("--criteria-file", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="A file with one acceptance criterion per line.")
+@click.option("--ref", help="Check this commit instead of the working tree.")
+@click.option("--checks", "checks_file", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="JSON list of check results: [{name, status}] or [{type, pass, detail}].")
+@click.option("--swarm", "swarm_id", help="Swarm ID of a candidate to check (needs --task).")
+@click.option("--task", "task_id", help="Task ID of the swarm candidate.")
+@click.option("--run", "run_id", help="Also save the result to .voss/sessions/<run>/judgments.json.")
+@click.option("--saved", is_flag=True, help="Show the assessment saved for a swarm candidate. Makes no request.")
+@click.option("--json", "as_json", is_flag=True, help="Print the receipt as JSON.")
+def review_cmd(
+    criteria: tuple[str, ...], criteria_file: Path | None, ref: str | None, checks_file: Path | None,
+    swarm_id: str | None, task_id: str | None, run_id: str | None, saved: bool, as_json: bool,
+) -> None:
+    """Check a candidate against acceptance criteria and print requirement assessments (advisory)."""
+    from voss.harness import decision_review
+    from voss.harness.session_tree import write_judgments_sidecar
+    from voss.harness.swarm_store import SwarmStore
+
+    if (swarm_id is None) != (task_id is None):
+        raise click.UsageError("--swarm and --task go together")
+    if saved and (swarm_id is None or ref or criteria or criteria_file or checks_file or run_id is not None):
+        raise click.UsageError("--saved needs --swarm and --task and takes no other input options")
+    if swarm_id is not None and (ref or criteria or criteria_file):
+        raise click.UsageError("--swarm reads the criteria and commit from the task; drop --ref, --criterion, --criteria-file")
+    if criteria and criteria_file:
+        raise click.UsageError("use --criterion or --criteria-file, not both")
+    if swarm_id is None and not criteria and not criteria_file:
+        raise click.UsageError("give --criterion, --criteria-file, or --swarm with --task")
+
+    cwd = Path.cwd()
+    if swarm_id is not None:
+        try:
+            review_path = decision_review.candidate_review_path(cwd, swarm_id, task_id)
+        except ValueError as err:
+            _refuse(str(err), "review")
+    if run_id is not None and (
+        not run_id or "/" in run_id or "\\" in run_id or ".." in run_id
+        or not (cwd / ".voss" / "sessions" / run_id).is_dir()
+    ):
+        _refuse(f"unknown run {run_id!r}", "review")
+
+    if saved:
+        try:
+            payload = json.loads(review_path.read_text())
+            receipts = payload["receipts"]
+        except (OSError, ValueError, KeyError, TypeError):
+            _refuse(f"no saved assessment for task {task_id}", "review")
+        if as_json:
+            click.echo(json.dumps(payload, indent=2))
+            return
+        for receipt in receipts:
+            for line in decision_review.assessment_lines(receipt, stale=False):
+                click.echo(line)
+            click.echo(_review_footer(receipt))
+        return
+
+    checks = ()
+    if checks_file is not None:
+        try:
+            checks = decision_review.load_checks(json.loads(checks_file.read_text()))
+        except ValueError as err:
+            _refuse(f"invalid checks file: {err}", "review")
+
+    head, worktree = ref, None
+    source = list(criteria) or (criteria_file.read_text() if criteria_file else "")
+    if swarm_id is not None:
+        try:
+            task = SwarmStore(cwd).replay(swarm_id).task(task_id)
+        except (KeyError, ValueError, OSError):
+            _refuse(f"cannot read swarm {swarm_id}", "review")
+        if task is None:
+            _refuse(f"no task {task_id} in swarm {swarm_id}", "review")
+        if not task.candidate_head:
+            _refuse(f"task {task_id} has no candidate commit", "review")
+        source, head = task.goal, task.candidate_head
+        worktree = Path(task.candidate_worktree) if task.candidate_worktree else None
+
+    cfg = config.get_judgments_config()
+    ledger = JudgmentLedger(cfg["max_calls_per_turn"], cfg["max_cost_usd"])
+    try:
+        receipt = asyncio.run(decision_review.assess_candidate(
+            cwd=cwd, criteria=source, head=head, worktree=worktree, checks=checks, ledger=ledger,
+        ))
+    except JudgmentError as err:
+        click.echo(f"judgment {err.outcome}: {err}", err=True)
+        sys.exit(1)
+    except ValueError as err:
+        click.echo(f"judgment review: {err}", err=True)
+        sys.exit(1)
+    finally:
+        if run_id is not None and ledger.receipts:
+            write_judgments_sidecar(cwd, run_id, ledger)
+    data = asdict(receipt)
+    if as_json:
+        click.echo(json.dumps(data, indent=2))
+        return
+    for line in decision_review.assessment_lines(data, stale=False):
+        click.echo(line)
+    click.echo(_review_footer(data))
+    if run_id is not None:
+        click.echo(f"saved to .voss/sessions/{run_id}/judgments.json")
+
+
 def _set_code_recall_line(text: str) -> str:
     try:
         data = yaml.safe_load(text)
@@ -235,8 +354,8 @@ def _read_report(path: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def _refuse(reason: str) -> None:
-    click.echo(f"activate refused: {reason}", err=True)
+def _refuse(reason: str, command: str = "activate") -> None:
+    click.echo(f"{command} refused: {reason}", err=True)
     sys.exit(1)
 
 
