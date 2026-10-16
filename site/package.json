@@ -13,17 +13,17 @@
     "docs:a11y": "cd docs && mint a11y"
   },
   "dependencies": {
-    "@radix-ui/react-slot": "^1.3.3",
+    "@radix-ui/react-slot": "^1.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.35.0",
+    "lucide-react": "^1.52.0",
     "motion": "^12.40.0",
-    "next": "16.3.3",
-    "posthog-js": "^1.422.5",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "shiki": "^4.4.3",
-    "tailwind-merge": "^3.6.0"
+    "next": "16.4.0",
+    "posthog-js": "^1.438.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "shiki": "^4.5.0",
+    "tailwind-merge": "^3.7.0"
   },
   "overrides": {
     "postcss": "^8.5.10"
@@ -34,7 +34,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.3",
+    "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
     "typescript": "^6"
   }
