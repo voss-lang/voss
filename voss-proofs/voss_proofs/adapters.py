@@ -84,11 +84,16 @@ def _handshake(proc: subprocess.Popen, timeout: float) -> dict | None:
     return None
 
 
-def _sse(response: httpx.Response):
+PING = {"type": "sse.ping"}
+
+
+def _sse(response):
     event_type = ""
     for line in response.iter_lines():
         if not line:
             event_type = ""
+        elif line.startswith(":"):
+            yield PING
         elif line.startswith("event:"):
             event_type = line[6:].strip()
         elif line.startswith("data:"):
@@ -183,7 +188,8 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
             with c.stream("GET", f"/session/{sid}/events", headers={"Accept": "text/event-stream"}) as sse:
                 c.post(f"/session/{sid}/message", json=message).raise_for_status()
                 for ev in _sse(sse):
-                    events.append(ev)
+                    if ev is not PING:
+                        events.append(ev)
                     if ev["type"] == "permission.updated":
                         c.post(f"/session/{sid}/permission", json={"id": ev["id"], "choice": choice})
                     elif ev["type"] == "final":

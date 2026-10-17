@@ -237,3 +237,13 @@ def test_wall_budget_timeout_is_not_overwritten_by_the_session_record():
     res = adapters.AdapterResult(exit_reason="timeout")
     adapters.usage_from_record({"runs": [{"exit_reason": "done", "iterations": []}]}, res)
     assert res.exit_reason == "timeout" and res.claimed_complete is False
+
+
+def test_sse_heartbeats_reach_the_deadline_check_but_are_not_recorded():
+    class Stream:
+        def iter_lines(self):
+            yield from [": ping - 2026-10-17", "", "event: final", 'data: {"text": "hi"}', ""]
+
+    events = list(adapters._sse(Stream()))
+    assert events[0] is adapters.PING
+    assert events[1] == {"type": "final", "text": "hi"}
