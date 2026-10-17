@@ -22,12 +22,14 @@ from voss_runtime.judgments import (
 )
 
 PURPOSE = "review.requirements"
-RUBRIC_VERSION = "review.requirements.v1"
+RUBRIC_VERSION = "review.requirements.v2"
 THRESHOLD = 0.80
 OPTIONS = {
-    "supported": "The diff, code, or recorded checks show this requirement is met.",
+    "supported": "The requirement is specific enough to check, and the diff, code, or recorded checks show it is met.",
     "contradicted": "The diff, code, or recorded checks show this requirement is not met.",
-    "insufficient_evidence": "The diff, code, and recorded checks do not show either way.",
+    "insufficient_evidence": (
+        "The requirement is too vague to check, or the diff, code, and recorded checks do not show either way."
+    ),
 }
 HEADING = "Requirement assessments (advisory)"
 STALE_TEXT = "stale: work changed since this was checked"
