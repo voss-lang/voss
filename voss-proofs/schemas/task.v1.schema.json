@@ -1,0 +1,426 @@
+{
+  "$defs": {
+    "Acceptance": {
+      "additionalProperties": false,
+      "properties": {
+        "criteria": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Criteria",
+          "type": "array"
+        },
+        "allowed_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Paths",
+          "type": "array"
+        }
+      },
+      "title": "Acceptance",
+      "type": "object"
+    },
+    "Budget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Turns"
+        },
+        "token_budget": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token Budget"
+        },
+        "wall_s": {
+          "default": 600.0,
+          "title": "Wall S",
+          "type": "number"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
+    "CmdCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "cmd",
+          "title": "Type",
+          "type": "string"
+        },
+        "run": {
+          "title": "Run",
+          "type": "string"
+        },
+        "timeout": {
+          "default": 60,
+          "title": "Timeout",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "run"
+      ],
+      "title": "CmdCheck",
+      "type": "object"
+    },
+    "FileContainsCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "file_contains",
+          "title": "Type",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path",
+        "text"
+      ],
+      "title": "FileContainsCheck",
+      "type": "object"
+    },
+    "FileExistsCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "file_exists",
+          "title": "Type",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "FileExistsCheck",
+      "type": "object"
+    },
+    "Meta": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "version": {
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "category": {
+          "default": "code",
+          "enum": [
+            "decision",
+            "swarm",
+            "orchestration",
+            "code",
+            "review",
+            "memory",
+            "safety",
+            "runtime",
+            "e2e"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "dataset": {
+          "default": "regression",
+          "enum": [
+            "regression",
+            "dev",
+            "locked"
+          ],
+          "title": "Dataset",
+          "type": "string"
+        },
+        "synthetic": {
+          "title": "Synthetic",
+          "type": "boolean"
+        },
+        "origin": {
+          "title": "Origin",
+          "type": "string"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Language"
+        }
+      },
+      "required": [
+        "synthetic",
+        "origin"
+      ],
+      "title": "Meta",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Superset of `voss.eval.suite.TaskSpec`: a plain voss task.toml validates unchanged.",
+  "properties": {
+    "prompt": {
+      "title": "Prompt",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "plan",
+        "edit",
+        "auto"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "rubric": {
+      "title": "Rubric",
+      "type": "string"
+    },
+    "judge_inputs": {
+      "default": [
+        "final",
+        "file_diff"
+      ],
+      "items": {
+        "enum": [
+          "final",
+          "file_diff"
+        ],
+        "type": "string"
+      },
+      "title": "Judge Inputs",
+      "type": "array"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "auto_approve_edits": {
+      "default": false,
+      "title": "Auto Approve Edits",
+      "type": "boolean"
+    },
+    "tools": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tools",
+      "type": "array"
+    },
+    "checks": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "cmd": "#/$defs/CmdCheck",
+            "file_contains": "#/$defs/FileContainsCheck",
+            "file_exists": "#/$defs/FileExistsCheck"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/CmdCheck"
+          },
+          {
+            "$ref": "#/$defs/FileExistsCheck"
+          },
+          {
+            "$ref": "#/$defs/FileContainsCheck"
+          }
+        ]
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "surface": {
+      "default": "internal",
+      "enum": [
+        "internal",
+        "cli:do",
+        "cli:chat",
+        "cli:edit",
+        "serve",
+        "sdk:python",
+        "sdk:ts",
+        "sdk:go",
+        "sdk:rust"
+      ],
+      "title": "Surface",
+      "type": "string"
+    },
+    "target_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target File"
+    },
+    "permission_choice": {
+      "default": "a",
+      "enum": [
+        "a",
+        "A",
+        "d"
+      ],
+      "title": "Permission Choice",
+      "type": "string"
+    },
+    "corpus": {
+      "anyOf": [
+        {
+          "const": "pinned",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Corpus"
+    },
+    "recall": {
+      "anyOf": [
+        {
+          "enum": [
+            "off",
+            "shadow",
+            "active"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recall"
+    },
+    "meta": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Meta"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "acceptance": {
+      "$ref": "#/$defs/Acceptance"
+    },
+    "hidden_checks": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "cmd": "#/$defs/CmdCheck",
+            "file_contains": "#/$defs/FileContainsCheck",
+            "file_exists": "#/$defs/FileExistsCheck"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/CmdCheck"
+          },
+          {
+            "$ref": "#/$defs/FileExistsCheck"
+          },
+          {
+            "$ref": "#/$defs/FileContainsCheck"
+          }
+        ]
+      },
+      "title": "Hidden Checks",
+      "type": "array"
+    },
+    "budget": {
+      "$ref": "#/$defs/Budget"
+    },
+    "requires": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Requires",
+      "type": "array"
+    }
+  },
+  "required": [
+    "prompt",
+    "mode",
+    "rubric"
+  ],
+  "title": "BenchmarkSpec",
+  "type": "object"
+}
