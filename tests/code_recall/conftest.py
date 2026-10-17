@@ -10,6 +10,12 @@ from pathlib import Path
 import httpx
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _stub_background_indexing() -> None:
+    """Keep real background builds enabled in the code retrieval suite."""
+
+
 # Fixture repo: 3 small .py files with known symbol boundaries. alpha/beta
 # carry distinct vocab so golden-style queries can discriminate files.
 FIXTURE_FILES: dict[str, str] = {

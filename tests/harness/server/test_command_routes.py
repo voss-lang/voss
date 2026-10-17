@@ -280,6 +280,39 @@ async def test_save_session_blocks_conflicting_work_without_blocking_reads(clien
         assert not (await api.get(path)).json()["busy"]
 
 
+@pytest.mark.asyncio
+async def test_cancelled_save_stays_busy_until_storage_finishes(client, monkeypatch):
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    save = session_store.save
+
+    def slow_save(*args):
+        entered.set()
+        assert release.wait(5)
+        try:
+            return save(*args)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(session_store, "save", slow_save)
+    path = f"/session/{client.session.id}"
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client.app), base_url="http://test",
+                                headers={"Authorization": "Bearer test-commands"}) as api:
+        request = asyncio.create_task(api.post(path + "/command", json={"name": "/save-session"}))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            request.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await request
+            assert (await api.get(path)).json()["busy"]
+            assert (await api.post(path + "/clear")).status_code == 409
+            assert (await api.post(path + "/command", json={"name": "/save", "args": ["note"]})).status_code == 409
+        finally:
+            release.set()
+            assert await asyncio.to_thread(finished.wait, 2)
+            await asyncio.wait_for(client.session.command_task, 2)
+        assert (await api.post(path + "/command", json={"name": "/save-session"})).status_code == 200
+
+
 def test_budget_reports_session_spending_and_can_be_cleared(client):
     client.session.record.runs.append({"cost_usd": 1.25, "judgments_cost_usd": 0.25})
     assert execute(client, "/budget").json()["stdout"] == "  budget: unbounded"

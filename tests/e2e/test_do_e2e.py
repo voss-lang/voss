@@ -6,6 +6,9 @@ exits 2 even under stub injection).
 """
 from __future__ import annotations
 
+import json
+import sys
+
 from .runner import CliRunner
 
 
@@ -34,6 +37,24 @@ def test_do_propagates_stub_default_response(cli_runner: CliRunner) -> None:
     assert r.returncode == 0, r.output
     final = next(p for p in r.json_payloads() if p["type"] == "final")
     assert final["text"] == "totally-custom"
+
+
+def test_stub_runner_ignores_inherited_codex_mcp_servers(cli_runner, tmp_path, monkeypatch):
+    codex = tmp_path / "external-codex"
+    codex.mkdir()
+    marker = tmp_path / "mcp-started"
+    script = f"from pathlib import Path; Path({str(marker)!r}).write_text('started')"
+    (codex / "config.toml").write_text(
+        f"[mcp_servers.external]\ncommand = {json.dumps(sys.executable)}\n"
+        f"args = {json.dumps(['-c', script])}\n"
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex))
+
+    result = cli_runner.run("do", "--json", "say hi")
+
+    assert result.returncode == 0, result.output
+    assert any(p.get("type") == "final" for p in result.json_payloads())
+    assert not marker.exists(), "stub CLI started an inherited MCP server"
 
 
 def test_do_mode_flag_is_plumbed(cli_runner: CliRunner) -> None:
