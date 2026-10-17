@@ -19,6 +19,89 @@ This document is the wire contract. The server emits exactly these shapes; the c
 - Content types: REST = `application/json`; event stream = `text/event-stream`.
 - OpenAPI 3.1 served at `GET /openapi.json` (FastAPI auto-gen). The SSE event union is documented via an `_EventEnvelope` schema component (see §6) so typed clients can codegen a tagged enum.
 
+### Capability discovery (added 2026-10-11)
+
+`GET /capabilities` is a bearer-authenticated, read-only discovery endpoint. It
+does not resolve provider credentials, create a session or run a model. Example:
+
+```json
+{"v":1,"engine_version":"0.1.2","capabilities":["sessions.v1","tasks.replay.v1","swarms.v1","diagnostics.v1"]}
+```
+
+`v` identifies the discovery/protocol major version. `engine_version` is the
+installed Python distribution version, for diagnostics; clients negotiate by
+protocol and capability rather than a version-string guess. Capability names
+include their semantic version. Unknown optional names/fields may be ignored;
+missing capabilities must not enable the corresponding action. An unsupported
+`v`, malformed response or legacy server returning 404 leaves execution
+unavailable while local history stays readable.
+
+- `sessions.v1`: existing session/message/event/permission/cost routes. This
+  does not promise durable replay, safe worker recovery or enforced task scope.
+- `tasks.replay.v1`: authoritative task snapshots, durable cursor replay and command acknowledgements described below.
+- `swarms.v1`: existing swarm create/snapshot/run routes and events.
+- `diagnostics.v1`: existing read-only `/doctor` route.
+
+These describe protocol support, not OAuth health, provider availability or
+permission to execute. No memory-file layout, API fallback, plan-preview or acceptance-matrix capability is advertised.
+
+### Durable tasks (added 2026-10-17)
+
+`tasks.replay.v1` adds a snapshot and ordered event envelopes without changing
+the existing AgentEvent union. The snapshot carries `task_id`, `session_id`,
+optional `swarm_id`/`swarm_task_id`, `run_id`, `attempt_id`, `phase`, `outcome`,
+`pending_actions`, and `watermark`. A plain task ID equals its session ID. A swarm
+coordinator's task ID equals the swarm ID; a native member's task ID equals its
+swarm task ID. Run and attempt IDs are generated at acceptance. Each accepted
+message is one run with one attempt; no automatic retry or continuation occurs.
+
+Phases are `idle`, `active`, `waiting`, `candidate_ready`, `completed`, `failed`,
+`cancelled`, and `interrupted`. Completion comes from the turn/runtime result,
+not warning, final-text, or idle events. Candidate-ready means retained work for
+review, not merged or accepted work. A permission/diff request includes its ID in
+`pending_actions`; a clarification uses kind `clarify` and requires another turn.
+Unknown phases must remain unavailable to clients rather than imply success.
+
+`GET /session/:id/task-events?after=N` replays every envelope after N and stays
+open across turns. Each SSE ID equals the envelope's `cursor` and its snapshot's
+`watermark`. Each envelope contains `v`, `cursor`, `snapshot`, and the original
+`event` object. State-only transitions use `event.type = "task.state"`. Unknown
+event kinds can be retained without interpreting them as outcomes. Snapshots
+and events commit in the same SQLite transaction before publication. Subscribers
+have independent cursors; dropping a stream never cancels execution.
+
+A snapshot followed by a stream after its watermark cannot miss newer events.
+Clients needing transcript history replay after their last committed cursor,
+not the newest snapshot watermark. No event retention/expiry is currently applied.
+A negative/ahead cursor returns 409. Missing journals/tasks return 404. Clients
+must resync on a cursor gap; a snapshot-only resync must visibly identify missing
+history. Duplicate envelopes are harmless. Deleted/replaced journals must not
+silently reset a client's cursor or relaunch work.
+
+The journal lives at `.voss/task-journal.sqlite3` under the server launch directory.
+An exclusive file lock permits one server owner per journal. Reopening that
+journal marks unfinished work interrupted and clears pending actions; it does not
+load provider credentials, adopt conversations or spawn workers. Terminal history
+survives. Graceful cancellation waits for owned CLI processes to terminate and
+retains their worktrees. Hard process death records interruption on next access,
+but cannot guarantee that every external descendant has stopped. This contract
+does not promise detached execution or arbitrary subprocess continuation.
+
+`POST /session/:id/message` accepts optional `command_id`. Reusing that ID with
+identical input returns the original `{v,status:"accepted",run_id,attempt_id}`,
+even after completion/restart. Different input with that ID returns 409. A new
+command while busy returns 409. The receipt and active snapshot commit before
+launch; a crash between acceptance and launch leaves interrupted work, never an
+automatic replacement worker. Callers omitting the ID retain legacy non-deduplicated
+submission semantics. `/swarm/:id/run` is one accepted command per swarm; repeated
+calls return its receipt rather than re-executing members. Slash commands retain
+their existing semantics and are not covered by this deduplication contract.
+
+`POST /session/:id/abort` returns `cancelled` only after the driver has stopped,
+or `not_running` if no live driver exists. Permission and diff replies return
+`ok` or `stale`, including stale replies to persisted tasks after restart. Clients
+must preserve those acknowledgements; HTTP 200 alone is not evidence of acceptance.
+
 ## 2. Auth & handshake
 
 - On `voss serve`: bind `127.0.0.1:0` (ephemeral port), then **print exactly one line** of JSON to stdout before serving:
@@ -31,9 +114,9 @@ This document is the wire contract. The server emits exactly these shapes; the c
 
 ## 3. Lifecycle
 
-- The client supervises the server child: spawns it, reads the handshake, kills it on exit (`kill_on_drop` + explicit `start_kill`+`wait`).
+- The SDK supervises the server child. Explicit shutdown closes stdin, waits up to ten seconds for cleanup, then kills/reaps a nonresponsive child. Drop still kills as a last resort.
 - The server also self-terminates if its parent dies: `getppid()` poll (2s) + stdin-EOF fallback (macOS has no `PR_SET_PDEATHSIG`).
-- Graceful shutdown cancels all in-flight turn tasks; in-flight SSE streams get a final farewell event before close.
+- Graceful shutdown closes SSE streams, cancels and awaits owned turns/swarm drivers, and records interruption. No farewell delivery is guaranteed; clients reconcile from the journal.
 
 ## 4. Endpoints
 
@@ -47,7 +130,9 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `GET` | `/sessions/saved?cwd=...` | Saved session metadata, including `first_task` | `{v:1, sessions:[...]}` |
 | `DELETE` | `/session/:id` | Delete session + data | `204` |
 | `POST` | `/session/:id/message` | Enqueue a user turn (async) | `202 {status:"accepted"}` |
-| `GET` | `/session/:id/events` | SSE event stream for the session | `text/event-stream` |
+| `GET` | `/session/:id/events` | Legacy payload stream; independent subscribers | `text/event-stream` |
+| `GET` | `/session/:id/task` | Durable task snapshot | `TaskSnapshot` |
+| `GET` | `/session/:id/task-events?after=N` | Envelopes after a committed cursor | `text/event-stream` |
 | `POST` | `/session/:id/abort` | Cancel the in-flight turn | `202` |
 | `POST` | `/session/:id/permission` | Reply to a pending permission request | `200` |
 | `POST` | `/session/:id/diff` | Reply to an edit proposal. Body `{id,decisions}` | `{v:1,status:"ok"\|"stale"}` |

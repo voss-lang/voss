@@ -1,10 +1,12 @@
 //! Rust client SDK for the Voss local harness REST and SSE protocol
 
 pub mod auth;
+pub mod capabilities;
 pub mod client;
 pub mod error;
 pub mod projection;
 pub mod stream;
+pub mod tasks;
 pub mod supervisor;
 pub mod types;
 

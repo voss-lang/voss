@@ -145,10 +145,17 @@ impl Supervisor {
         self.child.id()
     }
 
-    /// Kill the server child and reap it, preventing a zombie process.
+    pub fn is_running(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
+    }
+
+    /// Close the ownership heartbeat, allow cleanup, then reap the child.
     pub async fn shutdown(mut self) {
-        let _ = self.child.start_kill();
-        let _ = self.child.wait().await;
+        drop(self.child.stdin.take());
+        if tokio::time::timeout(Duration::from_secs(10), self.child.wait()).await.is_err() {
+            let _ = self.child.start_kill();
+            let _ = self.child.wait().await;
+        }
     }
 }
 

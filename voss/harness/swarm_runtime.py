@@ -5,6 +5,9 @@ This is the glue tying together the already-built Wave 1/2 pieces (see
 from __future__ import annotations
 
 import subprocess
+import asyncio
+import os
+import signal
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -57,7 +60,12 @@ class _PopenHandle:
 
     def terminate(self) -> None:
         try:
-            self._proc.terminate()
+            os.killpg(self._proc.pid, signal.SIGTERM)
+            try:
+                self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(self._proc.pid, signal.SIGKILL)
+                self._proc.wait()
         except (OSError, ProcessLookupError):
             pass
 
@@ -69,7 +77,7 @@ def subprocess_spawn(argv: list[str], cwd: Path) -> SpawnHandle:
     plain subprocess in its worktree. (The GUI/Tauri PTY backend is separate.)
     `shell=False` is implicit since argv is a list, so no shell-injection surface.
     """
-    proc = subprocess.Popen(argv, cwd=str(cwd), env=scrubbed_env())
+    proc = subprocess.Popen(argv, cwd=str(cwd), env=scrubbed_env(), start_new_session=True)
     return _PopenHandle(proc)
 
 
@@ -222,7 +230,13 @@ async def run_cli_member(
     watcher.start()
     try:
         handle = spawn_fn(argv, mw.path)
-        exit_code = handle.wait()
+        waiter = asyncio.create_task(asyncio.to_thread(handle.wait))
+        try:
+            exit_code = await asyncio.shield(waiter)
+        except asyncio.CancelledError:
+            await asyncio.to_thread(handle.terminate)
+            await waiter
+            raise
     finally:
         watcher.stop()
 

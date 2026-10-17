@@ -60,7 +60,7 @@ def run_server(host: str = "127.0.0.1", port: int = 0, token: str | None = None)
     if not sys.stdin.isatty():
         threading.Thread(target=_watch_stdin_eof, daemon=True).start()
 
-    config = uvicorn.Config(app, log_level="warning")
+    config = uvicorn.Config(app, log_level="warning", timeout_graceful_shutdown=1)
     server = uvicorn.Server(config)
 
     async def _serve() -> None:

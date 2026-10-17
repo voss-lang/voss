@@ -43,6 +43,52 @@ impl VossClient {
         &self.token
     }
 
+    /// GET /capabilities - protocol support, without checking provider credentials.
+    pub async fn capabilities(&self) -> Result<crate::capabilities::Capabilities, VossError> {
+        let resp = self
+            .auth(self.inner.get(format!("{}/capabilities", self.base)))
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
+        ok_or_detail(resp).await?.json().await.map_err(VossError::Http)
+    }
+
+    pub async fn task_snapshot(&self, sid: &str) -> Result<crate::tasks::TaskSnapshot, VossError> {
+        let resp = self.auth(self.inner.get(format!("{}/session/{sid}/task", self.base)))
+            .timeout(REST_TIMEOUT).send().await?;
+        let snapshot: crate::tasks::TaskSnapshot = ok_or_detail(resp).await?.json().await?;
+        if snapshot.v != 1 || snapshot.session_id != sid {
+            return Err(VossError::Decode("incompatible task snapshot".into()));
+        }
+        Ok(snapshot)
+    }
+
+    pub async fn submit_message(&self, sid: &str, text: &str, mode: &str, command_id: &str) -> Result<crate::tasks::CommandAck, VossError> {
+        self.task_command(sid, "message", serde_json::json!({
+            "parts": [{"type": "text", "text": text}], "mode": mode, "command_id": command_id,
+        })).await
+    }
+
+    pub async fn abort_task(&self, sid: &str) -> Result<crate::tasks::CommandAck, VossError> {
+        self.task_command(sid, "abort", serde_json::json!({})).await
+    }
+
+    pub async fn reply_permission(&self, sid: &str, id: &str, choice: &str) -> Result<crate::tasks::CommandAck, VossError> {
+        self.task_command(sid, "permission", serde_json::json!({"id": id, "choice": choice})).await
+    }
+
+    pub async fn reply_diff(&self, sid: &str, id: &str, decisions: &[String]) -> Result<crate::tasks::CommandAck, VossError> {
+        self.task_command(sid, "diff", serde_json::json!({"id": id, "decisions": decisions})).await
+    }
+
+    async fn task_command(&self, sid: &str, command: &str, body: serde_json::Value) -> Result<crate::tasks::CommandAck, VossError> {
+        let resp = self.auth(self.inner.post(format!("{}/session/{sid}/{command}", self.base)))
+            .timeout(REST_TIMEOUT).json(&body).send().await?;
+        let ack: crate::tasks::CommandAck = ok_or_detail(resp).await?.json().await?;
+        if ack.v != 1 { return Err(VossError::Decode("incompatible command acknowledgement".into())); }
+        Ok(ack)
+    }
+
     pub(crate) fn auth(&self, rb: RequestBuilder) -> RequestBuilder {
         rb.bearer_auth(&self.token)
     }
@@ -136,16 +182,10 @@ impl VossClient {
         id: &str,
         choice: &str,
     ) -> Result<(), VossError> {
-        let resp = self
-            .auth(
-                self.inner
-                    .post(format!("{}/session/{}/permission", self.base, sid)),
-            )
-            .timeout(REST_TIMEOUT)
-            .json(&serde_json::json!({ "id": id, "choice": choice }))
-            .send()
-            .await?;
-        ok_or_detail(resp).await?;
+        let ack = self.reply_permission(sid, id, choice).await?;
+        if ack.status != "ok" {
+            return Err(VossError::Decode(format!("permission reply: {}", ack.status)));
+        }
         Ok(())
     }
 

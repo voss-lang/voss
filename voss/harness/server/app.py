@@ -47,7 +47,7 @@ from ..observe.store import ObserveStore, db_path, observe_dir
 from ..permissions import PermissionGate, PermissionStore
 from ..swarm_agents import is_native
 from ..swarm_store import (
-    OPEN,
+    OPEN, DONE, CANDIDATE_READY,
     OwnershipOverlapError,
     Role,
     SwarmStore,
@@ -57,9 +57,11 @@ from ..tools import attach_memory_tools, attach_mcp_tools, make_toolset
 from ..memory_gateway import open_memory_store
 from ..memory_store import MemoryStore
 from . import commands
+from . import capabilities
 from . import events as E
 from . import models as model_selection
 from .diffs import DiffReply, DiffReviewRenderer
+from .task_journal import TaskSnapshot, TaskEvent, CommandAck
 from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
 
@@ -207,6 +209,8 @@ def _install_server_permissions(
             return "d"
         finally:
             session.pending.pop(req_id, None)
+            if session.journal:
+                session.journal.resolve(session.id, req_id)
 
     def prompt(tool_name: str, args: dict) -> str:
         return _ask(tool_name, args, "tool")
@@ -272,6 +276,8 @@ def _apply_swarm_escalation(
             answer = "d"
         finally:
             session.pending.pop(req_id, None)
+            if session.journal:
+                session.journal.resolve(session.id, req_id)
         approved = answer in ("a", "A", "y")
         if session.swarm_id:
             # Decision audit is cwd-scoped (.voss/decisions); a fresh store
@@ -382,6 +388,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             renderer.finalize_stream(role="assistant", confidence=0.9, cost_usd=0.0)
             session.last_plan = plan
             renderer.show_final(f"echo: {text}", confidence=0.9, cost_usd=0.0)
+            session.turn_outcome = "done"
         finally:
             renderer.set_phase("ambient")
             renderer.session_idle()
@@ -395,6 +402,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         renderer.set_phase("run" if route == "voss_run" else "ambient")
         if route != "voss_run":
             await _run_ambient_turn(session, text, mode, route, renderer)
+            session.turn_outcome = "done"
             return
         tools = make_toolset(session.cwd, renderer=renderer)
         mcp_client = await attach_mcp_tools(tools, session.cwd)
@@ -483,6 +491,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         # Consume resume context once: deep history now flows via session.history
         session.prior_context = None
         session.last_plan = result.plan
+        session.turn_outcome = result.run.exit_reason if result.run is not None else "unknown"
         renderer.show_final(
             result.final, confidence=result.confidence, cost_usd=result.cost_usd
         )
@@ -496,6 +505,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         # un-awaited task exception, leaving the user a bare session.idle with
         # no signal. Surface it visibly on the transcript BEFORE the finally
         # idles mirrors agent.py's interrupt/batch-invariant error paths
+        session.turn_outcome = "error"
         renderer.stream_delta(f"\n[error: {e}]\n")
         renderer.finalize_stream(role="system", confidence=None, cost_usd=None)
     finally:
@@ -510,6 +520,34 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             pass
         renderer.set_phase("ambient")
         renderer.session_idle()
+        session.task = None
+
+
+async def _drive_turn(session: ServerSession, text: str, mode: str):
+    session.turn_outcome = None
+    try:
+        await _run_turn(session, text, mode)
+        snapshot = session.journal.snapshot(session.id)
+        questions = [action for action in snapshot.pending_actions if action.get("kind") == "clarify"]
+        phase = "completed" if session.turn_outcome == "done" else "failed"
+        if questions and session.turn_outcome != "error":
+            phase = "waiting"
+        session.journal.update(session.id, phase=phase, outcome=session.turn_outcome or "unknown",
+                               pending_actions=questions if phase == "waiting" else [])
+    except asyncio.CancelledError:
+        session.journal.update(session.id, phase="cancelled", outcome="cancelled", pending_actions=[])
+        raise
+    except Exception:
+        session.journal.update(session.id, phase="failed", outcome="error", pending_actions=[])
+    finally:
+        for future in list(session.pending.values()):
+            if not future.done():
+                future.set_result("d")
+        for pending in list(session.pending_diffs.values()):
+            if not pending.future.done():
+                pending.future.set_result([])
+        session.pending.clear()
+        session.pending_diffs.clear()
         session.task = None
 
 
@@ -534,6 +572,7 @@ class MessagePart(BaseModel):
 class MessageBody(BaseModel):
     parts: list[MessagePart] = []
     mode: str = "plan"
+    command_id: str | None = None
 
 
 class PermissionReply(BaseModel):
@@ -666,11 +705,15 @@ def create_app(token: str | None = None) -> FastAPI:
                 await retry
             except asyncio.CancelledError:
                 pass
-        # shutdown: cancel any in-flight turns
-        for s in mgr.list():
-            if s.busy and s.task is not None:
-                s.task.cancel()
-
+            active = [(s.id, s.task) for s in mgr.list() if s.task is not None and not s.task.done()]
+            drivers = list(app.state.swarm_runs.values()) + [task for sid, task in active
+                      if mgr.get(sid).swarm_id not in app.state.swarm_runs]
+            for driver in drivers:
+                driver.cancel()
+            await asyncio.gather(*drivers, return_exceptions=True)
+            for sid, _ in active:
+                mgr.journal.update(sid, phase="interrupted", outcome="engine_stopped", pending_actions=[])
+            mgr.journal.close()
     app = FastAPI(title="voss-harness", version="1", lifespan=lifespan)
     app.state.token = token
     app.state.sessions = mgr
@@ -711,6 +754,10 @@ def create_app(token: str | None = None) -> FastAPI:
         if s is None:
             raise HTTPException(404, "session not found")
         return s
+
+    @app.get("/capabilities", response_model=capabilities.Capabilities)
+    def get_capabilities():
+        return capabilities.report()
 
     # session CRUD
 
@@ -917,23 +964,42 @@ def create_app(token: str | None = None) -> FastAPI:
             raise HTTPException(404, "session not found")
         return Response(status_code=204)
 
-    @app.post("/session/{session_id}/message", status_code=202)
-    async def post_message(session_id: str, body: MessageBody) -> dict:
+    @app.post("/session/{session_id}/message", status_code=202, response_model=CommandAck)
+    async def post_message(session_id: str, body: MessageBody) -> CommandAck:
+        key = body.command_id or uuid.uuid4().hex
+        payload = body.model_dump(exclude={"command_id"})
+        try:
+            previous = mgr.journal.receipt(session_id, key, payload)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+        if previous:
+            return previous
         s = _require(session_id)
         if s.busy:
             raise HTTPException(409, "a turn is already running")
         text = " ".join(p.text for p in body.parts if p.type == "text").strip()
         if not text:
             raise HTTPException(422, "empty message")
-        s.task = asyncio.create_task(_run_turn(s, text, body.mode))
-        return {"v": 1, "status": "accepted"}
+        ack = mgr.journal.begin(s.id, key, payload)
+        s.task = asyncio.create_task(_drive_turn(s, text, body.mode))
+        return ack
 
-    @app.post("/session/{session_id}/abort", status_code=202)
-    async def abort(session_id: str) -> dict:
-        s = _require(session_id)
-        if s.busy and s.task is not None:
-            s.task.cancel()
-        return {"v": 1, "status": "aborting"}
+    @app.post("/session/{session_id}/abort", status_code=202, response_model=CommandAck)
+    async def abort(session_id: str) -> CommandAck:
+        snapshot = mgr.journal.snapshot(session_id)
+        if snapshot is None:
+            raise HTTPException(404, "task not found")
+        s = mgr.get(session_id)
+        driver = app.state.swarm_runs.get(snapshot.swarm_id) if snapshot.swarm_id else (s.task if s else None)
+        if driver is None or driver.done():
+            return CommandAck(status="not_running", run_id=snapshot.run_id, attempt_id=snapshot.attempt_id)
+        driver.cancel()
+        try:
+            await driver
+        except asyncio.CancelledError:
+            pass
+        mgr.journal.update(session_id, phase="cancelled", outcome="cancelled", pending_actions=[])
+        return CommandAck(status="cancelled", run_id=snapshot.run_id, attempt_id=snapshot.attempt_id)
 
     @app.get("/session/{session_id}/cost")
     def cost(session_id: str) -> dict:
@@ -946,6 +1012,9 @@ def create_app(token: str | None = None) -> FastAPI:
 
     @app.post("/session/{session_id}/permission")
     def reply_permission(session_id: str, body: PermissionReply) -> dict:
+        s = mgr.get(session_id)
+        if s is None and mgr.journal.snapshot(session_id) is not None:
+            return {"v": 1, "status": "stale"}
         s = _require(session_id)
         fut = s.pending.get(body.id)
         if fut is not None and not fut.done():
@@ -955,6 +1024,9 @@ def create_app(token: str | None = None) -> FastAPI:
 
     @app.post("/session/{session_id}/diff")
     async def reply_diff(session_id: str, body: DiffReply) -> dict:
+        s = mgr.get(session_id)
+        if s is None and mgr.journal.snapshot(session_id) is not None:
+            return {"v": 1, "status": "stale"}
         s = _require(session_id)
         pending = s.pending_diffs.get(body.id)
         if pending is None or pending.future.done():
@@ -965,35 +1037,44 @@ def create_app(token: str | None = None) -> FastAPI:
         return {"v": 1, "status": "ok"}
 
 
-    @app.get(
-        "/session/{session_id}/events",
-        responses={
-            200: {
-                "content": {
-                    "text/event-stream": {
-                        "schema": {"$ref": "#/components/schemas/EventEnvelope"}
-                    }
-                }
-            }
-        },
-    )
+    @app.get("/session/{session_id}/task", response_model=TaskSnapshot)
+    def task_snapshot(session_id: str) -> TaskSnapshot:
+        snapshot = mgr.journal.snapshot(session_id)
+        if snapshot is None:
+            raise HTTPException(404, "task not found")
+        return snapshot
+
+    async def replay_events(session_id: str, after: int, *, envelopes: bool):
+        cursor = after
+        while True:
+            batch = mgr.journal.replay(session_id, cursor)
+            for entry in batch:
+                cursor = entry.cursor
+                if envelopes:
+                    yield ServerSentEvent(id=str(cursor), event="task.event", data=entry.model_dump_json())
+                elif entry.event["type"] != "task.state":
+                    yield ServerSentEvent(id=str(cursor), event=entry.event["type"], data=json.dumps(entry.event))
+            if not batch:
+                await asyncio.sleep(0.05)
+
+    @app.get("/session/{session_id}/task-events", responses={200: {"content": {"text/event-stream": {"schema": {"$ref": "#/components/schemas/TaskEvent"}}}}})
+    async def task_events(session_id: str, after: int = 0) -> EventSourceResponse:
+        snapshot = task_snapshot(session_id)
+        if after < 0 or after > snapshot.watermark:
+            raise HTTPException(409, "cursor outside journal; fetch snapshot and replay from zero")
+        return EventSourceResponse(replay_events(session_id, after, envelopes=True), ping=15, send_timeout=30)
+
+    @app.get("/session/{session_id}/events", responses={200: {"content": {"text/event-stream": {"schema": {"$ref": "#/components/schemas/EventEnvelope"}}}}})
     async def events(session_id: str, request: Request) -> EventSourceResponse:
-        s = _require(session_id)
-
+        task_snapshot(session_id)
+        try:
+            after = int(request.headers.get("Last-Event-ID", "0"))
+        except ValueError:
+            raise HTTPException(422, "invalid Last-Event-ID")
         async def gen():
-            yield ServerSentEvent(
-                event="server.connected", data=E.ServerConnected().model_dump_json()
-            )
-            try:
-                while True:
-                    ev = await s.queue.get()
-                    yield ServerSentEvent(event=ev.type, data=ev.model_dump_json())
-            except asyncio.CancelledError:
-                # client disconnected -> abort the in-flight turn
-                if s.busy and s.task is not None:
-                    s.task.cancel()
-                raise
-
+            yield ServerSentEvent(event="server.connected", data=E.ServerConnected().model_dump_json())
+            async for event in replay_events(session_id, after, envelopes=False):
+                yield event
         return EventSourceResponse(gen(), ping=15, send_timeout=30)
 
     # doctor (; expanded full registry via diagnostics.to_dict
@@ -1539,6 +1620,16 @@ def create_app(token: str | None = None) -> FastAPI:
 
         repo_root = Path(swarm.cwd)
         on_event = _r3_event_adapter(swarm_id)
+        coordinators = [mgr.get(rec["session_id"]) for rec in store.list_agents_by_swarm(swarm_id)
+                        if rec.get("role") == "coordinator"]
+        coordinator = next((session for session in coordinators if session is not None), None)
+        if coordinator is None:
+            raise HTTPException(409, "swarm has no native coordinator task")
+        previous = mgr.journal.receipt(coordinator.id, "swarm.run", {"swarm_id": swarm_id})
+        if previous:
+            return previous.model_dump()
+        if coordinator.busy:
+            raise HTTPException(409, "coordinator is busy")
         cli_roles = [role for role in swarm.roster if not is_native(role)]
         # Native builders are sessions, not subprocesses, so they are found
         # through the agents the create route registered, not the roster.
@@ -1587,27 +1678,17 @@ def create_app(token: str | None = None) -> FastAPI:
             """One native builder: assign, run its turn, report it done."""
             sess = mgr.get(session_id)
             if sess is None or sess.busy:
-                # A session runs one turn at a time; the message route enforces
-                # the same invariant with a 409.
-                return
+                raise RuntimeError("native builder is unavailable or busy")
             _assign_to_session(swarm_id, task, session_id)
-            sess.task = asyncio.create_task(_run_turn(sess, task.goal, "auto"))
-            try:
-                await sess.task
-            finally:
-                # The ownership policy bounds what the turn could touch, so a
-                # finished turn completes its task either way; a crashed one
-                # must not leave the plan stuck in `assigned`.
-                store.mark_done(swarm_id, task.id, summary=None)
-                _emit_swarm_event(
-                    swarm_id,
-                    E.SwarmWorkerDone(
-                        swarm_id=swarm_id,
-                        task_id=task.id,
-                        session_id=session_id,
-                        summary=None,
-                    ),
-                )
+            mgr.journal.begin(sess.id, f"swarm:{task.id}", {"goal": task.goal}, swarm_id=swarm_id, swarm_task_id=task.id)
+            sess.task = asyncio.create_task(_drive_turn(sess, task.goal, "auto"))
+            await sess.task
+            if mgr.journal.snapshot(sess.id).phase != "completed":
+                raise RuntimeError("native builder did not complete")
+            store.mark_done(swarm_id, task.id, summary=None)
+            _emit_swarm_event(swarm_id, E.SwarmWorkerDone(
+                swarm_id=swarm_id, task_id=task.id, session_id=session_id, summary=None,
+            ))
 
         def _gate(gate_type: str, detail: str, task_id: str = "") -> None:
             on_event(
@@ -1639,6 +1720,7 @@ def create_app(token: str | None = None) -> FastAPI:
         async def _drive() -> None:
             try:
                 if not await _seed():
+                    mgr.journal.update(coordinator.id, phase="failed", outcome="decompose_failed")
                     return
                 # `run_cli_swarm` zips CLI roles against the plan in order, so
                 # the native builders take the tail and the two halves never
@@ -1669,11 +1751,14 @@ def create_app(token: str | None = None) -> FastAPI:
                     _gate("run_failed", f"CLI members: {results[0]}")
                 cli_ran = results[0] if isinstance(results[0], list) else []
                 failed = [r for r in cli_ran if r.error]
+                if isinstance(results[0], BaseException):
+                    failed.append(results[0])
                 for task, outcome in zip(native_tasks, results[1:]):
                     if isinstance(outcome, BaseException):
                         _gate("member_failed", f"native builder: {outcome}", task.id)
                         failed.append(outcome)
-                if not cli_ran and not native_tasks:
+                if not cli_ran and not native_tasks and not failed:
+                    mgr.journal.update(coordinator.id, phase="waiting", outcome="no_runnable_members")
                     # Nothing was driven: a re-run of a finished plan, or a
                     # swarm with no members. Silence beats a terminal event for
                     # a run that never happened.
@@ -1683,7 +1768,11 @@ def create_app(token: str | None = None) -> FastAPI:
                     # Each failure already has its own member_failed gate.
                     total = len(cli_ran) + len(native_tasks)
                     _gate("run_incomplete", f"{len(failed)} of {total} members failed")
+                    mgr.journal.update(coordinator.id, phase="failed", outcome="run_incomplete")
+                elif any(task.state not in (DONE, CANDIDATE_READY) for task in store.get(swarm_id).tasks):
+                    mgr.journal.update(coordinator.id, phase="waiting", outcome="unfinished_tasks")
                 elif held["candidates"]:
+                    mgr.journal.update(coordinator.id, phase="candidate_ready", outcome="candidates_ready")
                     on_event(
                         {
                             "type": "swarm.candidates_ready",
@@ -1692,6 +1781,7 @@ def create_app(token: str | None = None) -> FastAPI:
                         }
                     )
                 else:
+                    mgr.journal.update(coordinator.id, phase="completed", outcome="done")
                     on_event(
                         {
                             "type": "swarm.complete",
@@ -1699,15 +1789,23 @@ def create_app(token: str | None = None) -> FastAPI:
                             "task_count": len(cli_ran) + len(native_tasks),
                         }
                     )
+            except asyncio.CancelledError:
+                mgr.journal.update(coordinator.id, phase="cancelled", outcome="cancelled", pending_actions=[])
+                raise
             except Exception as exc:  # noqa: BLE001 — must not crash the loop, must not go quiet
                 _gate("run_failed", str(exc))
+                mgr.journal.update(coordinator.id, phase="failed", outcome="run_failed")
+            finally:
+                coordinator.task = None
 
         if swarm_id in app.state.swarm_runs:
             return {"v": 1, "status": "already running"}
+        ack = mgr.journal.begin(coordinator.id, "swarm.run", {"swarm_id": swarm_id}, swarm_id=swarm_id)
         driver = asyncio.create_task(_drive())
+        coordinator.task = driver
         app.state.swarm_runs[swarm_id] = driver
         driver.add_done_callback(lambda _t: app.state.swarm_runs.pop(swarm_id, None))
-        return {"v": 1, "status": "running"}
+        return ack.model_dump()
 
     # OpenAPI: force the event union into components
 
@@ -1728,6 +1826,9 @@ def _force_event_schema(app: FastAPI) -> None:
         for name, defn in env.pop("$defs", {}).items():
             comps.setdefault(name, defn)
         comps["EventEnvelope"] = env
+        task_event = TaskEvent.model_json_schema(ref_template="#/components/schemas/{model}")
+        comps.update(task_event.pop("$defs", {}))
+        comps["TaskEvent"] = task_event
         app.openapi_schema = schema
         return schema
 

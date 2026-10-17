@@ -13,12 +13,25 @@ from typing import TYPE_CHECKING, Any
 from voss_runtime import EpisodicMemory
 
 from .. import session as session_store
+from .task_journal import TaskJournal
 
 if TYPE_CHECKING:
     from ..agent import Plan
     from .diffs import PendingDiff
 
 QUEUE_MAXSIZE = 256
+
+
+class JournalQueue(asyncio.Queue):
+    def __init__(self, journal: TaskJournal, sid: str):
+        super().__init__(maxsize=QUEUE_MAXSIZE)
+        self.journal, self.sid = journal, sid
+
+    def put_nowait(self, event):
+        self.journal.emit(self.sid, event.model_dump())
+        if self.full():
+            self.get_nowait()
+        super().put_nowait(event)
 
 
 @dataclass
@@ -33,6 +46,8 @@ class ServerSession:
         default_factory=lambda: asyncio.Queue(maxsize=QUEUE_MAXSIZE)
     )
     task: asyncio.Task | None = None
+    journal: TaskJournal | None = None
+    turn_outcome: str | None = None
     pending: dict[str, Future] = field(default_factory=dict)
     pending_diffs: dict[str, PendingDiff] = field(default_factory=dict)
     review_diffs: bool = False
@@ -71,6 +86,7 @@ class SessionManager:
     """In-memory registry of active server sessions."""
 
     def __init__(self) -> None:
+        self.journal = TaskJournal(Path.cwd() / ".voss" / "task-journal.sqlite3")
         self._sessions: dict[str, ServerSession] = {}
 
     def create(
@@ -91,6 +107,9 @@ class SessionManager:
             history=EpisodicMemory(capacity=40),
             title=title,
         )
+        self.journal.register(session.id)
+        session.journal = self.journal
+        session.queue = JournalQueue(self.journal, session.id)
         self._sessions[session.id] = session
         return session
 
@@ -103,6 +122,8 @@ class SessionManager:
         prior_context: Any = None,
     ) -> ServerSession:
         """Register a session resumed from disk (reuses the saved id + history)."""
+        if record.id in self._sessions:
+            return self._sessions[record.id]
         session = ServerSession(
             id=record.id,
             cwd=Path(record.cwd),
@@ -113,6 +134,9 @@ class SessionManager:
             title=record.name,
             prior_context=prior_context,
         )
+        self.journal.register(session.id)
+        session.journal = self.journal
+        session.queue = JournalQueue(self.journal, session.id)
         self._sessions[session.id] = session
         return session
 

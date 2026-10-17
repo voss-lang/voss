@@ -19,6 +19,8 @@ from voss.harness.memory_store import MemoryStore
 def client(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     app = appmod.create_app("test-commands")
+    from voss.harness.server.task_journal import TaskJournal
+    app.state.sessions.journal = TaskJournal(tmp_path.parent / (tmp_path.name + "-tasks.sqlite3"))
     c = TestClient(app, headers={"Authorization": "Bearer test-commands"})
     c.session = app.state.sessions.create(cwd=tmp_path, model="synthetic", provider=object())
     return c
