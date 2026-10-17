@@ -1,15 +1,18 @@
 import json
+import os
 import shutil
+import time
 from pathlib import Path
 
 import pytest
 
 from voss_proofs import adapters, workspace
 from voss_proofs.cli import main
+from voss_proofs.evaluate import run_check
 from voss_proofs.ingest import import_voss_eval
 from voss_proofs.report import compare, render, wilson
 from voss_proofs.runner import run_experiment, run_one
-from voss_proofs.spec import BUILTIN_CONFIGS, SCHEMAS, load_bench, load_config, load_spec
+from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, load_bench, load_config, load_spec
 from voss_proofs.store import Store, read_runs
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -181,3 +184,56 @@ def test_zero_cost_reported_for_a_token_using_run_is_recorded_as_unknown():
     assert res.usage.cost_usd is None and res.usage.cost_source.startswith("unknown")
     assert (res.usage.cache_creation_tokens, res.usage.cache_read_tokens) == (213233, 10)
     assert res.claimed_complete is True
+
+
+def test_hidden_files_planted_by_the_system_are_replaced_before_grading(tmp_path, monkeypatch):
+    def plant(spec, task_dir, ws, env, config, store):
+        (ws.repo / "hidden").mkdir()
+        (ws.repo / "hidden" / "__init__.py").write_text(
+            "import calendar_utils\n"
+            "calendar_utils.is_leap_year = lambda y: y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)\n"
+        )
+        return adapters.AdapterResult(exit_reason="done")
+
+    monkeypatch.setitem(adapters.ADAPTERS, "null", plant)
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    rec = run_one(task_dir, spec, NULL, Store(tmp_path / "exp"), run_idx=0, seed=0)
+    assert next(c for c in rec.checks if c.kind == "hidden").passed is False
+    assert rec.verified is False
+
+
+def test_crashing_adapter_is_recorded_and_the_experiment_continues(tmp_path, monkeypatch):
+    def crash(*args):
+        raise FileNotFoundError("no such voss binary")
+
+    monkeypatch.setitem(adapters.ADAPTERS, "null", crash)
+    store = Store(tmp_path / "exp")
+    bench = [_task("reg-py-005-leap-year-trap")]
+    records = run_experiment(bench, [NULL, ORACLE], store, log=lambda _: None)
+    crashed = next(r for r in records if r.config.name == "null")
+    assert crashed.exit_reason == "error" and crashed.verified is False
+    assert "FileNotFoundError" in crashed.errors[0]
+    assert next(r for r in records if r.config.name == "oracle").verified is True
+
+
+def test_check_timeout_kills_the_whole_process_group(tmp_path):
+    check = CmdCheck(type="cmd", run="sleep 30 & echo $! > child.pid; wait", timeout=1)
+    result = run_check(check, tmp_path, {"PATH": "/bin:/usr/bin"}, "visible", Store(tmp_path / "s"))
+    assert result.passed is False and result.detail == "timeout 1s"
+    child = int((tmp_path / "child.pid").read_text())
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(child, 9)
+        pytest.fail("timed-out check left its child process running")
+
+
+def test_wall_budget_timeout_is_not_overwritten_by_the_session_record():
+    res = adapters.AdapterResult(exit_reason="timeout")
+    adapters.usage_from_record({"runs": [{"exit_reason": "done", "iterations": []}]}, res)
+    assert res.exit_reason == "timeout" and res.claimed_complete is False

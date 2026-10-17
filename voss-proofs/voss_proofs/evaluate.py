@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import fnmatch
+import os
+import signal
 import subprocess
 from pathlib import Path
 
@@ -13,14 +15,17 @@ EVALUATOR_VERSION = "deterministic.v1"
 
 def run_check(check: AnyCheck, repo: Path, env: dict[str, str], kind: str, store: Store) -> CheckResult:
     if isinstance(check, CmdCheck):
+        p = subprocess.Popen(
+            check.run, shell=True, cwd=repo, env=env, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, start_new_session=True,
+        )
         try:
-            p = subprocess.run(
-                check.run, shell=True, cwd=repo, env=env, capture_output=True,
-                text=True, timeout=check.timeout,
-            )
+            out, err = p.communicate(timeout=check.timeout)
         except subprocess.TimeoutExpired:
+            os.killpg(p.pid, signal.SIGKILL)
+            p.communicate()
             return CheckResult(name=check.run, kind=kind, passed=False, detail=f"timeout {check.timeout}s")
-        log = store.put(f"$ {check.run}\n[exit {p.returncode}]\n{p.stdout}\n{p.stderr}")
+        log = store.put(f"$ {check.run}\n[exit {p.returncode}]\n{out}\n{err}")
         return CheckResult(
             name=check.run, kind=kind, passed=p.returncode == 0,
             detail=f"exit {p.returncode}", log=log,

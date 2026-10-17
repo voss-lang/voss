@@ -89,8 +89,9 @@ def changed_paths(repo: Path) -> list[str]:
 
 def install_hidden(task_dir: Path, repo: Path) -> None:
     hidden = task_dir / "hidden"
+    shutil.rmtree(repo / "hidden", ignore_errors=True)
     if hidden.is_dir():
-        shutil.copytree(hidden, repo / "hidden", dirs_exist_ok=True)
+        shutil.copytree(hidden, repo / "hidden")
 
 
 def scenario_hash(task_dir: Path) -> str:

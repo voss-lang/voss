@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__, workspace
-from .adapters import ADAPTERS
+from .adapters import ADAPTERS, AdapterResult
 from .evaluate import EVALUATOR_VERSION, run_check, scope_check, verdict
 from .spec import BenchmarkSpec, Config, ConfigRef, RunRecord, scenario_id
 from .store import Store
@@ -55,7 +55,10 @@ def run_one(task_dir: Path, spec: BenchmarkSpec, config: Config, store: Store,
     t0 = time.monotonic()
     try:
         env = workspace.env(ws, live=config.live)
-        result = ADAPTERS[config.adapter](spec, task_dir, ws, env, config, store)
+        try:
+            result = ADAPTERS[config.adapter](spec, task_dir, ws, env, config, store)
+        except Exception as exc:  # noqa: BLE001 - a crashed adapter is a recorded failed run
+            result = AdapterResult(exit_reason="error", errors=[f"{type(exc).__name__}: {str(exc)[:300]}"])
         record.duration_s = round(time.monotonic() - t0, 3)
         record.exit_reason = result.exit_reason
         record.claimed_complete = result.claimed_complete

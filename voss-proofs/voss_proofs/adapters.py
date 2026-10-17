@@ -128,7 +128,7 @@ def usage_from_record(record: dict, res: AdapterResult) -> None:
     if res.usage.cost_usd == 0 and res.usage.output_tokens:
         res.usage.cost_usd = None
         res.usage.cost_source = "unknown: voss reported $0 for a run that used tokens"
-    res.exit_reason = runs[-1].get("exit_reason") or res.exit_reason
+    res.exit_reason = res.exit_reason or runs[-1].get("exit_reason")
     res.claimed_complete = res.exit_reason == "done"
 
 
