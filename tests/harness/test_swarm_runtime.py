@@ -394,3 +394,19 @@ async def test_cancellation_stops_member_before_returning_and_retains_worktree(r
     assert stopped.is_set()
     assert paths[0].exists()
     assert store.get(swarm.id).tasks[0].state not in (DONE, CANDIDATE_READY)
+
+
+async def test_live_revert_preserves_scope_violation_in_member_result(repo, monkeypatch):
+    from voss.harness.swarm_watch import OwnershipWatcher
+
+    monkeypatch.setattr(OwnershipWatcher, "start", lambda self: None)
+    monkeypatch.setattr(OwnershipWatcher, "stop", lambda self: self._handle_batch())
+    store = SwarmStore(cwd=repo)
+    swarm = store.create("scope fixture", cwd=str(repo), roster=[Role(name="builder-1", agent="codex")])
+    task = store.add_task(swarm.id, "synthetic task", owned_files=["owned.py"])
+    events = []
+    spawn = _spawn_with_result(repo, {"owned.py": "changed\n", "outside.txt": "not owned\n"}, swarm.id, "builder-1", "done")
+    result = await run_cli_member(store, repo, swarm.id, swarm.roster[0], task, spawn_fn=spawn, on_event=events.append)
+    assert result.violations == ["outside.txt"]
+    assert not (Path(result.candidate_worktree) / "outside.txt").exists()
+    assert any(event["type"] == "swarm.needs_operator" and event["paths"] == ["outside.txt"] for event in events)

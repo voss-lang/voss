@@ -224,10 +224,8 @@ async def run_cli_member(
     except (OSError, ValueError):
         pass
 
-    # Belt-and-suspenders live watcher; the post-exit check below is the authority
-    # so a missed fs event cannot make us wrong. on_violation here is
-    # flagging the deterministic pass re-detects and re-emits
-    watcher = OwnershipWatcher(mw, task.owned_files, on_violation=lambda _paths: None)
+    observed_violations: set[str] = set()
+    watcher = OwnershipWatcher(mw, task.owned_files, on_violation=observed_violations.update)
     watcher.start()
     try:
         handle = spawn_fn(argv, mw.path)
@@ -243,9 +241,10 @@ async def run_cli_member(
 
     # Deterministic post-exit ownership reconciliation do NOT rely on the watcher
     changed = changed_files(mw)
-    violations = detect_violations(changed, task.owned_files)
+    remaining_violations = detect_violations(changed, task.owned_files)
+    violations = sorted(observed_violations.union(remaining_violations))
     if violations:
-        revert_paths(mw, violations)
+        revert_paths(mw, remaining_violations)
         _emit(
             on_event,
             {
