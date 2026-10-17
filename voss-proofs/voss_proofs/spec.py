@@ -123,6 +123,8 @@ class CheckResult(_Strict):
 class Usage(_Strict):
     input_tokens: int | None = None
     output_tokens: int | None = None
+    cache_creation_tokens: int | None = None
+    cache_read_tokens: int | None = None
     cost_usd: float | None = None
     cost_source: str | None = None
 

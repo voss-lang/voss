@@ -12,7 +12,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 SECRET_ENV = re.compile(r"(_API_KEY|_TOKEN|_SECRET|_PASSWORD)$|^TYPESAFE_")
-EXCLUDED = ".voss/\n"
+EXCLUDED = "\n".join([
+    ".voss/", ".voss-cache/", "__pycache__/", "*.pyc", ".pytest_cache/",
+    "node_modules/", "target/", "",
+])
 
 
 @dataclass

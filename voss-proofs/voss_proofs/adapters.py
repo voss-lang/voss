@@ -100,13 +100,34 @@ def _sse(response: httpx.Response):
             yield payload
 
 
-def _usage_from_record(record: dict, res: AdapterResult) -> None:
+NO_RUN = "turn was routed to ambient chat, so no agent run happened"
+
+
+def turn_problems(events: list[dict]) -> list[str]:
+    """Stream errors, plus a note when the server never entered its agent loop."""
+    problems = [e["text"].strip() for e in events
+                if e["type"] == "stream.delta" and "[error:" in e.get("text", "")]
+    if "run" not in {e.get("phase") for e in events if e["type"] == "status"}:
+        problems.append(NO_RUN)
+    return problems
+
+
+def usage_from_record(record: dict, res: AdapterResult) -> None:
     runs = record.get("runs") or []
     if not runs:
         return
     its = [it for r in runs for it in (r.get("iterations") or [])]
-    res.usage.input_tokens = sum(int(it.get("prompt_tokens") or 0) for it in its)
-    res.usage.output_tokens = sum(int(it.get("completion_tokens") or 0) for it in its)
+
+    def total(key: str) -> int:
+        return sum(int(it.get(key) or 0) for it in its)
+
+    res.usage.input_tokens = total("prompt_tokens")
+    res.usage.output_tokens = total("completion_tokens")
+    res.usage.cache_creation_tokens = total("cache_creation_input_tokens")
+    res.usage.cache_read_tokens = total("cache_read_input_tokens")
+    if res.usage.cost_usd == 0 and res.usage.output_tokens:
+        res.usage.cost_usd = None
+        res.usage.cost_source = "unknown: voss reported $0 for a run that used tokens"
     res.exit_reason = runs[-1].get("exit_reason") or res.exit_reason
     res.claimed_complete = res.exit_reason == "done"
 
@@ -181,7 +202,12 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
         record_path = ws.repo / ".voss" / "sessions" / f"{sid}.json"
         if record_path.is_file():
             res.artifacts["session_record"] = store.put(record_path.read_bytes())
-            _usage_from_record(json.loads(record_path.read_text()), res)
+            usage_from_record(json.loads(record_path.read_text()), res)
+        problems = turn_problems(events)
+        if problems:
+            res.exit_reason = "no-run" if NO_RUN in problems else "error"
+            res.claimed_complete = None
+            res.errors += problems
         res.exit_reason = res.exit_reason or "done"
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         res.exit_reason = "error"

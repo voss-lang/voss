@@ -4,7 +4,7 @@ This page explains how a run becomes a result. If a report says something the de
 
 ## One run
 
-1. **Workspace.** The scenario's `fixture/` is copied into a fresh temp directory and committed as the git baseline `init`. Runtime state under `.voss/` is excluded from git, so it never appears in a diff.
+1. **Workspace.** The scenario's `fixture/` is copied into a fresh temp directory and committed as the git baseline `init`. Runtime and build state is excluded from git, so it never appears in a diff or a scope check. The excluded paths are `.voss/`, `.voss-cache/`, `__pycache__/`, `*.pyc`, `.pytest_cache/`, `node_modules/` and `target/`.
 2. **Environment.** Offline configs get a throwaway `HOME`, `XDG_*` and `CODEX_HOME`, and every `*_API_KEY`, `*_TOKEN`, `*_SECRET` and `TYPESAFE_*` variable is removed. Live configs keep the real `HOME`, because subscription auth lives there. Each record shows which isolation level applied through its `live` flag.
 3. **System under test.** The config's adapter runs:
    - `oracle` applies `reference.patch`.
@@ -54,6 +54,16 @@ Job order is shuffled with `--seed` (default 0), so a slow or stateful scenario 
 - `oracle` and `null` record a known zero with `cost_source = "no model"`.
 - For `voss-serve`, cost comes from `/session/{id}/cost` when the server recorded at least one run. Token counts come from the saved session record.
 - The fake serve turn records no run, so its cost stays unknown.
+- When Voss reports $0 for a run that consumed tokens, the cost is recorded as unknown. Subscription providers do this.
+- Token counts are stored as recorded: prompt, completion, cache creation and cache read. None of them is summed into a single "input tokens" figure.
+
+## Turns that never ran
+
+`voss serve` can send a message to ambient chat instead of the agent loop (upstream gap 14). If no `status` event with phase `run` appears, the adapter records the turn as follows:
+- `exit_reason = "no-run"`, with an error explaining why.
+- `claimed_complete = null`.
+
+The checks still run, so a no-run counts as a failed attempt in the verified rate.
 
 ## Contamination controls
 

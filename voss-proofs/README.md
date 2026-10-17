@@ -19,7 +19,7 @@ proofs compare results/smoke-1 results/smoke-2         # 0 outcome differences
 open results/smoke-1/report.md
 ```
 
-None of the commands above call a live model. To run real Voss sessions you have to opt in, and the run count must be capped:
+None of the commands above call a live model. To run real Voss sessions you have to opt in, and the run count must be capped. Voss must also be able to resolve auth: install `voss[claude]` for a Claude subscription, or log in to Codex.
 
 ```sh
 proofs run --bench benchmarks/regression --config voss-serve-auto --live --max-runs 8 --max-usd 2

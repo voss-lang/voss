@@ -135,6 +135,30 @@
           "default": null,
           "title": "Output Tokens"
         },
+        "cache_creation_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Creation Tokens"
+        },
+        "cache_read_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Read Tokens"
+        },
         "cost_usd": {
           "anyOf": [
             {

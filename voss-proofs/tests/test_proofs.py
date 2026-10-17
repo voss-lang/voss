@@ -147,12 +147,37 @@ def test_voss_serve_fake_turn_records_events_without_a_model(tmp_path):
     assert rec.verified is False
 
 
-def test_workspace_diff_includes_new_files_and_ignores_voss_runtime_state(tmp_path):
+def test_workspace_diff_includes_new_files_and_ignores_runtime_and_build_state(tmp_path):
     ws = workspace.prepare(REGRESSION / "reg-py-005-leap-year-trap", "t")
     try:
         (ws.repo / "new_module.py").write_text("x = 1\n")
         (ws.repo / ".voss" / "sessions").mkdir(parents=True)
         (ws.repo / ".voss" / "sessions" / "s.json").write_text("{}")
+        (ws.repo / "__pycache__").mkdir()
+        (ws.repo / "__pycache__" / "m.cpython-313.pyc").write_bytes(b"\0")
+        (ws.repo / ".voss-cache").mkdir()
+        (ws.repo / ".voss-cache" / "index.db").write_bytes(b"\0")
         assert workspace.changed_paths(ws.repo) == ["new_module.py"]
     finally:
         ws.cleanup()
+
+
+def test_turn_routed_to_ambient_chat_is_reported_not_counted_as_done():
+    ambient = [{"type": "status", "phase": "ambient"},
+               {"type": "stream.delta", "text": "\n[error: provider missing]\n"},
+               {"type": "session.idle"}]
+    assert adapters.turn_problems(ambient) == ["[error: provider missing]", adapters.NO_RUN]
+    ran = [{"type": "status", "phase": "run"}, {"type": "status", "phase": "ambient"}]
+    assert adapters.turn_problems(ran) == []
+
+
+def test_zero_cost_reported_for_a_token_using_run_is_recorded_as_unknown():
+    record = {"runs": [{"exit_reason": "done", "iterations": [
+        {"prompt_tokens": 2, "completion_tokens": 389,
+         "cache_creation_input_tokens": 213233, "cache_read_input_tokens": 10}]}]}
+    res = adapters.AdapterResult()
+    res.usage.cost_usd, res.usage.cost_source = 0.0, "serve:/cost"
+    adapters.usage_from_record(record, res)
+    assert res.usage.cost_usd is None and res.usage.cost_source.startswith("unknown")
+    assert (res.usage.cache_creation_tokens, res.usage.cache_read_tokens) == (213233, 10)
+    assert res.claimed_complete is True
