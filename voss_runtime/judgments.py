@@ -259,6 +259,8 @@ def _safe_id(value: str, fallback: str) -> str:
 def _receipt_answers(questions: Mapping[str, Question], answers: Mapping[str, Answer]) -> dict:
     out = {}
     for n, (qid, question) in enumerate(questions.items(), 1):
+        if qid not in answers:
+            continue
         answer = answers[qid]
         if isinstance(answer, ChoiceResult):
             ids = {o: _safe_id(o, f"opt{i}") for i, o in enumerate(question.criteria, 1)}
@@ -287,32 +289,40 @@ def _probabilities(value: object, options: set[str]) -> dict[str, float]:
     return dict(value)
 
 
-def parse_response(body: object, questions: Mapping[str, Question]) -> tuple[dict[str, Answer], str, int, int]:
+def parse_response(body: object, questions: Mapping[str, Question], *, partial: bool = False) -> tuple[dict[str, Answer], str, int, int]:
     if not isinstance(body, dict) or not isinstance(body.get("model"), str):
         raise JudgmentError("invalid_response", "Jev response is missing a model")
     usage = body.get("usage")
     if not isinstance(usage, dict) or any(type(usage.get(k)) is not int or usage[k] < 0 for k in ("input_tokens", "output_tokens")):
         raise JudgmentError("invalid_response", "Jev response has invalid token usage")
     raw = body.get("answers")
-    if not isinstance(raw, dict) or set(raw) != set(questions):
+    if not isinstance(raw, dict) or (not partial and set(raw) != set(questions)):
         raise JudgmentError("invalid_response", "Jev response has missing or extra answers")
     answers = {}
     for qid, question in questions.items():
+        if qid not in raw:
+            continue
         answer = raw[qid]
-        expected = "choice" if isinstance(question, ChoiceQuestion) else "score" if isinstance(question, ScoreQuestion) else "noul"
-        if not isinstance(answer, dict) or answer.get("type") != expected:
-            raise JudgmentError("invalid_response", "Jev answer type does not match question")
-        if isinstance(question, ChoiceQuestion):
-            probabilities = _probabilities(answer.get("probabilities"), set(question.criteria))
-            choice = answer.get("choice")
-            if not isinstance(choice, str) or choice not in probabilities:
-                raise JudgmentError("invalid_response", "Jev response chose an unknown option")
-            answers[qid] = ChoiceResult(choice, probabilities, _number(answer.get("confidence")))
-        elif isinstance(question, ScoreQuestion):
-            probabilities = _probabilities(answer.get("probabilities"), {str(i) for i in range(len(question.criteria))})
-            answers[qid] = ScoreResult(_number(answer.get("score"), len(question.criteria) - 1), probabilities, _number(answer.get("confidence")))
-        else:
-            answers[qid] = NoulResult(_number(answer.get("noul")))
+        try:
+            expected = "choice" if isinstance(question, ChoiceQuestion) else "score" if isinstance(question, ScoreQuestion) else "noul"
+            if not isinstance(answer, dict) or answer.get("type") != expected:
+                raise JudgmentError("invalid_response", "Jev answer type does not match question")
+            if isinstance(question, ChoiceQuestion):
+                probabilities = _probabilities(answer.get("probabilities"), set(question.criteria))
+                choice = answer.get("choice")
+                if not isinstance(choice, str) or choice not in probabilities:
+                    raise JudgmentError("invalid_response", "Jev response chose an unknown option")
+                answers[qid] = ChoiceResult(choice, probabilities, _number(answer.get("confidence")))
+            elif isinstance(question, ScoreQuestion):
+                probabilities = _probabilities(answer.get("probabilities"), {str(i) for i in range(len(question.criteria))})
+                answers[qid] = ScoreResult(_number(answer.get("score"), len(question.criteria) - 1), probabilities, _number(answer.get("confidence")))
+            else:
+                answers[qid] = NoulResult(_number(answer.get("noul")))
+        except JudgmentError:
+            if not partial:
+                raise
+    if partial and not answers:
+        raise JudgmentError("invalid_response", "Jev response has no valid answers")
     return answers, body["model"], usage["input_tokens"], usage["output_tokens"]
 
 
@@ -347,6 +357,7 @@ class JevClient:
     async def evaluate(
         self, state: object, questions: Mapping[str, Question], *, call_id: str | None = None,
         purpose: str = "explicit", rubric_version: str | None = None, artifact_revision: str | None = None,
+        partial: bool = False,
     ) -> JudgmentResult:
         if not SAFE_PURPOSE.fullmatch(purpose):
             raise ValueError("purpose must be a lowercase identifier")
@@ -355,7 +366,7 @@ class JevClient:
         start = self._clock()
         status, result, error = "unavailable", None, None
         try:
-            result = await self._dispatch(payload, questions, call_id, start)
+            result = await self._dispatch(payload, questions, call_id, start, partial)
             status = "answered"
             return result
         except JudgmentError as err:
@@ -378,7 +389,7 @@ class JevClient:
             if error is not None:
                 error.receipt = receipt
 
-    async def _dispatch(self, payload: bytes, questions: Mapping[str, Question], call_id: str, start: float) -> JudgmentResult:
+    async def _dispatch(self, payload: bytes, questions: Mapping[str, Question], call_id: str, start: float, partial: bool) -> JudgmentResult:
         if len(payload) > self.max_request_bytes:
             raise JudgmentError("budget_exhausted", "request exceeds max_request_bytes")
         deadline = start + self.timeout_ms / 1000
@@ -409,7 +420,7 @@ class JevClient:
                         except ValueError:
                             raise JudgmentError("invalid_response", "Jev response is not valid JSON", attempts=attempts) from None
                         try:
-                            answers, model, input_tokens, output_tokens = parse_response(body, questions)
+                            answers, model, input_tokens, output_tokens = parse_response(body, questions, partial=partial)
                         except JudgmentError as err:
                             err.attempts = attempts
                             raise

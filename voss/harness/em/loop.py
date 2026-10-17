@@ -48,14 +48,14 @@ def _execute_plan(
             if isinstance(op, CreateTicketOp):
                 em_handle.create_ticket(
                     original_idea=op.original_idea,
-                    acceptance_criteria=", ".join(op.acceptance_criteria) if isinstance(op.acceptance_criteria, list) else str(op.acceptance_criteria),
+                    acceptance_criteria="\n".join(op.acceptance_criteria) if isinstance(op.acceptance_criteria, list) else str(op.acceptance_criteria),
                     dod=", ".join(op.dod) if isinstance(op.dod, list) else str(op.dod),
                     worker_role=op.worker_role,
                     domain=op.domain,
                     risk_tier=op.risk_tier,
                 )
             elif isinstance(op, SetACOp):
-                em_handle.set_ac(op.card_id, ", ".join(op.acceptance_criteria))
+                em_handle.set_ac(op.card_id, "\n".join(op.acceptance_criteria))
             elif isinstance(op, SetDoDOp):
                 em_handle.set_dod(op.card_id, ", ".join(op.dod))
             elif isinstance(op, DispatchCardOp):

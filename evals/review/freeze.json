@@ -1,0 +1,56 @@
+{
+  "frozen_at": "2026-10-10",
+  "commit": "c1a27046aef3096e460b1c24b59d8066e5c2f792",
+  "rubric_version": "review.requirements.v1",
+  "seed": 20261010,
+  "split_algorithm": "each fixture is one group, so all of its criteria share a split; for each kind in sorted order, sort fixture ids and shuffle with one random.Random(seed); concatenate; assign alternately dev, test starting with dev",
+  "splits": {
+    "dev": {
+      "fixtures": 21,
+      "pairs": 50,
+      "gold": {
+        "contradicted": 14,
+        "insufficient_evidence": 19,
+        "supported": 17
+      },
+      "negatives": 31,
+      "ambiguous": 2
+    },
+    "test": {
+      "fixtures": 21,
+      "pairs": 50,
+      "gold": {
+        "contradicted": 15,
+        "insufficient_evidence": 18,
+        "supported": 17
+      },
+      "negatives": 33,
+      "ambiguous": 0
+    }
+  },
+  "metrics": {
+    "false_supported": "pairs shown supported whose gold is contradicted or insufficient_evidence, over all non-supported gold pairs; Wilson 95% interval",
+    "contradicted_recall": "pairs shown contradicted over gold contradicted pairs; Wilson 95% interval",
+    "abstention_rate": "pairs shown abstained or no_answer, or whose call failed, over all scored pairs",
+    "coverage": "1 - abstention_rate",
+    "ambiguity": "pairs flagged ambiguous; excluded from every rate and listed separately",
+    "brier": "mean (P(supported) - [gold == supported])^2 over scored pairs with probabilities",
+    "latency": "p50 and p95 latency_ms over answered receipts",
+    "cost": "total and mean observed cost_usd over receipts"
+  },
+  "threshold_policy": {
+    "start": 0.8,
+    "tuning": "dev split only",
+    "locked": "decision_review.THRESHOLD at the locked run, recorded in reports/review-test.json"
+  },
+  "release_bar": {
+    "false_supported_max": 0.05,
+    "basis": "point estimate on the locked split",
+    "interval": "Wilson 95%, reported, not gating"
+  },
+  "files": {
+    "corpus.json": "ce71e2f8b23e60435b4b9aac7ce579813eb693c1cd4c55f1f59487530730ea87",
+    "fixtures/batch-01.jsonl": "9c03d65c8188c71bea07d7ac6ea0e7886e406f0b3a5ee220ebf14910a7290b41",
+    "fixtures/batch-02.jsonl": "3f54260125cdf5d26701435c488b86487815cc806c96e16bbaacf240c243b698"
+  }
+}
