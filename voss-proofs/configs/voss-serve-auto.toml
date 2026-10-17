@@ -1,0 +1,6 @@
+name = "voss-serve-auto"
+adapter = "voss-serve"
+description = "Baseline B: one voss serve session, auto mode, default subscription auth."
+live = true
+mode = "auto"
+auth = "auto"

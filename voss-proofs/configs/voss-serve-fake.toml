@@ -1,0 +1,6 @@
+name = "voss-serve-fake"
+adapter = "voss-serve"
+description = "voss serve with VOSS_SERVE_FAKE_TURN: canned turn, no model, no edits. Exercises the drive/evidence pipeline only."
+live = false
+auth = "auto"
+env = { VOSS_SERVE_FAKE_TURN = "1" }

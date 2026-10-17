@@ -1,0 +1,438 @@
+{
+  "$defs": {
+    "CheckResult": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "visible",
+            "hidden",
+            "scope"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "log": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "passed"
+      ],
+      "title": "CheckResult",
+      "type": "object"
+    },
+    "ConfigRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "adapter",
+        "sha256"
+      ],
+      "title": "ConfigRef",
+      "type": "object"
+    },
+    "Judge": {
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "title": "Verdict",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        }
+      },
+      "required": [
+        "verdict"
+      ],
+      "title": "Judge",
+      "type": "object"
+    },
+    "Usage": {
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "cost_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Source"
+        }
+      },
+      "title": "Usage",
+      "type": "object"
+    },
+    "VossInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        },
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        }
+      },
+      "title": "VossInfo",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "run.v1",
+      "default": "run.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "experiment_id": {
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scenario_id": {
+      "title": "Scenario Id",
+      "type": "string"
+    },
+    "scenario_version": {
+      "default": 1,
+      "title": "Scenario Version",
+      "type": "integer"
+    },
+    "scenario_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scenario Sha256"
+    },
+    "dataset": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset"
+    },
+    "category": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Category"
+    },
+    "synthetic": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Synthetic"
+    },
+    "config": {
+      "$ref": "#/$defs/ConfigRef"
+    },
+    "voss": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VossInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider"
+    },
+    "live": {
+      "default": false,
+      "title": "Live",
+      "type": "boolean"
+    },
+    "seed": {
+      "default": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "run_idx": {
+      "default": 0,
+      "title": "Run Idx",
+      "type": "integer"
+    },
+    "started_at": {
+      "title": "Started At",
+      "type": "string"
+    },
+    "duration_s": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Duration S"
+    },
+    "artifacts": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Artifacts",
+      "type": "object"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/CheckResult"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "usage": {
+      "$ref": "#/$defs/Usage"
+    },
+    "exit_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exit Reason"
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "skipped": {
+      "default": false,
+      "title": "Skipped",
+      "type": "boolean"
+    },
+    "skip_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Skip Reason"
+    },
+    "claimed_complete": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Claimed Complete"
+    },
+    "verified": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Verified"
+    },
+    "judge": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Judge"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "evaluator_version": {
+      "title": "Evaluator Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "experiment_id",
+    "run_id",
+    "scenario_id",
+    "config",
+    "started_at",
+    "evaluator_version"
+  ],
+  "title": "RunRecord",
+  "type": "object"
+}
