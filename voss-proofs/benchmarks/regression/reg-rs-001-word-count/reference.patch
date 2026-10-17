@@ -1,0 +1,12 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index 8a2db4a..6d6b5e9 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,6 +1,6 @@
+ /// Count words separated by whitespace.
+ pub fn word_count(s: &str) -> usize {
+-    s.split(' ').count()
++    s.split_whitespace().count()
+ }
+ 
+ #[cfg(test)]

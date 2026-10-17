@@ -1,0 +1,33 @@
+prompt = """
+Bug report: slugify("Hello,  World!") returns "hello---world" instead of "hello-world".
+Fix slugify in slug.py so runs of non-alphanumeric characters collapse to a single hyphen.
+Inputs that already produce correct slugs must keep producing the same output.
+"""
+mode = "auto"
+rubric = """
+PASS if repeated separators collapse to one hyphen, leading/trailing hyphens are stripped, and previously correct outputs are unchanged.
+FAIL otherwise.
+"""
+requires = ["python3"]
+
+[meta]
+category = "code"
+synthetic = true
+origin = "hand-written for VossProofs regression set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: runs of non-alphanumeric characters become a single hyphen",
+  "AC-2: no leading or trailing hyphens",
+  "AC-3: outputs that were already correct are unchanged",
+]
+allowed_paths = ["slug.py", "tests/*"]
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"

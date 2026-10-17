@@ -31,6 +31,10 @@ class AdapterResult:
     errors: list[str] = field(default_factory=list)
 
 
+def _no_model() -> Usage:
+    return Usage(input_tokens=0, output_tokens=0, cost_usd=0.0, cost_source="no model")
+
+
 def oracle(spec, task_dir, ws, env, config, store) -> AdapterResult:
     patch = task_dir / "reference.patch"
     if not patch.is_file():
@@ -41,11 +45,11 @@ def oracle(spec, task_dir, ws, env, config, store) -> AdapterResult:
     )
     if p.returncode != 0:
         return AdapterResult(exit_reason="error", errors=[f"git apply: {p.stderr.strip()[:300]}"])
-    return AdapterResult(exit_reason="done", claimed_complete=True)
+    return AdapterResult(exit_reason="done", claimed_complete=True, usage=_no_model())
 
 
 def null(spec, task_dir, ws, env, config, store) -> AdapterResult:
-    return AdapterResult(exit_reason="done")
+    return AdapterResult(exit_reason="done", usage=_no_model())
 
 
 @functools.cache
@@ -145,7 +149,9 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
                 session["model"] = config.model
             r = c.post("/session", json=session)
             r.raise_for_status()
-            sid = r.json()["id"]
+            created = r.json()
+            sid = created["id"]
+            res.provider = created.get("auth") or config.auth
             res.model = c.get(f"/session/{sid}").json().get("model")
             message = {
                 "parts": [{"type": "text", "text": spec.prompt}],

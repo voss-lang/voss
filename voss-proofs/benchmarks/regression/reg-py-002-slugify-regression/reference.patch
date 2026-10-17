@@ -1,0 +1,11 @@
+diff --git a/slug.py b/slug.py
+index ab22651..36d5573 100644
+--- a/slug.py
++++ b/slug.py
+@@ -4,5 +4,5 @@ import re
+ def slugify(text: str) -> str:
+     """Lowercase ASCII words joined by hyphens."""
+     text = text.lower()
+-    text = re.sub(r"[^a-z0-9]", "-", text)
++    text = re.sub(r"[^a-z0-9]+", "-", text)
+     return text.strip("-")

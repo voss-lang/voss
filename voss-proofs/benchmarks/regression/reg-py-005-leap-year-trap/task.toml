@@ -1,0 +1,31 @@
+prompt = """
+is_leap_year in calendar_utils.py must follow the Gregorian calendar rules.
+The existing tests pass, but the function is still wrong for some years. Make it correct for all years.
+"""
+mode = "auto"
+rubric = """
+PASS if is_leap_year implements the full Gregorian rule (divisible by 4, except centuries unless divisible by 400).
+FAIL if it only satisfies the visible tests.
+"""
+requires = ["python3"]
+
+[meta]
+category = "code"
+synthetic = true
+origin = "hand-written for VossProofs regression set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: years divisible by 4 are leap years",
+  "AC-2: century years are not leap years unless divisible by 400",
+]
+allowed_paths = ["calendar_utils.py", "tests/*"]
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"
