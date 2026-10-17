@@ -1,0 +1,146 @@
+# VossProofs PRD and roadmap
+
+## Goal
+
+VossProofs produces reproducible evidence about how well the Voss ecosystem works. It asks when Voss's architecture beats simpler agent setups, where it fails, and what each component adds or costs. It is not a pass/fail test suite, and it does not produce a headline score.
+
+**Primary research question.** Under comparable conditions, when does Voss's structured, confidence-aware, multi-agent architecture produce better software engineering outcomes than simpler agent setups?
+
+**Hypotheses.** Each one gets tested. None is assumed.
+
+- **H1.** Independent review reduces unsupported completion claims compared with a single agent judging its own work.
+- **H2.** Multi-agent orchestration improves verified completion on complex enough tasks, and may lose efficiency on small ones.
+- **H3.** Explicit decision judgments improve specific decision quality or calibration over heuristic confidence.
+- **H4.** Persistent project memory improves performance on related multi-step tasks.
+- **H5.** Budget and scope enforcement reduce runaway spend and unauthorized actions without hurting legitimate completion much.
+
+## Principles
+
+- **Consume, don't copy.** Voss is driven through `voss serve`, the CLI and frozen dataset files. Harness internals are not imported. A reimplementation must first show why the public contract falls short.
+- **Separate claims from verification.** What a system says about its run is recorded apart from what the checks show.
+- **Deterministic checks decide.** Model-assisted judgments add information and never override a failing check.
+- **Label everything.**
+  - Deterministic results are kept apart from live ones.
+  - Synthetic scenarios are kept apart from real ones.
+  - Unknown values are recorded as null, never as zero.
+- **Live runs are opt-in and capped.** They need `--live` plus `--max-runs`, and can also take `--max-usd`.
+- **Jev runs only when asked.** It is invoked only by configs that name it.
+
+## What already exists (Phase 0 inventory)
+
+| Asset | Location | Status | How VossProofs uses it |
+|---|---|---|---|
+| Suite runner: 9 surfaces, stub mode, k runs, A/B | `voss/eval/runner.py`, `voss eval` (needs `VOSS_DEV=1`) | Implemented | `proofs import-voss-eval` ingests its `runs.jsonl`. Task specs load unchanged. |
+| Task spec (`task.toml`) | `voss/eval/suite.py` | Implemented | The run.v1 task spec is a strict superset. |
+| J4 requirement-assessment eval | `voss/eval/review.py`, `evals/review/` | Frozen. The locked run is being redone on a branch. | Phase 2 baseline. Run through `python -m voss.eval.review`. |
+| J3 retrieval eval | `voss/eval/retrieval.py`, `evals/retrieval/` | Frozen. Locked run done. | Memory & Retrieval suite reference. |
+| Requirement review on any diff | `voss judge review --json` | Implemented (needs a Jev key) | Phase 2 semantic evaluator |
+| Headless driving | `voss serve`: `/session`, `/message`, `/events`, `/permission`, `/cost` | Implemented | `voss-serve` adapter |
+| Offline serve turn | `VOSS_SERVE_FAKE_TURN=1` | Test seam | `voss-serve-fake` config |
+| Swarm over the API, worktree per CLI member | `POST /swarm`, `/swarm/{id}/run` | Implemented | Phase 3 multi-agent config |
+| Board and EM | `voss/harness/board/`, `em/`, `voss team run` | Partial: stubbed reviewers, interactive sign-off | Blocked (upstream gap 5) |
+| Workflow replay | voss-lang `voss-exec replay` and `tests/exec-fixtures` | Implemented | Phase 4 runtime suite |
+| Sandbox probe | Voss-OS `smoke-test-sandbox.sh` | Implemented, Linux only | Optional Phase 4+ adapter |
+
+[upstream-gaps.md](upstream-gaps.md) lists what's missing.
+
+## Architecture
+
+```
+voss_proofs/
+  spec.py       task.v1 / config.v1 / run.v1 pydantic contracts (schemas/ is generated)
+  workspace.py  fresh git workspace per run, env isolation, staged diff, hidden-test install
+  adapters.py   systems under test: oracle, null, voss-serve
+  evaluate.py   cmd/file checks, scope check, verdict
+  runner.py     scenarios x configs x k, seeded order, run caps, manifest
+  store.py      sha256 object store + append-only runs.jsonl
+  report.py     Wilson intervals, per-config and per-scenario tables, compare
+  ingest.py     voss eval runs.jsonl -> run.v1
+  cli.py        proofs run | validate | report | compare | import-voss-eval | schema
+```
+
+New adapters are added to `ADAPTERS` and to the `Config.adapter` literal. Split a module only once it grows past one screen of responsibility.
+
+## Roadmap
+
+### Phase 1: VossEvals foundation (this branch)
+
+Delivered:
+- The `proofs` CLI and the run.v1 record.
+- Isolated workspaces with hidden acceptance tests.
+- The content-addressed evidence store.
+- Markdown reports.
+- `voss eval` import.
+- Oracle and null baseline validation.
+- Eight regression scenarios across Python, Rust, TypeScript and Go.
+
+**Gate.** Several scenarios run in isolated workspaces and produce inspectable evidence, and repeated runs give identical deterministic results without a live model. Met by:
+- `proofs validate`
+- two `proofs run` experiments with `proofs compare`, which show 0 differences
+- the test suite
+
+**Next in this phase:**
+- Grow the regression set to 20–30 scenarios. Add an ambiguity/clarification scenario and a defective-PR review scenario.
+- Add a `cli-agent` adapter for Baseline A, a single external coding agent run non-interactively.
+
+### Phase 2: Decision and review research (H1, H3)
+
+1. A `review` adapter. It verifies J4 `freeze.json` hashes, runs `python -m voss.eval.review run --split dev`, and ingests `rows.jsonl` and `receipts.jsonl` as records with `judge` and `usage` filled in. The locked split runs once per config and is never used for tuning.
+2. A criterion-level semantic evaluator for VossBench diffs, using `voss judge review --criteria-file --ref --checks --json` (explicit Jev, opt-in). It reports supported, contradicted or insufficient evidence for each acceptance criterion.
+3. Configs to compare:
+   - the agent's own completion claim
+   - Jev requirement review
+   - the existing Reviewer-B baseline
+4. Metrics:
+   - false-supported rate (Wilson interval)
+   - contradicted recall
+   - coverage and abstention
+   - Brier score on P(supported)
+
+   Categorical probabilities are kept separate from self-reported confidence.
+
+**Gate.** A report that compares at least two valid configs on these metrics.
+
+### Phase 3: Swarm and orchestration (H2, H5)
+
+Configs:
+- **Baseline A:** `cli-agent`.
+- **Baseline B:** `voss-serve`, one session.
+- **Configuration C:** `POST /swarm` plus `/run` with worktrees.
+
+All three share the same model, budget, permission policy and fixture, with seeded random order.
+
+Scenarios:
+- parallel work on independent files
+- conflicting edits
+- worker failure and retry
+- token-budget exhaustion
+- rejected completion
+
+Board/EM stays "not evaluable" until upstream gap 5 is closed.
+
+**Gate.** The same scenario runs under A, B and C with comparable evidence and resource records.
+
+### Phase 4: Expanded VossBench (H4)
+
+- Dev set of 80–120 scenarios plus a locked subset, frozen with `freeze.json` hashes and a run-once marker.
+- Memory suite: wrap J3, and add related-task sequences.
+- Safety suite: denial scenarios from `.voss/safety.yml`.
+- Runtime suite: `voss-exec replay` parity and `voss check` diagnostics.
+- Optional env-specific adapters for ADE core and the Voss-OS sandbox. These are labeled as not covered by headless CI.
+- Repeated-run comparisons with k ≥ 3 on a fixed subset. Paired bootstrap between configs.
+
+**Gate.** A versioned corpus, automated grading, documented contamination controls and repeated-run comparisons.
+
+### Phase 5: First formal study
+
+1. Pre-register the hypotheses and analysis plan in `docs/studies/` before any locked run. Record its hash in the experiment manifest.
+2. Freeze the benchmark versions.
+3. Run the locked comparisons.
+4. Publish *"Evaluating Confidence-Aware Multi-Agent Software Engineering: An Empirical Study of Voss"*. It includes negative results and threats to validity: a single model, synthetic tasks, judge non-objectivity, and no OS sandbox on macOS.
+
+## Non-goals for now
+
+- A dashboard. The CLI, JSON records and Markdown reports come first.
+- A composite quality score.
+- Disabling safety protections to improve benchmark numbers.
