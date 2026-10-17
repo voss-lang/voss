@@ -5,7 +5,6 @@ permissions:
 
 on:
   push:
-    branches: [master]
     paths: ["voss-proofs/**", ".github/workflows/voss-proofs.yml"]
   pull_request:
     branches: [master]
