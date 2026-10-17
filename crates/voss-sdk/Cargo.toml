@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 description = "Rust client SDK for the Voss local harness REST and SSE protocol"
 repository.workspace = true
+include = ["/src/**/*.rs", "/tests/**/*.rs", "/tests/fixtures/*.py", "/examples/*.rs", "/LICENSE"]
 
 [lib]
 name = "voss_sdk"
