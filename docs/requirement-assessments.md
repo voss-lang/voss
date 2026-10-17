@@ -153,6 +153,9 @@ candidates or cards. Jev spend is not counted against `/budget`.
 - Even once the board hook fires, live `voss board` runs use a placeholder
   Reviewer B that always passes. In those runs the assessment sits beside a
   placeholder reviewer, not a real one.
+- The board hook sends Jev no code, because nothing fills a card's code
+  context yet. `voss judge review` and swarm candidates do send the code
+  after the change.
 - A swarm candidate's criteria are its task goal. That is often a single
   requirement.
 - Only checks of uncommitted work can go stale.
@@ -162,7 +165,9 @@ candidates or cards. Jev spend is not counted against `/budget`.
 ## Recommendation
 
 Use `judgments.review: shadow` in projects that have opted into judgments.
-On the locked evaluation, Jev called an unmet requirement met 0 times in 33
-(0%, Wilson 95% upper bound 10.4%), under the 5% bar. It labeled only 24% of
-requirements and caught 3 of 15 contradictions, so expect most results to be
-"unclear". Details are in `evals/review/reports/review-release.md`.
+On the second locked set (rubric v2), Jev called an unmet requirement met
+once in 33 (3.0%, Wilson 95% upper bound 15.3%), under the 5% bar. It
+labeled 64% of requirements and caught 10 of 13 contradictions, so expect
+about a third of results to be "unclear". The first locked result gave Jev
+the code before the change, not after it, and is withdrawn. Details are in
+`evals/review-locked-2/reports/review-release.md`.

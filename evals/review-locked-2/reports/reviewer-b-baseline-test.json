@@ -1,0 +1,296 @@
+{
+  "schema_version": 1,
+  "split": "test",
+  "model": "claude-sonnet-5-5",
+  "auth": "claude",
+  "run_date": "2026-10-17",
+  "rows": [
+    {
+      "fixture": "rv-043",
+      "split": "test",
+      "kind": "missing_criterion",
+      "verdict": "block",
+      "conf": 0.7,
+      "evidence_refs": [
+        "voss/harness/code/regex_fallback.py:_guess_lang",
+        "tests/harness/code/test_regex_guess_lang.py::test_guess_lang_new_extensions"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-044",
+      "split": "test",
+      "kind": "missing_criterion",
+      "verdict": "fail",
+      "conf": 0.93,
+      "evidence_refs": [
+        "voss/harness/principles.py:22",
+        "tests/harness/test_principles_security.py:4-6",
+        "voss/harness/principles.py:_resolve (disable path untested)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-045",
+      "split": "test",
+      "kind": "missing_criterion",
+      "verdict": "fail",
+      "conf": 0.9,
+      "evidence_refs": [
+        "voss/harness/trust.py:72-75",
+        "voss/harness/trust.py:78 (pin_key, no logging)",
+        "tests/harness/test_trust_fingerprint_prefix.py"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-046",
+      "split": "test",
+      "kind": "missing_criterion",
+      "verdict": "fail",
+      "conf": 0.9,
+      "evidence_refs": [
+        "voss/eval/summary.py:tasks.append block (no median_cost key)",
+        "voss/eval/summary.py:write_summary template context",
+        "diff: no change to templates/eval/summary.md.jinja"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-047",
+      "split": "test",
+      "kind": "contradicted",
+      "verdict": "block",
+      "conf": 0.96,
+      "evidence_refs": [
+        "voss/harness/tui/capability.py: removed --plain check",
+        "voss/harness/tui/capability.py: win32 branch dropped WT_SESSION exemption",
+        "voss/harness/tui/capability.py:min_size_guard still says 60\u00d712",
+        "tests/harness/tui/test_min_size_80x24.py: only tests the 79-column case"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-048",
+      "split": "test",
+      "kind": "contradicted",
+      "verdict": "fail",
+      "conf": 0.9,
+      "evidence_refs": [
+        "voss/harness/swarm_agents.py:_UNSET_MODELS",
+        "voss/harness/swarm_agents.py:resolve_agent_argv (custom branch)",
+        "tests/harness/test_swarm_gemini_headless.py:test_gemini_is_headless"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-049",
+      "split": "test",
+      "kind": "contradicted",
+      "verdict": "block",
+      "conf": 0.95,
+      "evidence_refs": [
+        "voss/harness/audit/preflight.py:49 (ImportError appended to warnings, not missing)",
+        "voss/harness/audit/preflight.py:104 (ok=not warnings, ignores missing)",
+        "tests/harness/audit/test_preflight_evidence_refs.py:5 (weak assertion, does not cover the other two criteria)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-050",
+      "split": "test",
+      "kind": "contradicted",
+      "verdict": "fail",
+      "conf": 0.96,
+      "evidence_refs": [
+        "voss_runtime/providers/stub.py diff: removed `if fallback is None: raise`",
+        "voss_runtime/providers/stub.py diff: `prompt_tokens = sum(...) // 4` (removed `or 1`)",
+        "tests/providers/test_stub_temperature.py (covers only temperature)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-051",
+      "split": "test",
+      "kind": "failed_check",
+      "verdict": "fail",
+      "conf": 0.95,
+      "evidence_refs": [
+        "voss/harness/voss_diff.py:_clip_line (len(line) < width)",
+        "tests/harness/test_voss_diff_clip.py::test_exact_width_not_clipped (failed)",
+        "tests/harness/test_voss_diff_clip.py::test_clip_uses_ellipsis (passed)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-052",
+      "split": "test",
+      "kind": "failed_check",
+      "verdict": "fail",
+      "conf": 0.97,
+      "evidence_refs": [
+        "voss/harness/code/models.py:IndexSummary.partial = True",
+        "tests/harness/code/test_models_str.py::test_summary_defaults (failed)",
+        "tests/harness/code/test_models_str.py::test_location_str (passed)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-053",
+      "split": "test",
+      "kind": "failed_check",
+      "verdict": "block",
+      "conf": 0.95,
+      "evidence_refs": [
+        "voss/eval/summary.py:21-26 (success-is-not-None filter removed)",
+        "tests/eval/test_pearson_inputs.py::test_unscored_rows_are_ignored (failed)",
+        "tests/eval/test_pearson_inputs.py::test_two_pairs_is_not_enough (passed)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-054",
+      "split": "test",
+      "kind": "skipped_check",
+      "verdict": "block",
+      "conf": 0.9,
+      "evidence_refs": [
+        "voss_runtime/memory/semantic.py:88-89",
+        "tests/memory/test_semantic_top_k_zero.py:test_top_k_zero_skips_query",
+        "tests/external_recall/test_incremental.py: skipped"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-055",
+      "split": "test",
+      "kind": "skipped_check",
+      "verdict": "block",
+      "conf": 0.9,
+      "evidence_refs": [
+        "tests/harness/skill/test_install.py::test_untrusted_key_refuses (skipped)",
+        "voss/harness/trust.py:43",
+        "tests/harness/test_trust_empty_key.py:test_empty_public_key_is_skipped",
+        "Reviewer-A Verification Summary (empty)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-056",
+      "split": "test",
+      "kind": "no_checks",
+      "verdict": "fail",
+      "conf": 0.8,
+      "evidence_refs": [
+        "voss/harness/swarm_agents.py:56",
+        "voss/harness/swarm_agents.py:3-4"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-057",
+      "split": "test",
+      "kind": "no_checks",
+      "verdict": "fail",
+      "conf": 0.9,
+      "evidence_refs": [
+        "voss/harness/tui/capability.py:tui_available (removed _AVAILABLE cache)",
+        "voss/harness/tui/capability.py:_AVAILABLE (now unused)"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-058",
+      "split": "test",
+      "kind": "no_checks",
+      "verdict": "block",
+      "conf": 0.9,
+      "evidence_refs": [
+        "voss_runtime/providers/stub.py:124"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-059",
+      "split": "test",
+      "kind": "ambiguous",
+      "verdict": "block",
+      "conf": 0.6,
+      "evidence_refs": [
+        "voss/harness/voss_diff.py:_render_section",
+        "tests/harness/test_voss_diff.py"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-060",
+      "split": "test",
+      "kind": "ambiguous",
+      "verdict": "fail",
+      "conf": 0.6,
+      "evidence_refs": [
+        "voss/harness/principles.py:15-22",
+        "ruff check voss/harness/principles.py"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-061",
+      "split": "test",
+      "kind": "ambiguous",
+      "verdict": "block",
+      "conf": 0.85,
+      "evidence_refs": [
+        "voss/eval/summary.py:151",
+        "templates/eval/summary.md.jinja (not in diff)",
+        "tests/eval/test_summary_md.py"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-062",
+      "split": "test",
+      "kind": "supported",
+      "verdict": "pass",
+      "conf": 0.8,
+      "evidence_refs": [
+        "voss/harness/trust.py:key_fingerprint",
+        "tests/harness/test_trust_fingerprint_errors.py::test_bad_base64_is_a_value_error"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    },
+    {
+      "fixture": "rv-063",
+      "split": "test",
+      "kind": "supported",
+      "verdict": "pass",
+      "conf": 0.9,
+      "evidence_refs": [
+        "voss/harness/swarm_agents.py:70",
+        "tests/harness/test_swarm_known_agents.py:4"
+      ],
+      "domain_inferred": "unknown",
+      "error": null
+    }
+  ]
+}
