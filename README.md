@@ -259,7 +259,9 @@ Live mode (real Anthropic / OpenAI / Ollama — requires API keys + Ollama servi
 pytest -q -m live
 ```
 
-Live mode runs nightly in CI; stub mode runs on every PR.
+Stub mode runs on every PR. Live mode runs on releases and default manual CI runs.
+Manual runs with `run_nightly_stubs=true` or `upload_coverage_baseline=true` skip live tests.
+Use `run_nightly_stubs=true` to include slow and end-to-end stub tests.
 
 ## Project Docs
 
