@@ -11,17 +11,12 @@ export const cliExamples: CliExample[] = [
   {
     id: "classify",
     label: "Classify",
-    blurb: "Confidence-gated intent classification.",
+    blurb: "Intent classification with an empty-reply fallback.",
     command: "voss run samples/classify.voss",
     lang: "python",
     code: `fn classifyIntent(input: string) -> string {
-    let intent: probable<string> = ask("Classify the intent: " + input)
-
-    if intent @ p >= 0.80 {
-        return intent.value
-    } else {
-        return "unknown"
-    }
+    let intent: string = ask("Classify the intent: " + input)
+    return intent or "unknown"
 }`,
   },
   {

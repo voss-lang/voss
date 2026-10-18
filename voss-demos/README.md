@@ -18,6 +18,8 @@ voss check voss-demos/
 
 3-way enum-style classification under a confidence threshold. Below threshold emits `unsure` instead of guessing.
 
+The demo builds its `ProbableValue` from a given number. A plain `ask()` reply is unmeasured and never passes a gate, so use `judge(...).to_probable()` for a real probability.
+
 `voss run voss-demos/01-sentiment.voss` -> `positive (0.87)`
 
 ### 02-translate.voss - ctx budget + fallback
