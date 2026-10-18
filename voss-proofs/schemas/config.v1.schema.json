@@ -9,7 +9,9 @@
       "enum": [
         "oracle",
         "null",
-        "voss-serve"
+        "voss-serve",
+        "cli-agent",
+        "voss-swarm"
       ],
       "title": "Adapter",
       "type": "string"
@@ -86,6 +88,27 @@
       },
       "title": "Env",
       "type": "object"
+    },
+    "agent": {
+      "anyOf": [
+        {
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent"
+    },
+    "builders": {
+      "default": 2,
+      "title": "Builders",
+      "type": "integer"
     },
     "judge": {
       "anyOf": [

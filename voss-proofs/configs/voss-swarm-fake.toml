@@ -1,0 +1,6 @@
+name = "voss-swarm-fake"
+adapter = "voss-swarm"
+description = "Configuration C offline: voss serve swarm with the fake-turn seam. The coordinator cannot split tasks without a model, so this checks the failure path."
+
+[env]
+VOSS_SERVE_FAKE_TURN = "1"

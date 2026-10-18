@@ -1,0 +1,29 @@
+diff --git a/textkit/numbers.py b/textkit/numbers.py
+index a997a3d..3b169e7 100644
+--- a/textkit/numbers.py
++++ b/textkit/numbers.py
+@@ -1,4 +1,3 @@
+ def parse_int(text: str) -> int:
+     """Parse a base-10 integer written by a person."""
+-    digits = "".join(ch for ch in text if ch.isdigit() or ch == "-")
+-    return int(digits or 0)
++    return int(text.strip())
+diff --git a/textkit/ranges.py b/textkit/ranges.py
+index 029277e..aeaf877 100644
+--- a/textkit/ranges.py
++++ b/textkit/ranges.py
+@@ -1,3 +1,5 @@
+ def clamp(value: float, low: float, high: float) -> float:
+     """Limit `value` to the inclusive range [low, high]."""
++    if low > high:
++        raise ValueError(f"low {low} is greater than high {high}")
+     return max(low, min(value, high))
+diff --git a/textkit/words.py b/textkit/words.py
+index 5fea20a..9e0c7f2 100644
+--- a/textkit/words.py
++++ b/textkit/words.py
+@@ -1,3 +1,3 @@
+ def word_count(text: str) -> int:
+     """Number of words in `text`."""
+-    return len(text.split(" "))
++    return len(text.split())

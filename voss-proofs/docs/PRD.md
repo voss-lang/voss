@@ -105,23 +105,30 @@ Delivered:
 
 ### Phase 3: Swarm and orchestration (H2, H5)
 
-Configs:
-- **Baseline A:** `cli-agent`.
-- **Baseline B:** `voss-serve`, one session.
-- **Configuration C:** `POST /swarm` plus `/run` with worktrees.
+Delivered:
+- **Baseline A, `cli-agent`.** It runs `claude -p` or `codex exec` non-interactively in the workspace. Each runs in its tool's sandbox, with stdin closed and the scenario's wall budget. `cli-claude` loads no user settings. `cli-codex` always loads `~/.codex/AGENTS.md`.
+- **Baseline B, `voss-serve`.** One session, from Phase 1.
+- **Configuration C, `voss-swarm`.** `POST /swarm` with the default roster, then `/swarm/{id}/run`. The adapter watches every member session and sums usage over them.
+- **Shared model.** All three Phase 3 configs name `claude-opus-5-5`. The report warns when the live configs in one experiment ran different models.
+- **Five scenarios** in `benchmarks/orchestration`:
+  - parallel independent modules
+  - a shared file
+  - dependent changes across files
+  - contradictory tests under a token budget
+  - a partial spec
 
-All three share the same model, budget, permission policy and fixture, with seeded random order.
-
-Scenarios:
-- parallel work on independent files
-- conflicting edits
-- worker failure and retry
-- token-budget exhaustion
-- rejected completion
+  Worker failure and retry needs fault injection in the harness, so dependent changes replaced it.
+- **A resources and limits table.** Tokens against the scenario budget, timeouts and scope violations.
+- First gate run: [studies/2026-10-18-orchestration-gate.md](studies/2026-10-18-orchestration-gate.md).
 
 Board/EM stays "not evaluable" until upstream gap 5 is closed.
 
-**Gate.** The same scenario runs under A, B and C with comparable evidence and resource records.
+**Gate.** The same scenario runs under A, B and C with comparable evidence and resource records. Met by the gate run: 5 scenarios × 3 configs, all on one model.
+
+**Next in this phase:**
+- k ≥ 3 per cell, and larger multi-file scenarios where splitting the work could pay off.
+- Pass the token budget to each system where it accepts one, so H5 measures enforcement as well as overshoot.
+- A fault-injection scenario for worker failure and retry.
 
 ### Phase 4: Expanded VossBench (H4)
 
