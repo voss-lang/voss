@@ -6,6 +6,8 @@ pub mod client;
 pub mod error;
 pub mod projection;
 pub mod oauth;
+pub mod plans;
+pub mod graph;
 pub mod stream;
 pub mod tasks;
 pub mod supervisor;

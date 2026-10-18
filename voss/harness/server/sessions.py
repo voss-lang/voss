@@ -76,6 +76,8 @@ class ServerSession:
     commanding: bool = False
     budget_usd: float | None = None
     last_plan: Plan | None = None
+    execution_plan: dict | None = None
+    execution_node: str | None = None
 
     @property
     def busy(self) -> bool:

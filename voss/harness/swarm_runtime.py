@@ -8,6 +8,7 @@ import subprocess
 import asyncio
 import os
 import signal
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +26,7 @@ from .swarm_review import schedule_candidate_review
 from .swarm_store import CANDIDATE_READY, DONE, Role, SwarmStore, Task
 from .swarm_watch import OwnershipWatcher, detect_violations, revert_paths
 from .swarm_worktree import (
+    _git,
     changed_files,
     create_member_worktree,
     remove_member_worktree,
@@ -189,6 +191,10 @@ async def run_cli_member(
             "task_id": task.id,
             "role": role.name,
             "owned_files": list(task.owned_files),
+            "branch": mw.branch,
+            "worktree": str(mw.path),
+            "base_revision": _git(mw.path, "rev-parse", "HEAD"),
+            "launched": True,
         },
     )
 
@@ -303,6 +309,7 @@ async def run_cli_member(
             "task_id": task.id,
             "role": role.name,
             "summary": summary,
+            "exit_code": exit_code,
         },
     )
 
@@ -409,6 +416,10 @@ async def run_cli_swarm(
     async def _guarded(role: Role, task: Task) -> MemberResult:
         """One member, isolated: its failure is reported, never its siblings'."""
         async with sem:
+            attempt_id = uuid.uuid4().hex
+            def emit(event):
+                _emit(on_event, {**event, "attempt_id": attempt_id, "role": role.name,
+                    "harness": role.agent, "model": role.model if role.model != "default" else None})
             try:
                 return await run_cli_member(
                     store,
@@ -418,11 +429,10 @@ async def run_cli_swarm(
                     task,
                     spawn_fn=spawn_fn,
                     preflight_fn=preflight_fn,
-                    on_event=on_event,
+                    on_event=emit,
                 )
             except Exception as exc:  # noqa: BLE001 — reported, not swallowed
-                _emit(
-                    on_event,
+                emit(
                     {
                         "type": "swarm.gate",
                         "swarm_id": swarm_id,

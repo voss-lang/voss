@@ -14,5 +14,5 @@ class Capabilities(BaseModel):
 def report(*, oauth_only: bool = False) -> Capabilities:
     return Capabilities(
         engine_version=version("voss"),
-        capabilities=["sessions.v1", "tasks.replay.v1", "swarms.v1", "diagnostics.v1", "harness.availability.v1"] + (["harness.oauth-only.v1"] if oauth_only else []),
+        capabilities=["sessions.v1", "tasks.replay.v1", "tasks.graph.v1", "swarms.v1", "diagnostics.v1", "harness.availability.v1"] + (["harness.oauth-only.v1", "plans.preview.v1"] if oauth_only else []),
     )

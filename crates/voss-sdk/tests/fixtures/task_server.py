@@ -1,9 +1,11 @@
 """Real server, synthetic turns only. No provider credentials or tools."""
 import asyncio
 import os
+from types import SimpleNamespace
 from pathlib import Path
 
 os.environ["VOSS_SERVE_FAKE_TURN"] = "1"
+os.environ["VOSS_SERVE_OAUTH_ONLY"] = "1"
 os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "true"
 os.environ["PYDANTIC_DISABLE_PLUGINS"] = "1"
 os.environ["XDG_STATE_HOME"] = str(Path.cwd() / "state")
@@ -14,6 +16,7 @@ from voss.harness.server import app as appmod
 from voss.harness.server.renderer import EventBusRenderer
 from voss.harness.server.serve import run_server
 from voss.harness import oauth
+from voss.harness.server.preview import Graph, Node
 
 
 def prepare(body):
@@ -23,6 +26,10 @@ def prepare(body):
     provider.availability, provider.blocked = report, None
     provider.provider = None
     provider.check = lambda: None
+    async def complete(**kwargs):
+        return SimpleNamespace(parsed=Graph(tasks=[Node(id="one", goal="Inspect fixture", criteria=["Inspected"]),
+            Node(id="two", goal="Summarize fixture", depends_on=["one"], criteria=["Summarized"])]))
+    provider.complete = complete
     return report, provider
 
 

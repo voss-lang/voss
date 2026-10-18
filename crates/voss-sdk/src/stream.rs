@@ -86,6 +86,7 @@ pub async fn task_stream(
         let event: crate::tasks::TaskEvent = serde_json::from_str(&frame.data)
             .map_err(|e| VossError::Decode(e.to_string()))?;
         if !event.event.is_object() || event.cursor == 0 || event.v != 1 || event.snapshot.v != 1 || event.snapshot.session_id != session_id
+            || event.snapshot.graph.as_ref().is_some_and(|graph| graph.v != 1)
             || event.cursor != event.snapshot.watermark || frame.id.parse::<u64>().ok() != Some(event.cursor) {
             return Err(VossError::Decode("invalid task event identity or cursor".into()));
         }

@@ -43,6 +43,45 @@ impl VossClient {
         &self.token
     }
 
+    pub async fn preview_plan(&self, briefing: &crate::plans::Briefing) -> Result<crate::plans::Result, VossError> {
+        self.plan_command("plans/preview", serde_json::to_value(briefing).map_err(|e| VossError::Decode(e.to_string()))?).await
+    }
+
+    pub async fn plan_status(&self, id: &str) -> Result<crate::plans::Result, VossError> {
+        let response = self.auth(self.inner.get(format!("{}/plans/{id}", self.base))).timeout(REST_TIMEOUT).send().await?;
+        let result: crate::plans::Result = ok_or_detail(response).await?.json().await?;
+        if result.v != 1 || result.preview.as_ref().is_some_and(|p| p.v != 1 || p.id != id) {
+            return Err(VossError::Decode("incompatible plan status".into()));
+        }
+        Ok(result)
+    }
+
+    pub async fn start_plan(&self, id: &str, revision: &str, briefing: &crate::plans::Briefing) -> Result<crate::plans::Result, VossError> {
+        self.plan_command(&format!("plans/{id}/start"), serde_json::json!({"revision":revision,"briefing":briefing})).await
+    }
+
+    async fn plan_command(&self, route: &str, body: serde_json::Value) -> Result<crate::plans::Result, VossError> {
+        let response = self.auth(self.inner.post(format!("{}/{route}", self.base)))
+            .timeout(Duration::from_secs(180)).json(&body).send().await?;
+        let result: crate::plans::Result = ok_or_detail(response).await?.json().await?;
+        if result.v != 1 || result.preview.as_ref().is_some_and(|p| p.v != 1)
+            || result.availability.as_ref().is_some_and(|a| a.v != 1)
+            || (result.status == "prepared" && result.preview.is_none())
+            || (result.status == "accepted" && (result.session_id.is_none() || result.run_id.is_none() || result.preview.is_none())) {
+            return Err(VossError::Decode("incompatible plan response".into()));
+        }
+        Ok(result)
+    }
+
+    pub async fn graph_output(&self, sid: &str, node_id: &str, attempt_id: &str, after: u64) -> Result<crate::graph::Output, VossError> {
+        let response = self.auth(self.inner.get(format!("{}/session/{sid}/graph-output", self.base)))
+            .query(&[("node_id", node_id), ("attempt_id", attempt_id), ("after", &after.to_string())])
+            .timeout(REST_TIMEOUT).send().await?;
+        let output: crate::graph::Output = ok_or_detail(response).await?.json().await?;
+        if output.v != 1 { return Err(VossError::Decode("incompatible graph output".into())); }
+        Ok(output)
+    }
+
     /// GET /capabilities - protocol support, without checking provider credentials.
     pub async fn capabilities(&self) -> Result<crate::capabilities::Capabilities, VossError> {
         let resp = self
@@ -57,7 +96,7 @@ impl VossClient {
         let resp = self.auth(self.inner.get(format!("{}/session/{sid}/task", self.base)))
             .timeout(REST_TIMEOUT).send().await?;
         let snapshot: crate::tasks::TaskSnapshot = ok_or_detail(resp).await?.json().await?;
-        if snapshot.v != 1 || snapshot.session_id != sid {
+        if snapshot.v != 1 || snapshot.session_id != sid || snapshot.graph.as_ref().is_some_and(|graph| graph.v != 1) {
             return Err(VossError::Decode("incompatible task snapshot".into()));
         }
         Ok(snapshot)

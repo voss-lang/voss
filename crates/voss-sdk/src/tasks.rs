@@ -22,6 +22,10 @@ pub struct TaskSnapshot {
     pub outcome: Option<String>,
     pub pending_actions: Vec<Value>,
     pub watermark: u64,
+    pub execution_plan: Option<crate::plans::Preview>,
+    #[serde(default)]
+    pub node_states: std::collections::HashMap<String, String>,
+    pub graph: Option<crate::graph::Graph>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

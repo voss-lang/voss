@@ -39,13 +39,15 @@ unavailable while local history stays readable.
 - `sessions.v1`: existing session/message/event/permission/cost routes. This
   does not promise durable replay, safe worker recovery or enforced task scope.
 - `tasks.replay.v1`: authoritative task snapshots, durable cursor replay and command acknowledgements described below.
+- `tasks.graph.v1`: recorded dependency graphs, worker attempts and bounded read-only output.
 - `swarms.v1`: existing swarm create/snapshot/run routes and events.
 - `diagnostics.v1`: existing read-only `/doctor` route.
 - `harness.availability.v1`: typed local OAuth metadata and preflight.
 - `harness.oauth-only.v1`: managed execution accepts subscription OAuth only.
+- `plans.preview.v1`: prepare an execution graph and explicitly accept its exact revision; advertised only in OAuth-only mode.
 
 These describe protocol support, not OAuth health, provider availability or
-permission to execute. No memory-file layout, API fallback, plan-preview or acceptance-matrix capability is advertised.
+permission to execute. No memory-file layout, API fallback or acceptance-matrix capability is advertised.
 
 ### Durable tasks (added 2026-10-17)
 
@@ -158,6 +160,62 @@ The adapter follows the documented [Claude credential precedence](https://code.c
 and [Codex login restrictions](https://learn.chatgpt.com/docs/auth). Those documents
 explain why selecting a login method alone is insufficient: conflicting credentials
 must be excluded from the invocation too.
+
+### Execution preview (added 2026-10-18)
+
+`POST /plans/preview` accepts a briefing: `source` (`kind`, `text`, optional
+`reference` and `revision`), repository-root `cwd`, explicit `harness` and `model`,
+`tier`, `scope` (`allow`/`deny` patterns), and optional context items with distinct
+`id` and `text`. Source kinds are `objective`, `prd` and `issue`. References are
+provenance supplied by the client; this route does not fetch files or GitHub.
+ADE revalidates selected local/issue sources before preview and first Start.
+
+Preview performs one OAuth-bound structured model call without tools. It reads
+Git metadata and file metadata, creates no session or worker, and makes no project
+edit or Git mutation. The model receives the submitted text/context, not an
+automatically discovered repository context. `accepted_context` lists only those
+submitted IDs sent to the planner. Responses use `{v,status,preview?,availability?,message?}`;
+unavailable OAuth remains a normal `unavailable` response. Unsupported execution
+guarantees return `unsupported`, and malformed or stale planning returns `invalid`
+or `stale` without dispatch.
+
+A prepared preview includes stable task IDs, `depends_on` edges, file write lists,
+acceptance criteria, the normalized briefing, input/base/workspace revisions,
+execution policy and a content-derived `revision`. The selected harness/model
+applies to every node. Dependencies must form an acyclic graph; proposed files
+must fit the submitted scope. The supported route is `native_sequential` in
+Observe, Plan or Apply mode. CLI swarms and Autonomous mode are unsupported.
+
+`POST /plans/:id/start` accepts `{revision,briefing}`. Before first acceptance it
+checks the exact input, Git HEAD, workspace/policy metadata and selected OAuth
+binding. The workspace fingerprint covers tracked and nonignored untracked paths,
+plus known project policy files and the local permission store. It uses path,
+size, mode and modification time; it is not a byte snapshot or a lock against
+concurrent editors. Engine runtime state is excluded. Changes require a new
+preview; Start never silently replans or substitutes a provider.
+
+Acceptance atomically records the immutable graph and receipt with a run/attempt
+in the task journal before dispatch. Repeating the same Start returns the same
+`accepted` response (`session_id`, `run_id`, `attempt_id`, `preview`), even after
+engine restart or source changes. Conflicting input returns `stale`.
+`GET /plans/:id` returns the prepared preview or accepted receipt. Unaccepted
+previews are in memory, limited to the latest 100 and lost on restart; missing
+previews return `stale`. Accepted receipts persist without expiry.
+
+The driver executes fixed task goals sequentially in dependency order. The native
+agent chooses tool steps within each goal. Only native file tools are exposed;
+writes must target the current node's approved files within scope, and existing
+mode/permission checks still apply. MCP, shell, Git commands, network tools,
+memory and code-recall services are unavailable on this route. Normal internal
+session/journal persistence still occurs. Acceptance criteria are supplied to the
+agent, not an independently verified acceptance matrix.
+
+Task snapshots add `execution_plan` and `node_states` for replay and graph rendering.
+Failure, clarification, cancellation or OAuth loss stops dependent dispatch.
+Restart marks unfinished work interrupted; a repeated accepted Start retrieves
+its receipt without executing it again. Model changes and legacy message retries
+cannot alter an accepted graph. Continuing stopped work requires a new preview;
+in-place recovery remains a separate capability.
 
 ## 2. Auth & handshake
 
@@ -425,3 +483,41 @@ Additive only — every Voss addition slots into an existing extension point:
 ---
 
 *Implements HYBRID-REFACTOR-PLAN.md H0.1. Bound by Appendix A of that plan (verified API surface + pinned versions).*
+
+
+### Recorded task graph (added 2026-10-18)
+
+`tasks.graph.v1` adds optional `graph` data to task snapshots and their existing
+replay envelopes. It does not add a scheduler or a worker launch route. A graph
+contains its plan ID/revision, run ID, owner session, observation timestamp and
+nodes. Nodes retain declared `depends_on` IDs, scope, criteria, state, unresolved
+dependencies, recorded blockers and separate worker attempts. Preview node IDs
+are unchanged when execution starts. Swarm revisions hash task definitions;
+roles and tool order never establish dependencies.
+
+Attempts carry their own ID, run/plan revision, role, harness/provider/model,
+optional native session, branch/worktree/base/candidate references, review state,
+timestamps and output cursor bounds. CLI dispatch allocates an attempt ID and
+records its worktree references; native dispatch links the actual journal attempt.
+Repeated roles and retries therefore remain distinct. Missing legacy linkage and
+uncaptured CLI output remain unavailable. Candidate-ready means review pending,
+not accepted criteria or an approved merge. A new candidate resets that review
+state to pending. Structured review evidence remains a separate contract.
+
+The owner journal records native worker permission/blocker changes in the same
+transaction as the worker event. Crash recovery marks unfinished attempts
+interrupted; it never restarts them. An unresolved dependency is descriptive:
+legacy swarm dispatch policy is unchanged. Native preview execution continues to
+use its existing sequential dependency order.
+
+`GET /session/{owner}/graph-output?node_id=...&attempt_id=...&after=0` returns
+`{v,status,message,events,next_cursor,has_more}`. Each output row contains its
+journal cursor and raw event. The server follows only the explicitly linked
+attempt, excludes later turns, and returns at most 200 rows. Unknown attempts,
+uncaptured output, interrupted attempts without a recorded boundary, and missing
+journal ranges return `unavailable`. This read does not create a session, invoke
+a provider or attach a terminal. The existing task snapshot and SSE endpoints
+remain the graph transport; clients need no second graph subscription.
+
+Preview also records the selected provider and base branch. Branch changes at the
+same HEAD invalidate an unaccepted preview through its workspace fingerprint.

@@ -103,3 +103,60 @@ async fn task_stream_checks_wire_cursor_and_keeps_unknown_events() {
         worker.join().unwrap();
     }
 }
+
+#[tokio::test]
+#[ignore = "requires VOSS_TEST_PYTHON and VOSS_TEST_ROOT; uses only synthetic planning and turns"]
+async fn real_engine_preview_start_and_retry_use_the_same_graph() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = root.path().join("repo");
+    std::fs::create_dir(&repo).unwrap();
+    for args in [vec!["init"], vec!["-c", "user.name=Synthetic", "-c", "user.email=synthetic@example.test", "commit", "--allow-empty", "-m", "fixture"]] {
+        assert!(Command::new("git").args(args).current_dir(&repo).output().unwrap().status.success());
+    }
+    let (mut process, client) = server(root.path());
+    let briefing: voss_sdk::plans::Briefing = serde_json::from_value(serde_json::json!({
+        "source":{"kind":"objective","text":"Inspect synthetic repository"}, "cwd":repo,
+        "harness":"codex","model":"gpt-6-astra","tier":"plan","scope":{"allow":["**/*"],"deny":[]},
+        "context":[{"id":"brief","text":"Synthetic context"}]
+    })).unwrap();
+    assert!(client.capabilities().await.unwrap().supports("plans.preview.v1"));
+    assert!(client.capabilities().await.unwrap().supports("tasks.graph.v1"));
+    let plan = client.preview_plan(&briefing).await.unwrap().preview.unwrap();
+    assert_eq!(plan.tasks[1].depends_on, vec![plan.tasks[0].id.clone()]);
+    assert_eq!(plan.accepted_context, vec!["brief"]);
+    assert!(!root.path().join("starts").exists());
+    let (a, b) = tokio::join!(client.start_plan(&plan.id, &plan.revision, &briefing), client.start_plan(&plan.id, &plan.revision, &briefing));
+    let a = a.unwrap(); let b = b.unwrap();
+    assert_eq!(a.status, "accepted"); assert_eq!(a.run_id, b.run_id); assert_eq!(a.session_id, b.session_id);
+    let sid = a.session_id.unwrap();
+    let mut stream = voss_sdk::stream::task_stream(client.clone(), sid.clone(), 0).await.unwrap();
+    loop {
+        let event = next(&mut stream).await;
+        assert_eq!(event.snapshot.execution_plan.as_ref().unwrap().revision, plan.revision);
+        if event.snapshot.phase == TaskPhase::Completed {
+            assert!(event.snapshot.node_states.values().all(|state| state == "completed"));
+            break;
+        }
+    }
+    drop(stream);
+    let snapshot = client.task_snapshot(&sid).await.unwrap();
+    let graph = snapshot.graph.unwrap();
+    assert_eq!(graph.revision, plan.revision);
+    assert_eq!(graph.nodes.iter().map(|node| &node.id).collect::<Vec<_>>(), plan.tasks.iter().map(|node| &node.id).collect::<Vec<_>>());
+    for node in &graph.nodes {
+        assert_eq!(node.attempts.len(), 1);
+        let attempt = &node.attempts[0];
+        assert_eq!(attempt.run_id, snapshot.run_id);
+        let output = client.graph_output(&sid, &node.id, &attempt.id, 0).await.unwrap();
+        assert_eq!(output.status, "available");
+        assert!(output.events.iter().all(|row| row["cursor"].as_u64().unwrap() <= attempt.output_through.unwrap()));
+    }
+    process.0.kill().unwrap(); process.0.wait().unwrap();
+    let (_restarted, client) = server(root.path());
+    assert_eq!(client.plan_status(&plan.id).await.unwrap().run_id, a.run_id);
+    assert_eq!(client.task_snapshot(&sid).await.unwrap().graph.unwrap().revision, graph.revision);
+    assert_eq!(client.start_plan(&plan.id, &plan.revision, &briefing).await.unwrap().run_id, a.run_id);
+    assert_eq!(std::fs::read_to_string(root.path().join("starts")).unwrap().lines().count(), 2);
+    let mut changed = briefing; changed.source.text = "Different request".into();
+    assert_eq!(client.start_plan(&plan.id, &plan.revision, &changed).await.unwrap().status, "stale");
+}

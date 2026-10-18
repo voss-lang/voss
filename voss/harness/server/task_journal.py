@@ -13,6 +13,7 @@ import portalocker
 from pydantic import BaseModel, Field
 
 from ..oauth import Availability
+from . import task_graph
 
 Phase = Literal["idle", "active", "waiting", "candidate_ready", "completed", "failed", "cancelled", "interrupted"]
 TERMINAL = {"idle", "candidate_ready", "completed", "failed", "cancelled", "interrupted"}
@@ -30,6 +31,9 @@ class TaskSnapshot(BaseModel):
     outcome: str | None = None
     pending_actions: list[dict] = Field(default_factory=list)
     watermark: int = 0
+    execution_plan: dict | None = None
+    node_states: dict[str, str] = Field(default_factory=dict)
+    graph: task_graph.Graph | None = None
 
 
 class TaskEvent(BaseModel):
@@ -70,12 +74,15 @@ class TaskJournal:
             CREATE TABLE IF NOT EXISTS commands (
                 id TEXT NOT NULL, key TEXT NOT NULL, digest TEXT NOT NULL, ack TEXT NOT NULL,
                 PRIMARY KEY (id, key));
+            CREATE TABLE IF NOT EXISTS accepted_plans (
+                id TEXT PRIMARY KEY, digest TEXT NOT NULL, response TEXT NOT NULL);
         """)
         self._db = db
         for (raw,) in db.execute("SELECT snapshot FROM tasks").fetchall():
             snapshot = TaskSnapshot.model_validate_json(raw)
             if snapshot.phase not in TERMINAL:
-                self.update(snapshot.session_id, phase="interrupted", outcome="engine_stopped", pending_actions=[])
+                states = {key: "interrupted" if state in {"running", "waiting"} else state for key, state in snapshot.node_states.items()}
+                self.update(snapshot.session_id, phase="interrupted", outcome="engine_stopped", pending_actions=[], node_states=states)
         return db
 
     def close(self):
@@ -102,11 +109,18 @@ class TaskJournal:
                            (sid, TaskSnapshot(task_id=sid, session_id=sid).model_dump_json()))
 
     def _append(self, db, snapshot: TaskSnapshot, event: dict):
+        if snapshot.execution_plan is not None:
+            task_graph.preview_state(snapshot)
+        task_graph.settle(snapshot)
         snapshot.watermark += 1
         envelope = TaskEvent(cursor=snapshot.watermark, snapshot=snapshot, event=event)
         db.execute("UPDATE tasks SET snapshot=? WHERE id=?", (snapshot.model_dump_json(), snapshot.session_id))
         db.execute("INSERT INTO events VALUES (?, ?, ?)",
                    (snapshot.session_id, snapshot.watermark, envelope.model_dump_json()))
+        if snapshot.graph is not None and snapshot.graph.owner_session_id != snapshot.session_id and snapshot.swarm_task_id:
+            owner = self.snapshot(snapshot.graph.owner_session_id)
+            if owner is not None and task_graph.worker_state(owner, snapshot):
+                self._append(db, owner, {"v": 1, "type": "task.state"})
         return envelope
 
     def update(self, sid: str, **changes) -> TaskSnapshot:
@@ -149,7 +163,24 @@ class TaskJournal:
                 raise ValueError("command_id was already used for a different request")
             return CommandAck.model_validate_json(row[1]) if row else None
 
-    def begin(self, sid: str, key: str, payload: dict, *, swarm_id: str | None = None, swarm_task_id: str | None = None) -> CommandAck:
+    def accepted_plan(self, plan_id: str, payload: dict) -> dict | None:
+        with self._lock:
+            if self._db is None and not self.path.exists():
+                return None
+            row = self._connect().execute("SELECT digest, response FROM accepted_plans WHERE id=?", (plan_id,)).fetchone()
+            digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+            if row and row[0] != digest:
+                raise ValueError("This preview was already started with different input.")
+            return json.loads(row[1]) if row else None
+
+    def plan_result(self, plan_id: str) -> dict | None:
+        with self._lock:
+            if self._db is None and not self.path.exists():
+                return None
+            row = self._connect().execute("SELECT response FROM accepted_plans WHERE id=?", (plan_id,)).fetchone()
+            return json.loads(row[0]) if row else None
+
+    def begin(self, sid: str, key: str, payload: dict, *, swarm_id: str | None = None, swarm_task_id: str | None = None, execution_plan: dict | None = None) -> CommandAck:
         with self._lock:
             previous = self.receipt(sid, key, payload)
             if previous:
@@ -163,11 +194,17 @@ class TaskJournal:
             snapshot.swarm_task_id = swarm_task_id
             snapshot.task_id = swarm_task_id or swarm_id or sid
             snapshot.phase, snapshot.outcome, snapshot.pending_actions = "active", None, []
+            if execution_plan is not None:
+                snapshot.execution_plan = execution_plan
+                snapshot.node_states = {node["id"]: "queued" for node in execution_plan["tasks"]}
             ack = CommandAck(status="accepted", run_id=snapshot.run_id, attempt_id=snapshot.attempt_id)
             digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
             with self._connect() as db:
                 self._append(db, snapshot, {"v": 1, "type": "task.state"})
                 db.execute("INSERT INTO commands VALUES (?, ?, ?, ?)", (sid, key, digest, ack.model_dump_json()))
+                if execution_plan is not None:
+                    response = {**ack.model_dump(), "session_id": sid, "preview": execution_plan}
+                    db.execute("INSERT INTO accepted_plans VALUES (?, ?, ?)", (execution_plan["id"], digest, json.dumps(response)))
             return ack
 
     def replay(self, sid: str, after: int, limit: int = 256) -> list[TaskEvent]:

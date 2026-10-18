@@ -26,7 +26,7 @@ NOT_ENABLED = "judgments:\n  enabled: false\n  review: shadow\n"
 GOAL = "owned.py says changed by builder"
 ROOT = Path(__file__).resolve().parents[2]
 PLACEHOLDER_KEYS = (
-    "swarm_id", "task_id", "head", "branch", "worktree", "candidate_head", "candidate_branch", "candidate_worktree",
+    "swarm_id", "task_id", "attempt_id", "base_revision", "head", "branch", "worktree", "candidate_head", "candidate_branch", "candidate_worktree",
 )
 
 

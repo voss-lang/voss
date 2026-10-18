@@ -9,6 +9,7 @@ import sqlite3
 import shlex
 import os
 import secrets
+import subprocess
 import uuid
 from concurrent.futures import Future
 from contextlib import asynccontextmanager
@@ -58,6 +59,8 @@ from ..memory_gateway import open_memory_store
 from ..memory_store import MemoryStore
 from . import commands
 from . import capabilities
+from . import preview
+from . import task_graph
 from .. import oauth
 from . import events as E
 from . import models as model_selection
@@ -393,28 +396,32 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         finally:
             renderer.set_phase("ambient")
             renderer.session_idle()
-            session.task = None
+            if session.execution_plan is None:
+                session.task = None
         return
 
     mcp_client = None
     try:
         renderer.show_user(text)
-        route = "voss_run" if session.swarm_id or session.gate_event is not None else ambient.route(text)
+        route = "voss_run" if session.execution_plan or session.swarm_id or session.gate_event is not None else ambient.route(text)
         renderer.set_phase("run" if route == "voss_run" else "ambient")
         if route != "voss_run":
             await _run_ambient_turn(session, text, mode, route, renderer)
             session.turn_outcome = "done"
             return
-        tools = make_toolset(session.cwd, renderer=renderer)
-        mcp_client = await attach_mcp_tools(tools, session.cwd)
-        if session.memory_store is None:
-            session.memory_store = open_memory_store(session.cwd)
+        tools = make_toolset(session.cwd, renderer=renderer, background_indexing=session.execution_plan is None)
         memory_kwargs = {}
-        if not isinstance(session.memory_store, MemoryStore):
-            attach_memory_tools(tools, store=session.memory_store, session_id=session.id)
-            memory_kwargs["pinned_memory_text"] = await asyncio.to_thread(
-                session.memory_store.render_pinned_memory_text, model=session.model
-            )
+        if session.execution_plan is not None:
+            tools = {name: tool for name, tool in tools.items() if name in preview.TOOLS}
+        else:
+            mcp_client = await attach_mcp_tools(tools, session.cwd)
+            if session.memory_store is None:
+                session.memory_store = open_memory_store(session.cwd)
+            if not isinstance(session.memory_store, MemoryStore):
+                attach_memory_tools(tools, store=session.memory_store, session_id=session.id)
+                memory_kwargs["pinned_memory_text"] = await asyncio.to_thread(
+                    session.memory_store.render_pinned_memory_text, model=session.model
+                )
         bundle = cognition_mod.load(session.cwd)
         for err in bundle.load_errors:
             renderer.show_warning(f"cognition error: {err}")
@@ -437,6 +444,8 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         _install_server_permissions(gate, session, renderer)
         if session.swarm_policy is not None:
             _apply_swarm_escalation(gate, session, renderer)
+        if session.execution_plan is not None:
+            preview.install_scope(gate, session)
 
         try:
             from .. import voss_md
@@ -453,7 +462,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         try:
             from ..cli import _render_project_index_text, _scoped_turn
 
-            project_index_text = _render_project_index_text(
+            project_index_text = "" if session.execution_plan is not None else _render_project_index_text(
                 session.cwd, session_id=session.id
             )
             # VSWARM-07: a swarm builder gets recall filtered to its ownedFiles
@@ -485,7 +494,9 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
                 **memory_kwargs,
             )
 
-        if session.swarm_owned_files:
+        if session.execution_plan is not None:
+            result = await make_turn({})
+        elif session.swarm_owned_files:
             result = await make_turn({"code_recall_text": code_recall_text})
         else:
             result = await _scoped_turn(session.cwd, text, session.id, run_turn, make_turn)
@@ -523,7 +534,8 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             pass
         renderer.set_phase("ambient")
         renderer.session_idle()
-        session.task = None
+        if session.execution_plan is None:
+            session.task = None
 
 
 def _await_authentication(session: ServerSession, availability: oauth.Availability):
@@ -732,6 +744,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
     app.state.sessions = mgr
     app.state.oauth_only = oauth_only
     app.state.oauth_bindings = {}
+    app.state.previews = {}
     # App-scoped SwarmStore (NOT a module global module globals leak across
     # TestClient instances; Anti-Pattern). Event-log cwd defaults to
     # the serve cwd; tests override app.state.swarm_store to point at a tmp dir
@@ -789,6 +802,59 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         if requested != "auto":
             return requested
         return os.environ.get("VOSS_SERVE_DEFAULT_AUTH") or harness_config.load_harness_config().get("auth", "auto")
+
+    @app.post("/plans/preview", response_model=preview.Result)
+    async def prepare_plan(body: preview.Briefing):
+        if not oauth_only:
+            return preview.Result(status="unsupported", message="Connect an OAuth-only engine to preview execution.")
+        result = await preview.prepare(body)
+        if result.preview is not None:
+            if len(app.state.previews) >= 100:
+                app.state.previews.pop(next(iter(app.state.previews)))
+            app.state.previews[result.preview.id] = result.preview
+        return result
+
+    @app.get("/plans/{plan_id}", response_model=preview.Result)
+    async def get_plan(plan_id: str):
+        accepted = mgr.journal.plan_result(plan_id)
+        if accepted is not None:
+            return preview.Result.model_validate(accepted)
+        plan = app.state.previews.get(plan_id)
+        return preview.Result(status="prepared", preview=plan) if plan else preview.Result(status="stale", message="Preview again.")
+
+    @app.post("/plans/{plan_id}/start", response_model=preview.Result)
+    async def start_plan(plan_id: str, body: preview.Start):
+        if not oauth_only:
+            return preview.Result(status="unsupported", message="Connect an OAuth-only engine to start this preview.")
+        body.briefing = preview.normalized(body.briefing)
+        payload = body.model_dump()
+        try:
+            previous = mgr.journal.accepted_plan(plan_id, payload)
+        except ValueError as exc:
+            return preview.Result(status="stale", message=str(exc))
+        if previous is not None:
+            return preview.Result.model_validate(previous)
+        plan = app.state.previews.get(plan_id)
+        if plan is None:
+            return preview.Result(status="stale", message="This preview is no longer available. Preview again.")
+        if body.revision != plan.revision or preview.digest(body.briefing.model_dump()) != plan.input_revision:
+            return preview.Result(status="stale", message="The briefing changed. Preview again before starting.")
+        try:
+            unchanged = preview.repository(plan.briefing.cwd) == (plan.base_revision, plan.workspace_revision)
+        except (ValueError, OSError, subprocess.TimeoutExpired):
+            unchanged = False
+        if not unchanged:
+            return preview.Result(status="stale", message="The repository changed. Preview again before starting.")
+        availability, provider = oauth.prepare(oauth.PreflightBody(harness=plan.briefing.harness, model=plan.briefing.model))
+        if provider is None:
+            return preview.Result(status="unavailable", availability=availability)
+        s = mgr.create(cwd=Path(plan.briefing.cwd), model=availability.model, provider=provider, title=plan.briefing.source.text.splitlines()[0][:60])
+        s.auth = "claude-agent" if availability.harness == "claude" else "codex-oauth"
+        s.record.model_auth = availability.harness
+        s.execution_plan = plan.model_dump()
+        mgr.journal.begin(s.id, f"plan:{plan.id}", payload, execution_plan=s.execution_plan)
+        s.task = asyncio.create_task(preview.drive(s, plan, _run_turn))
+        return preview.Result.model_validate(mgr.journal.accepted_plan(plan_id, payload))
 
     # session CRUD
 
@@ -989,8 +1055,8 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         if oauth_only:
             current = s.provider.availability.harness
             availability, provider = oauth.prepare(oauth.PreflightBody(harness=body.auth or current, model=body.model))
-            if s.swarm_id:
-                availability = oauth.unavailable(availability, "swarm_selection_unavailable", "Create a new swarm to change its harness or model.")
+            if s.swarm_id or s.execution_plan:
+                availability = oauth.unavailable(availability, "selection_unavailable", "Create a new task preview or swarm to change its harness or model.")
                 provider = None
             if body.provider:
                 availability = oauth.unavailable(availability, "unsupported_harness", "API provider selection is unavailable for managed tasks.")
@@ -1050,6 +1116,8 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         if oauth_only and swarm_driver is not None and not swarm_driver.done():
             raise HTTPException(409, "the swarm is already running")
         text = " ".join(p.text for p in body.parts if p.type == "text").strip()
+        if s.execution_plan is not None:
+            return CommandAck(status="preview_required")
         if not text:
             raise HTTPException(422, "empty message")
         if oauth_only:
@@ -1127,6 +1195,27 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         snapshot = mgr.journal.snapshot(session_id)
         if snapshot is None:
             raise HTTPException(404, "task not found")
+    @app.get("/session/{session_id}/graph-output", response_model=task_graph.Output)
+    def graph_output(session_id: str, node_id: str, attempt_id: str, after: int = 0):
+        snapshot = task_snapshot(session_id)
+        node = next((node for node in snapshot.graph.nodes if node.id == node_id), None) if snapshot.graph else None
+        attempt = next((item for item in node.attempts if item.id == attempt_id), None) if node else None
+        if attempt is None or attempt.session_id is None or attempt.output_after is None:
+            return task_graph.Output(status="unavailable", message="No journal output is linked to this worker attempt.")
+        worker = mgr.journal.snapshot(attempt.session_id)
+        if worker is None:
+            return task_graph.Output(status="unavailable", message="The worker journal is unavailable.")
+        end = attempt.output_through if attempt.output_through is not None else worker.watermark
+        if attempt.output_through is None and snapshot.phase in {"cancelled", "interrupted", "failed"}:
+            return task_graph.Output(status="unavailable", message="The interrupted attempt has no recorded output boundary.")
+        cursor = max(after, attempt.output_after)
+        batch = [item for item in mgr.journal.replay(attempt.session_id, cursor, 200) if item.cursor <= end]
+        if cursor < end and (not batch or [item.cursor for item in batch] != list(range(cursor + 1, cursor + 1 + len(batch)))):
+            return task_graph.Output(status="unavailable", message="The recorded output range is incomplete.", next_cursor=cursor)
+        next_cursor = batch[-1].cursor if batch else cursor
+        return task_graph.Output(status="available", events=[{"cursor": item.cursor, "event": item.event} for item in batch],
+                                 next_cursor=next_cursor, has_more=bool(batch) and next_cursor < end)
+
         return snapshot
 
     async def replay_events(session_id: str, after: int, *, envelopes: bool):
@@ -1417,11 +1506,25 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
 
     # swarm ( VSWARM-02/03/04/06/08)
 
-    def _emit_swarm_event(swarm_id: str, ev: E._Base) -> None:
+    def _publish_swarm_graph(swarm_id: str, event: dict | None = None):
+        store = app.state.swarm_store
+        swarm = store.get(swarm_id)
+        agents = store.list_agents_by_swarm(swarm_id)
+        coordinator = next((rec for rec in agents if rec["role"] == "coordinator"), None)
+        if swarm is None or coordinator is None:
+            return
+        owner = mgr.journal.snapshot(coordinator["session_id"])
+        graph = task_graph.swarm_state(swarm, owner.graph, owner, event)
+        for rec in agents:
+            if mgr.get(rec["session_id"]) is not None:
+                mgr.journal.update(rec["session_id"], graph=graph.model_dump())
+
+    def _emit_swarm_event(swarm_id: str, ev: E._Base, graph_event: dict | None = None) -> None:
         """Fan a swarm event out to EVERY registered session's queue (Pitfall
         3 — not just the coordinator). Validates the swarm exists first so a
         forged swarm_id cannot inject into unrelated queues (T-V25-04-04)."""
         store = app.state.swarm_store
+        _publish_swarm_graph(swarm_id, graph_event or ev.model_dump())
         if store.get(swarm_id) is None:
             return
         for rec in store.list_agents_by_swarm(swarm_id):
@@ -1429,7 +1532,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             if sess is not None:
                 EventBusRenderer(sess.queue, session_id=sess.id).emit(ev)
 
-    def _assign_to_session(swarm_id: str, task: Any, session_id: str) -> None:
+    def _assign_to_session(swarm_id: str, task: Any, session_id: str, output_after: int | None = None) -> None:
         """Hand a task to a harness session: mark it, unblock it, announce it.
 
         Shared by the coordinator's assign message and the native half of
@@ -1448,16 +1551,23 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             # In-process unblock ( independent of queue state)
             if builder.gate_event is not None:
                 builder.gate_event.set()
-        _emit_swarm_event(
-            swarm_id,
-            E.SwarmAssign(
+        event = E.SwarmAssign(
                 swarm_id=swarm_id,
                 task_id=task.id,
                 session_id=session_id,
                 owned_files=task.owned_files,
                 role=(builder.swarm_role if builder else None) or "builder",
-            ),
-        )
+            )
+        snapshot = mgr.journal.snapshot(session_id) if builder else None
+        metadata = {**event.model_dump(), "attempt_id": snapshot.attempt_id if output_after is not None else event.eid,
+                    "model": builder.model if builder else None, "harness": getattr(getattr(builder, "provider", None), "availability", None),
+                    "output_after": output_after, "launched": output_after is not None}
+        availability = metadata["harness"]
+        metadata["harness"] = availability.harness if availability else None
+        metadata["provider"] = availability.provider if availability else None
+        if builder:
+            metadata.update(task_graph.location(builder.cwd))
+        _emit_swarm_event(swarm_id, event, metadata)
 
     @app.post("/swarm", status_code=201)
     async def create_swarm(body: CreateSwarmBody) -> dict:
@@ -1551,6 +1661,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             task = store.add_task(
                 swarm_id, body.goal, body.owned_files, body.depends_on
             )
+        _publish_swarm_graph(swarm_id)
         except OwnershipOverlapError as exc:
             raise HTTPException(409, str(exc))
         return {"v": 1, "task": task.model_dump()}
@@ -1642,6 +1753,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         task_id=ev.get("task_id", ""),
                         session_id="",
                         owned_files=ev.get("owned_files") or [],
+                    graph_event=ev,
                         role=ev.get("role", ""),
                     ),
                 )
@@ -1652,6 +1764,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         swarm_id=swarm_id,
                         task_id=ev.get("task_id", ""),
                         session_id="",
+                    graph_event=ev,
                         summary=ev.get("summary"),
                     ),
                 )
@@ -1662,6 +1775,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         swarm_id=swarm_id,
                         task_id=ev.get("task_id", ""),
                         gate_type=ev.get("gate_type", ""),
+                    graph_event=ev,
                         detail=ev.get("detail", ""),
                     ),
                 )
@@ -1674,6 +1788,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         task_id=ev.get("task_id", ""),
                         session_id=ev.get("session_id", ""),
                         tool_name=ev.get("tool_name", "fs_write"),
+                    graph_event=ev,
                         path=", ".join(paths) if paths else ev.get("path"),
                     ),
                 )
@@ -1687,6 +1802,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         branch=ev.get("branch", ""),
                         worktree=ev.get("worktree", ""),
                         head=ev.get("head", ""),
+                    graph_event=ev,
                         summary=ev.get("summary"),
                     ),
                 )
@@ -1695,6 +1811,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                     swarm_id,
                     E.SwarmCandidatesReady(
                         swarm_id=swarm_id,
+                    graph_event=ev,
                         candidate_count=ev.get("candidate_count", 0),
                     ),
                 )
@@ -1704,6 +1821,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                     E.SwarmComplete(
                         swarm_id=swarm_id,
                         task_count=ev.get("task_count", 0),
+                    graph_event=ev,
                         summary=ev.get("summary"),
                     ),
                 )
@@ -1819,16 +1937,25 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             sess = mgr.get(session_id)
             if sess is None or sess.busy:
                 raise RuntimeError("native builder is unavailable or busy")
-            _assign_to_session(swarm_id, task, session_id)
+            _assign_to_session(swarm_id, task, session_id, before)
+            before = mgr.journal.snapshot(sess.id).watermark
             mgr.journal.begin(sess.id, f"swarm:{task.id}", {"goal": task.goal}, swarm_id=swarm_id, swarm_task_id=task.id)
             sess.task = asyncio.create_task(_drive_turn(sess, task.goal, "auto"))
-            await sess.task
+            try:
+                await sess.task
+            finally:
+                snapshot = mgr.journal.snapshot(sess.id)
+                _publish_swarm_graph(swarm_id, {"type": "swarm.worker_done", "task_id": task.id,
+                    "attempt_id": snapshot.attempt_id, "output_through": snapshot.watermark,
+                    "state": snapshot.phase if snapshot.phase != "active" else "cancelled", "detail": snapshot.outcome})
             if mgr.journal.snapshot(sess.id).phase != "completed":
                 raise RuntimeError("native builder did not complete")
             store.mark_done(swarm_id, task.id, summary=None)
-            _emit_swarm_event(swarm_id, E.SwarmWorkerDone(
+            event = E.SwarmWorkerDone(
                 swarm_id=swarm_id, task_id=task.id, session_id=session_id, summary=None,
-            ))
+            )
+            snapshot = mgr.journal.snapshot(sess.id)
+            _emit_swarm_event(swarm_id, event, {**event.model_dump(), "attempt_id": snapshot.attempt_id, "output_through": snapshot.watermark})
 
         def _gate(gate_type: str, detail: str, task_id: str = "") -> None:
             on_event(
@@ -1872,6 +1999,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                 native_tasks = [
                     task
                     for task in store.get(swarm_id).tasks[len(cli_roles) :]
+                _publish_swarm_graph(swarm_id)
                     if task.state == OPEN
                 ]
                 held = {"candidates": 0}

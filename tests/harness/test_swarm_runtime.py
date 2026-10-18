@@ -244,6 +244,13 @@ def test_run_cli_swarm_runs_cli_members(repo: Path) -> None:
 
     assert len(results) == 2
     assert {r.role for r in results} == {"builder-1", "builder-2"}
+    assignments = [event for event in events if event["type"] == "swarm.assign"]
+    assert len({event["attempt_id"] for event in assignments}) == 2
+    for assignment in assignments:
+        worker_events = [event for event in events if event.get("task_id") == assignment["task_id"]]
+        assert {event["attempt_id"] for event in worker_events} == {assignment["attempt_id"]}
+        assert assignment["harness"] == "codex"
+        assert assignment["worktree"] and assignment["branch"] and assignment["base_revision"]
     assert all(
         r.violations == [] and not r.merged and r.candidate_ready for r in results
     )
