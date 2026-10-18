@@ -139,7 +139,7 @@ class EventBusRenderer:
             E.GateUpdated(session_id=self._sid, gate="confidence", decision="ask")
         )
 
-    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+    def show_final(self, text: str, *, confidence: float | None, cost_usd: float) -> None:
         self._emit(E.FinalEvent(text=text, confidence=confidence, cost_usd=cost_usd))
 
     def stream_delta(self, text: str) -> None:

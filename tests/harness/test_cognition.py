@@ -550,3 +550,30 @@ def test_gitignore_idempotent(tmp_path: Path) -> None:
     assert g.read_text().count(".voss-cache/") == 1
 
 
+
+
+def _plan_md_confidence(path: Path) -> str:
+    text = path.read_text()
+    return next(line for line in text.splitlines() if line.startswith("confidence: "))
+
+
+def test_save_plan_writes_unknown_confidence(tmp_path: Path) -> None:
+    plan = Plan.model_construct(
+        rationale="(unparsed)", steps=[], confidence=None, final_when_done="raw reply", open_question=None
+    )
+    path = write_plan_md(tmp_path, plan, session_id="s", model="m")
+    assert _plan_md_confidence(path) == "confidence: unknown"
+
+
+def test_save_plan_without_confidence_attribute_writes_unknown(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    plan = SimpleNamespace(rationale="r", steps=[], final_when_done="done", open_question=None)
+    path = write_plan_md(tmp_path, plan, session_id="s", model="m")
+    assert _plan_md_confidence(path) == "confidence: unknown"
+
+
+def test_save_plan_keeps_numeric_confidence(tmp_path: Path) -> None:
+    plan = Plan(rationale="r", steps=[], confidence=0.7, final_when_done="done")
+    path = write_plan_md(tmp_path, plan, session_id="s", model="m")
+    assert _plan_md_confidence(path) == "confidence: 0.70"
