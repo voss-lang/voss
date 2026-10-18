@@ -16,6 +16,17 @@ _PROBABLE_WARNING_SOURCE = (
     "}\n"
 )
 
+_UNMEASURED_GATE_SOURCE = (
+    "fn doIt(x: string) -> string {\n"
+    "    let intent: probable<string> = ask(\"classify\")\n"
+    "    if intent @ p >= 0.80 {\n"
+    "        return intent.value\n"
+    "    } else {\n"
+    "        return \"unknown\"\n"
+    "    }\n"
+    "}\n"
+)
+
 _CLEAN_SOURCE = "let x = 1\n"
 _INVALID_TEAM_SOURCE = '''team Eng {
   ceiling { budget: 100 tokens, scope: "src/**" }
@@ -154,3 +165,22 @@ def test_check_semantic_match_does_not_build_embedding_index(monkeypatch):
         path = _write("route.voss", _SEMANTIC_MATCH_SOURCE)
         result = runner.invoke(main, ["check", str(path)])
         assert result.exit_code == 0, result.output
+
+
+def test_check_warns_on_gate_over_ask_reply_and_exits_zero():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        path = _write("gate.voss", _UNMEASURED_GATE_SOURCE)
+        result = runner.invoke(main, ["check", str(path)])
+        assert result.exit_code == 0, result.output
+        assert "ANLY004" in result.output
+        assert "warning" in result.output
+
+
+def test_check_gate_over_ask_reply_fails_with_warnings_as_errors():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        path = _write("gate.voss", _UNMEASURED_GATE_SOURCE)
+        result = runner.invoke(main, ["check", "--warnings-as-errors", str(path)])
+        assert result.exit_code != 0
+        assert "ANLY004" in result.output

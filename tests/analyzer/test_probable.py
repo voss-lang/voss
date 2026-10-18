@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from voss import analyze
 from voss.ast_nodes import (
     Arg,
@@ -198,3 +200,65 @@ def test_unknown_call_result_does_not_warn():
     )
     result = analyze(prog, emit_indexes=False)
     assert [d for d in result.diagnostics if d.code == "ANLY001"] == []
+
+
+def _gate(op: str = ">=", name: str = "intent", line: int = 3) -> IfStmt:
+    return IfStmt(
+        span=span(line=line),
+        condition=ConfidenceGate(span=span(line=line), target=ident(name, line=line), op=op, threshold=0.8),
+        then_body=(ret(Member(span=span(), obj=ident(name), attr="value")),),
+        else_body=(ret(StringLit(span=span(), value="unknown")),),
+    )
+
+
+def _anly004(*body) -> list:
+    result = analyze(program(*body), emit_indexes=False)
+    return [d for d in result.diagnostics if d.code == "ANLY004"]
+
+
+def test_gate_on_ask_reply_warns_that_it_can_never_pass():
+    gate = _gate()
+    warns = _anly004(let("intent", t_probable_string(), ask_call(line=1), line=1), gate)
+    assert len(warns) == 1
+    d = warns[0]
+    assert d.severity == "warning"
+    assert d.span == gate.condition.span
+    assert "can never pass" in d.message and "ask()" in d.message
+    assert "judge(...).to_probable()" in d.hint
+    assert "error" not in (d.message + d.hint).lower()
+
+
+@pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">", ">="])
+def test_gate_on_ask_reply_warns_for_every_operator(op):
+    assert len(_anly004(let("intent", t_probable_string(), ask_call()), _gate(op))) == 1
+
+
+@pytest.mark.parametrize("inner", [t("list", t_string()), t("dict", t_string(), t_string())])
+def test_gate_on_ask_collection_reply_warns(inner):
+    assert len(_anly004(let("intent", t("probable", inner), ask_call()), _gate())) == 1
+
+
+def test_gate_on_self_reported_plan_does_not_warn():
+    assert _anly004(let("plan", t("probable", t("Plan")), ask_call()), _gate(name="plan")) == []
+
+
+def test_gate_on_value_from_another_call_does_not_warn():
+    assert _anly004(let("intent", t_probable_string(), call("to_probable")), _gate()) == []
+
+
+def test_rebinding_clears_the_unmeasured_mark():
+    assert _anly004(
+        let("intent", t_probable_string(), ask_call(), line=1),
+        let("intent", t_probable_string(), ident("other"), line=2),
+        _gate(),
+    ) == []
+
+
+def test_nested_gate_still_warns():
+    outer = IfStmt(
+        span=span(line=2),
+        condition=ident("flag", line=2),
+        then_body=(_gate(line=3),),
+        else_body=None,
+    )
+    assert len(_anly004(let("intent", t_probable_string(), ask_call()), outer)) == 1

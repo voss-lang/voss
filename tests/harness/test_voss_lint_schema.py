@@ -144,3 +144,35 @@ def test_voss_lint_skill_output_parses_with_consumer(tmp_path: Path) -> None:
         "hint",
     ]
     assert any(finding.rule == "ANLY001" for finding in findings)
+
+
+def test_voss_lint_skill_reports_gate_over_ask_reply(tmp_path: Path) -> None:
+    from voss.harness.skills.voss_lint_as_skill import run
+
+    (tmp_path / "gate.voss").write_text(
+        'fn classify(text: string) -> string {\n'
+        '    let intent: probable<string> = ask("Classify: " + text)\n'
+        "    if intent @ p >= 0.80 {\n"
+        "        return intent.value\n"
+        "    } else {\n"
+        '        return "unknown"\n'
+        "    }\n"
+        "}\n"
+    )
+
+    buf = io.StringIO()
+    with patch("click.echo", side_effect=lambda s, **kw: buf.write(str(s) + "\n")):
+        run(
+            cwd=tmp_path,
+            provider=None,
+            history=None,
+            record=types.SimpleNamespace(model="fake", id="t"),
+            renderer=None,
+            tools=None,
+            gate=None,
+            args=[str(tmp_path)],
+        )
+
+    findings = parse_lint_json(buf.getvalue())
+
+    assert any(f.rule == "ANLY004" and f.severity == "warning" for f in findings)
