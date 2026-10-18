@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from voss_proofs.evaluate import run_check
 from voss_proofs.ingest import import_voss_eval
 from voss_proofs.report import compare, render, wilson
 from voss_proofs.runner import run_experiment, run_one
-from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, load_bench, load_config, load_spec
+from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, Config, load_bench, load_config, load_spec
 from voss_proofs.store import Store, read_runs
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -247,3 +248,77 @@ def test_sse_heartbeats_reach_the_deadline_check_but_are_not_recorded():
     events = list(adapters._sse(Stream()))
     assert events[0] is adapters.PING
     assert events[1] == {"type": "final", "text": "hi"}
+
+
+FAKE_AGENT = """#!{python}
+import json, os, pathlib, sys, time
+name = pathlib.Path(sys.argv[0]).name
+pathlib.Path({seen!r}).write_text(json.dumps({{"argv": sys.argv[1:], "stdin": sys.stdin.read(),
+    "env": sorted(k for k in os.environ if k.startswith(("CLAUDE", "CODEX_COMPANION")))}}))
+if os.environ.get("FAKE_SLEEP"):
+    time.sleep(60)
+pathlib.Path("leap.py").write_text("def is_leap_year(y):\\n    return y % 4 == 0\\n")
+if name == "claude":
+    print(json.dumps({{"subtype": "success", "is_error": False, "result": "done", "total_cost_usd": 0.12,
+                      "usage": {{"input_tokens": 3, "output_tokens": 40, "cache_creation_input_tokens": 900,
+                                "cache_read_input_tokens": 5000}}, "modelUsage": {{"claude-x": {{}}}}}}))
+else:
+    print(json.dumps({{"type": "item.completed", "item": {{"type": "agent_message", "text": "fixed"}}}}))
+    print(json.dumps({{"type": "turn.completed", "usage": {{"input_tokens": 100, "cached_input_tokens": 60,
+                                                         "output_tokens": 7}}}}))
+"""
+
+
+@pytest.fixture
+def fake_agents(tmp_path, monkeypatch):
+    seen = tmp_path / "seen.json"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    for name in ("claude", "codex"):
+        (bindir / name).write_text(FAKE_AGENT.format(python=sys.executable, seen=str(seen)))
+        (bindir / name).chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "parent")
+    return seen
+
+
+def test_cli_claude_runs_sandboxed_without_user_settings_or_the_parent_session(tmp_path, fake_agents):
+    config = load_config("cli-claude", ROOT / "configs")
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    rec = run_one(task_dir, spec, config, Store(tmp_path / "exp"), run_idx=0, seed=0)
+    seen = json.loads(fake_agents.read_text())
+    assert "bypassPermissions" not in seen["argv"] and "acceptEdits" in seen["argv"]
+    assert json.loads(seen["argv"][seen["argv"].index("--settings") + 1])["sandbox"]["enabled"] is True
+    assert seen["argv"][seen["argv"].index("--setting-sources") + 1] == "project,local"
+    assert "--strict-mcp-config" in seen["argv"] and seen["env"] == []
+    assert rec.claimed_complete is True and rec.verified is False
+    assert (rec.usage.cache_creation_tokens, rec.usage.cost_usd, rec.model) == (900, 0.12, "claude-x")
+
+
+def test_cli_codex_gets_closed_stdin_and_unknown_cost(tmp_path, fake_agents):
+    config = load_config("cli-codex", ROOT / "configs")
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    rec = run_one(task_dir, spec, config, Store(tmp_path / "exp"), run_idx=0, seed=0)
+    seen = json.loads(fake_agents.read_text())
+    assert seen["stdin"] == "" and "workspace-write" in seen["argv"]
+    assert rec.claimed_complete is True and rec.usage.input_tokens == 100
+    assert rec.usage.cost_usd is None and "unknown" in rec.usage.cost_source
+
+
+def test_cli_agent_wall_budget_kills_the_agent(tmp_path, fake_agents, monkeypatch):
+    monkeypatch.setenv("FAKE_SLEEP", "1")
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    spec = spec.model_copy(update={"budget": spec.budget.model_copy(update={"wall_s": 1})})
+    t0 = time.monotonic()
+    rec = run_one(task_dir, spec, load_config("cli-claude", ROOT / "configs"), Store(tmp_path / "exp"),
+                  run_idx=0, seed=0)
+    assert time.monotonic() - t0 < 30
+    assert rec.exit_reason == "timeout" and rec.claimed_complete is None and rec.verified is False
+
+
+def test_cli_agent_config_names_its_agent():
+    with pytest.raises(ValueError, match="agent"):
+        Config(name="x", adapter="cli-agent")
+    with pytest.raises(ValueError, match="agent"):
+        Config(name="x", adapter="null", agent="claude")

@@ -1,0 +1,5 @@
+name = "cli-claude"
+adapter = "cli-agent"
+agent = "claude"
+description = "Baseline A: claude -p in the workspace. File edits allowed, shell commands run in the Claude Code sandbox, user settings, hooks and MCP servers off."
+live = true

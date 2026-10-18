@@ -5,7 +5,7 @@ import tomllib
 from pathlib import Path
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
 
 
 class _Strict(BaseModel):
@@ -95,7 +95,7 @@ class BenchmarkSpec(_Strict):
 
 class Config(_Strict):
     name: str
-    adapter: Literal["oracle", "null", "voss-serve"]
+    adapter: Literal["oracle", "null", "voss-serve", "cli-agent"]
     description: str = ""
     live: bool = False
     mode: Literal["plan", "edit", "auto"] | None = None
@@ -104,6 +104,13 @@ class Config(_Strict):
     permission_choice: Literal["a", "A", "d"] | None = None
     voss_bin: str = "voss"
     env: dict[str, str] = Field(default_factory=dict)
+    agent: Literal["claude", "codex"] | None = None
+
+    @model_validator(mode="after")
+    def _agent_for_cli(self) -> Config:
+        if (self.adapter == "cli-agent") != (self.agent is not None):
+            raise ValueError("agent is required by, and only valid for, the cli-agent adapter")
+        return self
 
 
 BUILTIN_CONFIGS = {

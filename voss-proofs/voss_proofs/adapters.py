@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import queue
+import signal
 import subprocess
 import threading
 import time
@@ -230,4 +232,89 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
     return res
 
 
-ADAPTERS = {"oracle": oracle, "null": null, "voss-serve": voss_serve}
+CLAUDE_SANDBOX = json.dumps({"sandbox": {"enabled": True, "autoAllowBashIfSandboxed": True}})
+
+
+def _claude_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config) -> list[str]:
+    cmd = ["claude", "-p", spec.prompt, "--output-format", "json", "--permission-mode", "acceptEdits",
+           "--settings", CLAUDE_SANDBOX, "--setting-sources", "project,local", "--strict-mcp-config",
+           "--no-session-persistence"]
+    return cmd + (["--model", config.model] if config.model else [])
+
+
+def _codex_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config) -> list[str]:
+    cmd = ["codex", "exec", "--json", "--ephemeral", "-s", "workspace-write", "--ignore-user-config",
+           "-C", str(ws.repo)]
+    return cmd + (["-m", config.model] if config.model else []) + [spec.prompt]
+
+
+def _claude_result(out: str, res: AdapterResult) -> None:
+    data = json.loads(out)
+    res.final = data.get("result") or ""
+    res.claimed_complete = data.get("subtype") == "success" and not data.get("is_error")
+    res.exit_reason = "done" if res.claimed_complete else "error"
+    usage = data.get("usage") or {}
+    res.usage = Usage(
+        input_tokens=usage.get("input_tokens"), output_tokens=usage.get("output_tokens"),
+        cache_creation_tokens=usage.get("cache_creation_input_tokens"),
+        cache_read_tokens=usage.get("cache_read_input_tokens"),
+        cost_usd=data.get("total_cost_usd"),
+        cost_source="claude -p total_cost_usd: list-price estimate, a subscription may not bill it",
+    )
+    res.model = ",".join(sorted(data.get("modelUsage") or {})) or res.model
+    if not res.claimed_complete:
+        res.errors.append(f"claude -p {data.get('subtype')}: {res.final[:200]}")
+
+
+def _codex_result(out: str, res: AdapterResult) -> None:
+    events = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+    turns = [e["usage"] for e in events if e.get("type") == "turn.completed"]
+    failed = [e for e in events if e.get("type") in ("turn.failed", "error")]
+    messages = [e["item"]["text"] for e in events
+                if e.get("type") == "item.completed" and e["item"].get("type") == "agent_message"]
+    res.final = messages[-1] if messages else ""
+    res.claimed_complete = bool(turns) and not failed
+    res.exit_reason = "done" if res.claimed_complete else "error"
+    res.usage = Usage(
+        input_tokens=sum(t.get("input_tokens", 0) for t in turns),
+        output_tokens=sum(t.get("output_tokens", 0) for t in turns),
+        cache_read_tokens=sum(t.get("cached_input_tokens", 0) for t in turns),
+        cost_source="unknown: codex exec reports no cost",
+    )
+    res.errors += [json.dumps(e)[:200] for e in failed]
+
+
+CLI_AGENTS = {"claude": (_claude_cmd, _claude_result), "codex": (_codex_cmd, _codex_result)}
+
+
+def cli_agent(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
+              config: Config, store: Store) -> AdapterResult:
+    """Baseline A: one external coding agent, run non-interactively and sandboxed in the workspace."""
+    build, parse = CLI_AGENTS[config.agent]
+    res = AdapterResult(provider=f"{config.agent}-cli", model=config.model)
+    p = subprocess.Popen(build(spec, ws, config), cwd=ws.repo, env={**env, **config.env}, text=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         start_new_session=True)
+    try:
+        out, err = p.communicate(timeout=spec.budget.wall_s)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, err = p.communicate()
+        res.exit_reason = "timeout"
+        res.errors.append(f"wall budget {spec.budget.wall_s}s exceeded")
+    if out:
+        res.artifacts["events"] = store.put(out)
+    if res.exit_reason == "timeout":
+        return res
+    try:
+        parse(out, res)
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        res.exit_reason, res.claimed_complete = "error", None
+        res.errors.append(f"{config.agent} output: {type(exc).__name__}: {(err or out)[-300:]}")
+    if p.returncode and res.exit_reason == "done":
+        res.exit_reason, res.claimed_complete = "error", None
+        res.errors.append(f"{config.agent} exit {p.returncode}: {err[-300:]}")
+    return res
+
+
+ADAPTERS = {"oracle": oracle, "null": null, "voss-serve": voss_serve, "cli-agent": cli_agent}
