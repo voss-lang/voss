@@ -34,6 +34,24 @@ The report's "claimed but not verified" column counts runs where the system clai
 
 Model judgments (the Phase 2 semantic evaluators) are stored in `judge` and never override a failing deterministic check. A passing test also does not prove a requirement is met. That gap is why hidden acceptance tests and, later, criterion-level review exist.
 
+## Requirement review
+
+**Review sets.** `proofs import-review` reads a frozen J4 set (`evals/review`, `evals/review-locked-2`):
+1. The fixture hashes must match `freeze.json`.
+2. The split's report must be complete and on the frozen commit.
+3. Labels are copied, not re-scored.
+4. Each record carries the rubric of the run that produced it. That can differ from the rubric at freeze time: the first set's dev split was rerun under rubric v2 for tuning.
+
+A change should be accepted only when every criterion's gold label is *supported*. Changes with an ambiguous criterion are left out of change-level rates and counted in the report.
+
+**Two rates, always together.** False accept is the share of should-reject changes that a config accepted. True accept is the share of should-accept changes that it accepted. Either one alone can be gamed: *author-claim* gets a perfect true accept and *reject-all* a perfect false accept. Both rules appear in every review report as bounds.
+
+**Criterion level.** Configs that label each criterion also get false supported, supported recall, contradicted recall, abstention and a Brier score on P(supported). Reviewer B gives one verdict per change, so it has no criterion-level row. Its confidence is self-reported, so it is shown as a mean and never scored as a probability.
+
+**Judging VossBench runs.** A config with `judge = "jev"` runs `voss judge review --criteria-file --checks --json` in the workspace. The call happens after the visible checks and before `hidden/` is installed. It passes the scenario's `acceptance.criteria` and only the visible check results. The verdict is *accept* when every criterion is supported. It goes into `judge` and never changes `verified`. The report scores both the judge and the system's own completion claim against `verified`.
+
+**Power.** A rate over fewer than 10 items is marked underpowered. Read its interval, not its point estimate.
+
 ## Determinism
 
 Configs with `live = false` call no model. Their results test the benchmark and the pipeline, not model capability, and reports print them in a separate section. `proofs compare A B` compares each scenario × config × run_idx on:
@@ -42,6 +60,7 @@ Configs with `live = false` call no model. Their results test the benchmark and 
 - exit_reason
 - each check's pass/fail
 - the diff hash
+- the judge verdict, when a judge ran
 
 Timings, ids and check log text are excluded, because log text includes timing. Two offline experiments should show zero differences.
 

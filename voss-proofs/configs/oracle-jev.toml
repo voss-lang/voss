@@ -1,0 +1,5 @@
+name = "oracle-jev"
+adapter = "oracle"
+description = "applies reference.patch, then asks Jev whether the diff meets each acceptance criterion"
+live = true
+judge = "jev"

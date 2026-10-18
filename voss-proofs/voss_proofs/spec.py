@@ -1,4 +1,4 @@
-"""Benchmark, config and run-record contracts (task.v1, config.v1, run.v1)."""
+"""Benchmark, config, run-record and review-record contracts (task.v1, config.v1, run.v1, review.v1)."""
 from __future__ import annotations
 
 import tomllib
@@ -106,11 +106,18 @@ class Config(_Strict):
     env: dict[str, str] = Field(default_factory=dict)
     agent: Literal["claude", "codex"] | None = None
     builders: int = 2
+    judge: Literal["jev"] | None = None
 
     @model_validator(mode="after")
     def _agent_for_cli(self) -> Config:
         if (self.adapter == "cli-agent") != (self.agent is not None):
             raise ValueError("agent is required by, and only valid for, the cli-agent adapter")
+        return self
+
+    @model_validator(mode="after")
+    def _judge_is_live(self) -> Config:
+        if self.judge and not self.live:
+            raise ValueError("judge calls a live model; set live = true")
         return self
 
 
@@ -148,10 +155,17 @@ class VossInfo(_Strict):
     capabilities: list[str] = Field(default_factory=list)
 
 
+Decision = Literal["accept", "reject"]
+
+
 class Judge(_Strict):
     verdict: str
     confidence: float | None = None
     model: str | None = None
+    labels: dict[str, str | None] = Field(default_factory=dict)
+    probabilities: dict[str, dict[str, float]] = Field(default_factory=dict)
+    cost_usd: float | None = None
+    error: str | None = None
 
 
 class RunRecord(_Strict):
@@ -187,6 +201,30 @@ class RunRecord(_Strict):
     evaluator_version: str
 
 
+class ReviewRecord(_Strict):
+    """One reviewer's answer on one frozen review fixture."""
+
+    schema_version: Literal["review.v1"] = "review.v1"
+    experiment_id: str
+    config: str
+    source: str
+    dataset: str
+    split: str
+    freeze_commit: str
+    rubric_version: str
+    fixture: str
+    kind: str
+    gold: dict[str, str]
+    flags: dict[str, str]
+    decision: Decision | None
+    labels: dict[str, str | None] | None = None
+    probabilities: dict[str, dict[str, float] | None] | None = None
+    confidence: float | None = None
+    model: str | None = None
+    cost_usd: float | None = None
+    error: str | None = None
+
+
 def load_spec(task_dir: Path) -> BenchmarkSpec:
     return BenchmarkSpec.model_validate(tomllib.loads((task_dir / "task.toml").read_text()))
 
@@ -212,4 +250,4 @@ def load_config(name_or_path: str, configs_dir: Path) -> Config:
     return Config.model_validate(tomllib.loads(path.read_text()))
 
 
-SCHEMAS = {"task.v1": BenchmarkSpec, "config.v1": Config, "run.v1": RunRecord}
+SCHEMAS = {"task.v1": BenchmarkSpec, "config.v1": Config, "run.v1": RunRecord, "review.v1": ReviewRecord}

@@ -109,6 +109,19 @@
       "default": 2,
       "title": "Builders",
       "type": "integer"
+    },
+    "judge": {
+      "anyOf": [
+        {
+          "const": "jev",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Judge"
     }
   },
   "required": [

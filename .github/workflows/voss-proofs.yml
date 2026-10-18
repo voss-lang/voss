@@ -5,10 +5,10 @@ permissions:
 
 on:
   push:
-    paths: ["voss-proofs/**", ".github/workflows/voss-proofs.yml"]
+    paths: ["voss-proofs/**", "evals/review*/**", ".github/workflows/voss-proofs.yml"]
   pull_request:
     branches: [master]
-    paths: ["voss-proofs/**", ".github/workflows/voss-proofs.yml"]
+    paths: ["voss-proofs/**", "evals/review*/**", ".github/workflows/voss-proofs.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -49,3 +49,7 @@ jobs:
           proofs run --bench benchmarks/regression --config oracle,null,voss-serve-fake --out results/ci-b
           proofs compare results/ci-a results/ci-b
           cat results/ci-a/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Locked review set imports and matches its frozen hashes
+        run: |
+          proofs import-review ../evals/review-locked-2 --out results/review-locked-2
+          cat results/review-locked-2/review.md >> "$GITHUB_STEP_SUMMARY"
