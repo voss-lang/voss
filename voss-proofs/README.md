@@ -28,6 +28,8 @@ proofs run --bench benchmarks/regression --config voss-serve-auto --live --max-r
 Other commands:
 
 - `proofs import-voss-eval <runs.jsonl>` converts `voss eval` output into run.v1 records.
+- `proofs import-review ../evals/review-locked-2` imports a frozen J4 requirement-review set. It compares the author-claim, reject-all, Jev and Reviewer B configs in `review.md`. Add `--split dev --run-dev --live` to run Jev on the dev split first.
+- Configs with `judge = "jev"` (`oracle-jev`, `null-jev`, `voss-serve-auto-jev`) also ask Jev whether each run's diff meets the scenario's acceptance criteria. They need `--live` and a Jev key.
 - `proofs report <results>` re-renders a report.
 - `proofs schema` exports the JSON Schemas.
 
@@ -41,5 +43,6 @@ Other commands:
 - **Config** (`configs/*.toml`, plus built-in `oracle` and `null`). A config names the system under test: its adapter, mode, auth, model and env.
 - **Run record** (`schemas/run.v1.schema.json`). One JSON line per run in `results/<exp>/runs.jsonl`. Every artifact is referenced by sha256 into `results/<exp>/objects/`.
 - **Verified vs claimed.** `verified` is true only when every visible, hidden and scope check passes. `claimed_complete` records what the system said about its own run. The report counts runs where these disagree.
+- **Review record** (`schemas/review.v1.schema.json`). One reviewer's decision on one frozen review fixture, in `results/<exp>/review.jsonl`.
 
 See [docs/PRD.md](docs/PRD.md) for the roadmap, [docs/methodology.md](docs/methodology.md) for how results are computed, [docs/upstream-gaps.md](docs/upstream-gaps.md) for what Voss would need to change, and [docs/dataset-policy.md](docs/dataset-policy.md) for what may go into a corpus.
