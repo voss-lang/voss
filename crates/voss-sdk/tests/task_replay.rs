@@ -147,6 +147,11 @@ async fn real_engine_preview_start_and_retry_use_the_same_graph() {
         assert_eq!(node.attempts.len(), 1);
         let attempt = &node.attempts[0];
         assert_eq!(attempt.run_id, snapshot.run_id);
+        let review = client.task_review(&sid, &node.id, &attempt.id).await.unwrap();
+        assert_eq!(review.status, "unavailable");
+        assert_eq!(review.rows[0].text, node.criteria[0]);
+        assert_eq!(review.rows[0].test_outcome, "unavailable");
+        assert_eq!(review.evidence_revision, client.task_review(&sid, &node.id, &attempt.id).await.unwrap().evidence_revision);
         let output = client.graph_output(&sid, &node.id, &attempt.id, 0).await.unwrap();
         assert_eq!(output.status, "available");
         assert!(output.events.iter().all(|row| row["cursor"].as_u64().unwrap() <= attempt.output_through.unwrap()));

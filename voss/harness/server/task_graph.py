@@ -26,6 +26,7 @@ class Attempt(BaseModel):
     state: str = "unknown"
     branch: str | None = None
     worktree: str | None = None
+    repository: str | None = None
     base_revision: str | None = None
     candidate_revision: str | None = None
     review_state: str = "unavailable"
@@ -182,7 +183,7 @@ def swarm_state(swarm, previous, owner, event=None):
         attempt = next((item for item in node.attempts if item.id == attempt_id), None)
         if attempt is None and attempt_id:
             attempt = Attempt(id=attempt_id, run_id=owner.run_id, plan_revision=revision,
-                              **{key: event[key] for key in ("role", "harness", "provider", "model", "session_id", "branch", "worktree", "base_revision", "output_after") if event.get(key) is not None})
+                              **{key: event[key] for key in ("role", "harness", "provider", "model", "session_id", "branch", "worktree", "repository", "base_revision", "output_after") if event.get(key) is not None})
             node.attempts.append(attempt)
         if kind == "swarm.assign" and attempt and attempt.state in {"unknown", "assigned", "running"}:
             attempt.state = "running" if event.get("launched") else "assigned"
@@ -198,6 +199,7 @@ def swarm_state(swarm, previous, owner, event=None):
                 if "reject" in event.get("gate_type", ""):
                     attempt.review_state = "changes_requested"
         elif kind == "swarm.candidate_ready" and attempt:
+            attempt.repository = event.get("repository") or attempt.repository
             attempt.candidate_revision = event.get("head") or None
             attempt.branch, attempt.worktree = event.get("branch"), event.get("worktree")
             attempt.state, attempt.review_state = "candidate_ready", "pending"

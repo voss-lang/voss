@@ -119,6 +119,7 @@ async def run_cli_member(
     on_event: EventHook = None,
     context: str = "",
     preflight_fn: Callable[[Role], None] | None = None,
+    attempt_id: str | None = None,
 ) -> MemberResult:
     """Orchestrate ONE CLI swarm member through its full lifecycle.
 
@@ -193,6 +194,7 @@ async def run_cli_member(
             "owned_files": list(task.owned_files),
             "branch": mw.branch,
             "worktree": str(mw.path),
+            "repository": str(repo_root),
             "base_revision": _git(mw.path, "rev-parse", "HEAD"),
             "launched": True,
         },
@@ -292,11 +294,12 @@ async def run_cli_member(
                 "role": role.name,
                 "branch": mw.branch,
                 "worktree": str(mw.path),
+                "repository": str(repo_root),
                 "head": candidate_head,
                 "summary": summary,
             },
         )
-        schedule_candidate_review(repo_root, swarm_id, task.id, task.goal, candidate_head, violations)
+        schedule_candidate_review(repo_root, swarm_id, task.id, task.goal, candidate_head, violations, attempt_id=attempt_id)
     else:
         store.mark_done(swarm_id, task.id, summary=summary)
         remove_member_worktree(repo_root, mw)
@@ -429,6 +432,7 @@ async def run_cli_swarm(
                     task,
                     spawn_fn=spawn_fn,
                     preflight_fn=preflight_fn,
+                    attempt_id=attempt_id,
                     on_event=emit,
                 )
             except Exception as exc:  # noqa: BLE001 — reported, not swallowed

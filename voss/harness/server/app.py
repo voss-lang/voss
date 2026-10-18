@@ -61,6 +61,7 @@ from . import commands
 from . import capabilities
 from . import preview
 from . import task_graph
+from . import task_review
 from .. import oauth
 from . import events as E
 from . import models as model_selection
@@ -1196,6 +1197,10 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         if snapshot is None:
             raise HTTPException(404, "task not found")
         return snapshot
+
+    @app.get("/session/{session_id}/review", response_model=task_review.Bundle)
+    def review_bundle(session_id: str, node_id: str, attempt_id: str):
+        return task_review.read(task_snapshot(session_id), node_id, attempt_id)
 
     @app.get("/session/{session_id}/graph-output", response_model=task_graph.Output)
     def graph_output(session_id: str, node_id: str, attempt_id: str, after: int = 0):

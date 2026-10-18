@@ -13,6 +13,7 @@ pub struct Attempt {
     pub state: String,
     pub branch: Option<String>,
     pub worktree: Option<String>,
+    pub repository: Option<String>,
     pub base_revision: Option<String>,
     pub candidate_revision: Option<String>,
     pub review_state: String,

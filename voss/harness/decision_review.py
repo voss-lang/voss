@@ -392,7 +392,7 @@ def candidate_review_path(repo_root: Path, swarm_id: str, task_id: str) -> Path:
     return Path(repo_root) / ".voss" / "swarm" / swarm_id / "reviews" / f"{task_id}.json"
 
 
-def write_candidate_review(path: Path, ledger: JudgmentLedger) -> Path | None:
+def write_candidate_review(path: Path, ledger: JudgmentLedger, *, task_review: dict | None = None) -> Path | None:
     if not ledger.receipts:
         return None
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -402,6 +402,8 @@ def write_candidate_review(path: Path, ledger: JudgmentLedger) -> Path | None:
         "held_usd": ledger.held_usd,
         "receipts": [dataclasses.asdict(r) for r in ledger.receipts],
     }
+    if task_review is not None:
+        payload["task_review"] = task_review
     path.write_text(json.dumps(payload, indent=2))
     path.chmod(0o600)
     return path

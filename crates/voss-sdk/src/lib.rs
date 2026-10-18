@@ -8,6 +8,7 @@ pub mod projection;
 pub mod oauth;
 pub mod plans;
 pub mod graph;
+pub mod review;
 pub mod stream;
 pub mod tasks;
 pub mod supervisor;

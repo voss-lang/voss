@@ -40,6 +40,7 @@ unavailable while local history stays readable.
   does not promise durable replay, safe worker recovery or enforced task scope.
 - `tasks.replay.v1`: authoritative task snapshots, durable cursor replay and command acknowledgements described below.
 - `tasks.graph.v1`: recorded dependency graphs, worker attempts and bounded read-only output.
+- `tasks.review.v1`: acceptance evidence for an exact recorded task attempt and candidate.
 - `swarms.v1`: existing swarm create/snapshot/run routes and events.
 - `diagnostics.v1`: existing read-only `/doctor` route.
 - `harness.availability.v1`: typed local OAuth metadata and preflight.
@@ -521,3 +522,38 @@ remain the graph transport; clients need no second graph subscription.
 
 Preview also records the selected provider and base branch. Branch changes at the
 same HEAD invalidate an unaccepted preview through its workspace fingerprint.
+
+### Recorded acceptance evidence (added 2026-10-18)
+
+`GET /session/{owner}/review?node_id=...&attempt_id=...` returns a versioned
+bundle with session/run/task/attempt and plan IDs, candidate/base SHAs, worktree,
+current HEAD, cleanliness, evidence revision and one row per recorded criterion.
+Each row separates task-wide test status, reviewer label/mode, evidence references
+and unresolved issues. Test states are `passed`, `failed`, `skipped`, `not_run`,
+`unavailable` and `stale`. A scope check or successful worker exit is not a test
+result. Reviewer labels retain their recorded meaning; shadow assessments are
+advisory. This endpoint does not run tests, assess requirements, start sessions or
+write Git state.
+
+CLI candidate review production adds exact swarm/task/attempt/candidate linkage
+to its existing review artifact. The graph records the repository root for that
+artifact. The reader follows that fixed path only, checks ownership, and bounds
+the artifact to 1 MiB. It does not scan board sidecars or match titles/paths.
+Existing board artifacts lack a managed-attempt mapping, so they remain
+unavailable. Preview criteria can be displayed without implying verification or
+a committed candidate. Existing review enablement and dispatch policies do not
+change; disabled review creates no new assessment.
+
+Bundle status distinguishes `available`, `partial`, `unavailable` and `stale`.
+Missing/malformed/unlinked artifacts are partial; an absent candidate/base or
+inaccessible worktree is unavailable. Changed HEAD, dirty files, changed plan or
+criteria and evidence for another candidate are stale. The evidence revision
+hashes the projected bundle and artifact bytes, excluding the read timestamp.
+Repeated unchanged reads retain the revision; tests, reviewer receipts, blockers,
+criteria and candidate/base changes invalidate it.
+
+The engine reports its recorded base. ADE separately chooses an integration
+branch and binds its current target SHA to operator approval. It revalidates the
+bundle before queueing and before integration. A rebase that changes the candidate
+stops before merge; new candidate evidence and approval are required. These reads
+do not regenerate evidence or adopt a manual commit as an engine candidate.

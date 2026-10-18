@@ -144,6 +144,18 @@
             "default": null,
             "title": "Provider"
           },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repository"
+          },
           "review_state": {
             "default": "unavailable",
             "title": "Review State",
@@ -457,6 +469,185 @@
         "title": "BudgetUpdated",
         "type": "object"
       },
+      "Bundle": {
+        "properties": {
+          "attempt_id": {
+            "title": "Attempt Id",
+            "type": "string"
+          },
+          "base_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Revision"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "candidate_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Revision"
+          },
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/Check"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "clean": {
+            "default": false,
+            "title": "Clean",
+            "type": "boolean"
+          },
+          "criteria_source": {
+            "default": "plan",
+            "title": "Criteria Source",
+            "type": "string"
+          },
+          "current_head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Head"
+          },
+          "evidence_revision": {
+            "default": "",
+            "title": "Evidence Revision",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "plan_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Revision"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Row"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "unavailable",
+            "enum": [
+              "available",
+              "partial",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "unresolved": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved",
+            "type": "array"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "worktree": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worktree"
+          }
+        },
+        "required": [
+          "session_id",
+          "task_id",
+          "attempt_id"
+        ],
+        "title": "Bundle",
+        "type": "object"
+      },
       "Capabilities": {
         "properties": {
           "capabilities": {
@@ -515,6 +706,32 @@
           "harnesses"
         ],
         "title": "Catalog",
+        "type": "object"
+      },
+      "Check": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "not_run",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "Check",
         "type": "object"
       },
       "ClarifyEvent": {
@@ -1295,6 +1512,34 @@
           "event"
         ],
         "title": "EventEnvelope",
+        "type": "object"
+      },
+      "Evidence": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "reference",
+          "summary"
+        ],
+        "title": "Evidence",
         "type": "object"
       },
       "FinalEvent": {
@@ -2419,6 +2664,81 @@
           "name"
         ],
         "title": "RoleSpec",
+        "type": "object"
+      },
+      "Row": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reviewer_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Mode"
+          },
+          "reviewer_outcome": {
+            "default": "unavailable",
+            "enum": [
+              "supported",
+              "contradicted",
+              "insufficient_evidence",
+              "abstained",
+              "no_answer",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Reviewer Outcome",
+            "type": "string"
+          },
+          "test_outcome": {
+            "default": "unavailable",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "not_run",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Test Outcome",
+            "type": "string"
+          },
+          "test_scope": {
+            "default": "task",
+            "title": "Test Scope",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "unresolved": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "Row",
         "type": "object"
       },
       "Scope": {
@@ -4926,6 +5246,63 @@
           }
         },
         "summary": "Reply Permission"
+      }
+    },
+    "/session/{session_id}/review": {
+      "get": {
+        "operationId": "review_bundle_session__session_id__review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attempt_id",
+            "required": true,
+            "schema": {
+              "title": "Attempt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bundle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Bundle"
       }
     },
     "/session/{session_id}/task": {

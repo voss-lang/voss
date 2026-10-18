@@ -26,7 +26,7 @@ NOT_ENABLED = "judgments:\n  enabled: false\n  review: shadow\n"
 GOAL = "owned.py says changed by builder"
 ROOT = Path(__file__).resolve().parents[2]
 PLACEHOLDER_KEYS = (
-    "swarm_id", "task_id", "attempt_id", "base_revision", "head", "branch", "worktree", "candidate_head", "candidate_branch", "candidate_worktree",
+    "swarm_id", "task_id", "attempt_id", "base_revision", "repository", "head", "branch", "worktree", "candidate_head", "candidate_branch", "candidate_worktree",
 )
 
 
@@ -485,6 +485,13 @@ def _identity_scenario(root: Path, config_text: str) -> tuple[dict, list[str], l
     }
     reviews = [f for f in files if f.startswith("reviews/")]
     paths = [decision_review.candidate_review_path(repo, swarm.id, t.id) for t in tasks]
+    for task, path in zip(tasks, paths):
+        if path.exists():
+            link = json.loads(path.read_text())["task_review"]
+            candidate = next(e for e in events if e['type'] == 'swarm.candidate_ready' and e['task_id'] == task.id)
+            assert (link['swarm_id'], link['task_id'], link['attempt_id'], link['candidate_revision']) == (swarm.id, task.id, candidate['attempt_id'], candidate['head'])
+            assert link['criteria_source'] == 'task_goal' and link['criteria'][0]['text'] == task.goal
+            assert candidate['repository'] == str(repo)
     receipts = [json.loads(path.read_text())["receipts"] for path in paths if path.exists()]
     return observed, reviews, receipts
 

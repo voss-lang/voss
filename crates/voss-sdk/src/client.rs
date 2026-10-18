@@ -82,6 +82,17 @@ impl VossClient {
         Ok(output)
     }
 
+    pub async fn task_review(&self, sid: &str, node_id: &str, attempt_id: &str) -> Result<crate::review::Bundle, VossError> {
+        let response = self.auth(self.inner.get(format!("{}/session/{sid}/review", self.base)))
+            .query(&[("node_id", node_id), ("attempt_id", attempt_id)])
+            .timeout(REST_TIMEOUT).send().await?;
+        let bundle: crate::review::Bundle = ok_or_detail(response).await?.json().await?;
+        if bundle.v != 1 || bundle.session_id != sid || bundle.task_id != node_id || bundle.attempt_id != attempt_id {
+            return Err(VossError::Decode("incompatible task review".into()));
+        }
+        Ok(bundle)
+    }
+
     /// GET /capabilities - protocol support, without checking provider credentials.
     pub async fn capabilities(&self) -> Result<crate::capabilities::Capabilities, VossError> {
         let resp = self

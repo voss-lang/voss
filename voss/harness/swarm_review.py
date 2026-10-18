@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def schedule_candidate_review(
-    repo_root: Path, swarm_id: str, task_id: str, goal: str, head: str, violations: list[str]
+    repo_root: Path, swarm_id: str, task_id: str, goal: str, head: str, violations: list[str], *, attempt_id: str | None = None
 ) -> None:
     try:
         from voss.harness import conventions, judgments
@@ -17,7 +17,7 @@ def schedule_candidate_review(
         if judgments.judgments_state(repo_root) != "enabled" or conventions._load_judgments_review(repo_root) != "shadow":
             return
         task = asyncio.get_running_loop().create_task(
-            asyncio.to_thread(review_candidate, Path(repo_root), swarm_id, task_id, goal, head, bool(violations))
+            asyncio.to_thread(review_candidate, Path(repo_root), swarm_id, task_id, goal, head, bool(violations), attempt_id=attempt_id)
         )
         PENDING.add(task)
         task.add_done_callback(PENDING.discard)
@@ -25,7 +25,7 @@ def schedule_candidate_review(
         logger.warning("swarm candidate review not scheduled for task %s: %s", task_id, type(exc).__name__)
 
 
-def review_candidate(repo_root: Path, swarm_id: str, task_id: str, goal: str, head: str, scope_failed: bool) -> None:
+def review_candidate(repo_root: Path, swarm_id: str, task_id: str, goal: str, head: str, scope_failed: bool, *, attempt_id: str | None = None) -> None:
     try:
         from voss.harness import config, decision_review, judgments
         from voss_runtime.judgments import JudgmentLedger
@@ -34,20 +34,24 @@ def review_candidate(repo_root: Path, swarm_id: str, task_id: str, goal: str, he
             return
         cfg = config.get_judgments_config()
         ledger = JudgmentLedger(cfg["max_calls_per_turn"], cfg["max_cost_usd"])
+        checks = (decision_review.CheckResult("scope", "failed" if scope_failed else "passed"),)
         try:
             asyncio.run(
                 decision_review.assess_candidate(
                     cwd=repo_root,
                     criteria=goal,
                     head=head,
-                    checks=(decision_review.CheckResult("scope", "failed" if scope_failed else "passed"),),
+                    checks=checks,
                     ledger=ledger,
                     mode="shadow",
                 )
             )
         finally:
             decision_review.write_candidate_review(
-                decision_review.candidate_review_path(repo_root, swarm_id, task_id), ledger
+                decision_review.candidate_review_path(repo_root, swarm_id, task_id), ledger,
+                task_review={"v": 1, "swarm_id": swarm_id, "task_id": task_id, "attempt_id": attempt_id, "candidate_revision": head,
+                    "criteria": [{"id": c.id, "text": c.text} for c in decision_review.parse_criteria(goal)],
+                    "criteria_source": "task_goal", "checks": [{"name": c.name, "status": c.status} for c in checks]} if attempt_id else None,
             )
     except Exception as exc:
         logger.warning("swarm candidate review failed for task %s: %s", task_id, type(exc).__name__)
