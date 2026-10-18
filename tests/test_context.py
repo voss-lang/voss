@@ -54,7 +54,16 @@ async def test_ask_probable_value():
     cs = ContextScope(token_budget=10000, provider=stub, model="stub-model")
     result = await cs.ask("say hi", return_type=ProbableValue)
     assert isinstance(result, ProbableValue)
-    assert result.confidence > 0
+    assert result.confidence is None and result.source == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_ask_probable_value_empty_reply_is_unknown():
+    stub = StubProvider(default_response="")
+    cs = ContextScope(token_budget=10000, provider=stub, model="stub-model")
+    result = await cs.ask("say hi", return_type=ProbableValue)
+    assert result.value == ""
+    assert result.confidence is None and result.source == "unknown"
 
 
 @pytest.mark.asyncio

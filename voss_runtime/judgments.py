@@ -116,7 +116,7 @@ class ChoiceResult:
     type: str = field(default="choice", init=False)
 
     def to_probable(self) -> ProbableValue:
-        return ProbableValue(self.choice, self.probabilities[self.choice])
+        return ProbableValue(self.choice, self.probabilities[self.choice], source="jev")
 
 
 @dataclass(frozen=True)

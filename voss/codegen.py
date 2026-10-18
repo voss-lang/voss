@@ -726,13 +726,7 @@ class StatementEmitter:
         self.writer.write(
             f"{value_name} = await {self.current_ctx_name}.ask({', '.join(arg_texts)})"
         )
-        self.writer.write(
-            f"{name}: ProbableValue = ProbableValue("
-            f"value={value_name}, "
-            f"confidence=getattr({value_name}, 'confidence', "
-            f"0.9 if {value_name} is not None else 0.0)"
-            f")"
-        )
+        self.writer.write(f"{name}: ProbableValue = ProbableValue.from_reply({value_name})")
 
     def _emit_memory_let(self, stmt: LetStmt) -> None:
         type_ref = stmt.type_annot
@@ -823,7 +817,7 @@ class StatementEmitter:
         condition = stmt.condition
         if isinstance(condition, ConfidenceGate):
             target = self.expr.emit(condition.target, await_context=True)
-            cond_text = f"{target}.confidence {condition.op} {condition.threshold}"
+            cond_text = f"{target}.meets({condition.op!r}, {condition.threshold})"
         else:
             cond_text = self.expr.emit(condition, await_context=True)
         self.writer.write(f"if {cond_text}:")

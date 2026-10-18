@@ -160,8 +160,8 @@ async def test_transport_failure_raises_with_receipt(fake):
 
 def test_to_probable_uses_choice_probability():
     result = j.ChoiceResult("a", {"a": 0.81, "b": 0.19}, 0.62)
-    assert j.to_probable(result) == ProbableValue("a", 0.81)
-    assert result.to_probable() == ProbableValue("a", 0.81)
+    assert j.to_probable(result) == ProbableValue("a", 0.81, source="jev")
+    assert result.to_probable() == ProbableValue("a", 0.81, source="jev")
     assert result.confidence == 0.62 and result.probabilities == {"a": 0.81, "b": 0.19}
 
 

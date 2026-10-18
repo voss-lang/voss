@@ -96,8 +96,7 @@ class ContextScope:
         if bs is not None:
             bs.add_usage(tokens=resp.total_tokens, cost=resp.cost_usd)
         if wants_probable:
-            conf = 0.9 if resp.text.strip() else 0.0
-            return ProbableValue(value=resp.text, confidence=conf)
+            return ProbableValue(value=resp.text, confidence=None, source="unknown")
         if response_format is not None:
             return resp.parsed
         return resp.text
