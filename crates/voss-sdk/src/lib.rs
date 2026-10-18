@@ -5,6 +5,7 @@ pub mod capabilities;
 pub mod client;
 pub mod error;
 pub mod projection;
+pub mod oauth;
 pub mod stream;
 pub mod tasks;
 pub mod supervisor;

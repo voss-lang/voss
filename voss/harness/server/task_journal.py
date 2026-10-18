@@ -12,6 +12,8 @@ from typing import Literal
 import portalocker
 from pydantic import BaseModel, Field
 
+from ..oauth import Availability
+
 Phase = Literal["idle", "active", "waiting", "candidate_ready", "completed", "failed", "cancelled", "interrupted"]
 TERMINAL = {"idle", "candidate_ready", "completed", "failed", "cancelled", "interrupted"}
 
@@ -40,6 +42,7 @@ class TaskEvent(BaseModel):
 class CommandAck(BaseModel):
     v: Literal[1] = 1
     status: str
+    availability: Availability | None = None
     run_id: str | None = None
     attempt_id: str | None = None
 

@@ -85,8 +85,49 @@ impl VossClient {
         let resp = self.auth(self.inner.post(format!("{}/session/{sid}/{command}", self.base)))
             .timeout(REST_TIMEOUT).json(&body).send().await?;
         let ack: crate::tasks::CommandAck = ok_or_detail(resp).await?.json().await?;
-        if ack.v != 1 { return Err(VossError::Decode("incompatible command acknowledgement".into())); }
+        if ack.v != 1 || ack.availability.as_ref().is_some_and(|row| row.v != 1) {
+            return Err(VossError::Decode("incompatible command acknowledgement".into()));
+        }
         Ok(ack)
+    }
+
+    pub async fn harness_catalog(&self) -> Result<crate::oauth::Catalog, VossError> {
+        let resp = self.auth(self.inner.get(format!("{}/harnesses", self.base)))
+            .timeout(REST_TIMEOUT).send().await?;
+        let catalog: crate::oauth::Catalog = ok_or_detail(resp).await?.json().await?;
+        if catalog.v != 1 || catalog.harnesses.iter().any(|row| row.v != 1) {
+            return Err(VossError::Decode("incompatible OAuth availability report".into()));
+        }
+        Ok(catalog)
+    }
+
+    pub async fn harness_preflight(&self, request: &crate::oauth::Preflight) -> Result<crate::oauth::Availability, VossError> {
+        let resp = self.auth(self.inner.post(format!("{}/harness/preflight", self.base)))
+            .timeout(REST_TIMEOUT).json(request).send().await?;
+        let report: crate::oauth::Availability = ok_or_detail(resp).await?.json().await?;
+        if report.v != 1 || report.harness != request.harness {
+            return Err(VossError::Decode("incompatible OAuth preflight".into()));
+        }
+        Ok(report)
+    }
+
+    pub async fn create_oauth_session(&self, cwd: &str, harness: &str, model: &str) -> Result<crate::oauth::Launch, VossError> {
+        self.oauth_launch("session", serde_json::json!({"cwd": cwd, "auth": harness, "model": model})).await
+    }
+
+    pub async fn create_oauth_swarm(&self, goal: &str, cwd: &str, builders: u32, roster: &[RoleSpec]) -> Result<crate::oauth::Launch, VossError> {
+        self.oauth_launch("swarm", serde_json::json!({"goal": goal, "cwd": cwd, "builders": builders, "roster": roster})).await
+    }
+
+    async fn oauth_launch(&self, route: &str, body: serde_json::Value) -> Result<crate::oauth::Launch, VossError> {
+        let resp = self.auth(self.inner.post(format!("{}/{route}", self.base)))
+            .timeout(REST_TIMEOUT).json(&body).send().await?;
+        let launch: crate::oauth::Launch = ok_or_detail(resp).await?.json().await?;
+        if launch.v != 1 || (launch.id.is_some() == launch.availability.is_some())
+            || launch.availability.as_ref().is_some_and(|row| row.v != 1 || row.available) {
+            return Err(VossError::Decode("invalid OAuth launch response".into()));
+        }
+        Ok(launch)
     }
 
     pub(crate) fn auth(&self, rb: RequestBuilder) -> RequestBuilder {
@@ -292,6 +333,16 @@ impl VossClient {
             .await?;
         ok_or_detail(resp).await?;
         Ok(())
+    }
+
+    pub async fn start_swarm(&self, swarm_id: &str) -> Result<crate::tasks::CommandAck, VossError> {
+        let resp = self.auth(self.inner.post(format!("{}/swarm/{swarm_id}/run", self.base)))
+            .timeout(REST_TIMEOUT).send().await?;
+        let ack: crate::tasks::CommandAck = ok_or_detail(resp).await?.json().await?;
+        if ack.v != 1 || ack.availability.as_ref().is_some_and(|row| row.v != 1) {
+            return Err(VossError::Decode("incompatible swarm acknowledgement".into()));
+        }
+        Ok(ack)
     }
 
     /// GET /doctor - server-side diagnostics

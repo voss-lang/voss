@@ -19,6 +19,94 @@
         "title": "Alternative",
         "type": "object"
       },
+      "Availability": {
+        "properties": {
+          "account_alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Alias"
+          },
+          "account_selection": {
+            "const": false,
+            "default": false,
+            "title": "Account Selection",
+            "type": "boolean"
+          },
+          "available": {
+            "default": false,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "check_scope": {
+            "const": "local_metadata",
+            "default": "local_metadata",
+            "title": "Check Scope",
+            "type": "string"
+          },
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "cli_installed": {
+            "default": false,
+            "title": "Cli Installed",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "harness": {
+            "title": "Harness",
+            "type": "string"
+          },
+          "login_command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Command"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "harness",
+          "provider",
+          "model",
+          "code",
+          "message",
+          "checked_at"
+        ],
+        "title": "Availability",
+        "type": "object"
+      },
       "BannerEvent": {
         "properties": {
           "cwd": {
@@ -128,6 +216,39 @@
           "capabilities"
         ],
         "title": "Capabilities",
+        "type": "object"
+      },
+      "Catalog": {
+        "properties": {
+          "harnesses": {
+            "items": {
+              "$ref": "#/components/schemas/Availability"
+            },
+            "title": "Harnesses",
+            "type": "array"
+          },
+          "selected_harness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Harness"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "harnesses"
+        ],
+        "title": "Catalog",
         "type": "object"
       },
       "ClarifyEvent": {
@@ -306,6 +427,16 @@
               }
             ],
             "title": "Attempt Id"
+          },
+          "availability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Availability"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "run_id": {
             "anyOf": [
@@ -1477,6 +1608,38 @@
           "name"
         ],
         "title": "PlanStep",
+        "type": "object"
+      },
+      "PreflightBody": {
+        "properties": {
+          "account_alias": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Alias"
+          },
+          "harness": {
+            "maxLength": 64,
+            "title": "Harness",
+            "type": "string"
+          },
+          "model": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "harness"
+        ],
+        "title": "PreflightBody",
         "type": "object"
       },
       "PrinciplesOverflow": {
@@ -2665,6 +2828,62 @@
           }
         },
         "summary": "Doctor"
+      }
+    },
+    "/harness/preflight": {
+      "post": {
+        "operationId": "harness_preflight_harness_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreflightBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Availability"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Harness Preflight"
+      }
+    },
+    "/harnesses": {
+      "get": {
+        "operationId": "harnesses_harnesses_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Harnesses"
       }
     },
     "/memory": {

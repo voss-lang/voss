@@ -38,6 +38,14 @@ OPENAI_API_BASE = "https://api.openai.com"
 CHATGPT_BACKEND_BASE = "https://chatgpt.com/backend-api/codex"
 
 
+class OAuthRequired(RuntimeError):
+    """A subscription needs operator authentication before another call."""
+
+    def __init__(self, message: str, *, code: str = "oauth_rejected"):
+        super().__init__(message)
+        self.code = code
+
+
 # ---------------------------------------------------------------------------
 # Anthropic OAuth (Claude Code)
 # ---------------------------------------------------------------------------
@@ -243,6 +251,7 @@ class CodexCreds:
     refresh_token: Optional[str]
     account_id: Optional[str]
     auth_mode: str  # "ApiKey" | "ChatGPT" | "chatgpt" | ""
+    id_token: Optional[str] = None
 
     @property
     def usable_api_key(self) -> Optional[str]:
@@ -314,6 +323,7 @@ def load_codex() -> Optional[CodexCreds]:
         refresh_token=tokens.get("refresh_token"),
         account_id=tokens.get("account_id"),
         auth_mode=data.get("auth_mode", ""),
+        id_token=tokens.get("id_token"),
     )
 
 

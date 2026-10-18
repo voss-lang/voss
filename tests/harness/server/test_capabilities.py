@@ -21,6 +21,6 @@ def test_capabilities_require_transport_auth_but_no_provider_login(monkeypatch, 
     body = response.json()
     assert body["v"] == 1
     assert body["engine_version"]
-    assert set(body["capabilities"]) == {"sessions.v1", "swarms.v1", "diagnostics.v1", "tasks.replay.v1"}
+    assert set(body["capabilities"]) == {"sessions.v1", "swarms.v1", "diagnostics.v1", "tasks.replay.v1", "harness.availability.v1"}
     assert app.state.sessions.list() == []
     assert not list(tmp_path.iterdir())

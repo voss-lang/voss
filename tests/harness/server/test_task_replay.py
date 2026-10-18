@@ -187,7 +187,8 @@ def test_swarm_state_maps_to_coordinator_and_duplicate_run_is_not_reexecuted(set
     cwd, _ = setup
     calls = []
 
-    async def members(store, repo_root, swarm_id, *, spawn_fn, on_event):
+    async def members(store, repo_root, swarm_id, *, spawn_fn, on_event, preflight_fn=None):
+        assert preflight_fn is None
         calls.append(swarm_id)
         if outcome == "error":
             raise RuntimeError("synthetic worker failure")

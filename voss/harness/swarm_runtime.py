@@ -116,6 +116,7 @@ async def run_cli_member(
     spawn_fn: SpawnFn,
     on_event: EventHook = None,
     context: str = "",
+    preflight_fn: Callable[[Role], None] | None = None,
 ) -> MemberResult:
     """Orchestrate ONE CLI swarm member through its full lifecycle.
 
@@ -158,6 +159,8 @@ async def run_cli_member(
             summary=result.summary if result is not None else None,
         )
 
+    if preflight_fn is not None:
+        preflight_fn(role)
     mw = create_member_worktree(repo_root, swarm_id, role.name)
 
     # File-bus task lives in the MAIN checkout (shared), per R3
@@ -378,6 +381,7 @@ async def run_cli_swarm(
     spawn_fn: SpawnFn,
     on_event: EventHook = None,
     max_concurrency: int = 6,
+    preflight_fn: Callable[[Role], None] | None = None,
 ) -> list[MemberResult]:
     """Run every NON-native CLI member of a swarm concurrently.
 
@@ -413,6 +417,7 @@ async def run_cli_swarm(
                     role,
                     task,
                     spawn_fn=spawn_fn,
+                    preflight_fn=preflight_fn,
                     on_event=on_event,
                 )
             except Exception as exc:  # noqa: BLE001 — reported, not swallowed

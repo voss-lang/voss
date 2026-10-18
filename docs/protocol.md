@@ -41,6 +41,8 @@ unavailable while local history stays readable.
 - `tasks.replay.v1`: authoritative task snapshots, durable cursor replay and command acknowledgements described below.
 - `swarms.v1`: existing swarm create/snapshot/run routes and events.
 - `diagnostics.v1`: existing read-only `/doctor` route.
+- `harness.availability.v1`: typed local OAuth metadata and preflight.
+- `harness.oauth-only.v1`: managed execution accepts subscription OAuth only.
 
 These describe protocol support, not OAuth health, provider availability or
 permission to execute. No memory-file layout, API fallback, plan-preview or acceptance-matrix capability is advertised.
@@ -101,6 +103,61 @@ their existing semantics and are not covered by this deduplication contract.
 or `not_running` if no live driver exists. Permission and diff replies return
 `ok` or `stale`, including stale replies to persisted tasks after restart. Clients
 must preserve those acknowledgements; HTTP 200 alone is not evidence of acceptance.
+
+### Managed OAuth execution (added 2026-10-17)
+
+ADE launches its owned engine with `VOSS_SERVE_OAUTH_ONLY=1` and requires
+`harness.oauth-only.v1`. Other server callers retain their existing auth modes
+unless they opt into this policy. Availability discovery alone does not enable
+OAuth-only execution.
+
+`GET /harnesses` returns `{v,harnesses,selected_harness}`. Each row identifies
+`harness`, `provider`, `model`, `cli_installed`, `available`, `code`, `message`,
+`login_command`, `checked_at`, `check_scope:"local_metadata"`, `account_alias`
+and `account_selection:false`. `POST /harness/preflight` accepts `harness`, an
+optional `model`, and an optional `account_alias`. Named-account selection is
+unavailable; no background credential switch occurs. These calls create no
+sessions, worktrees, workers or model requests. Local metadata cannot establish
+remote token validity. Missing, expired, unreadable, API-key-only and unsupported
+logins return availability data, not transport/authentication exceptions. The
+loopback bearer token is separate: invalid transport authentication still gets 401.
+
+In OAuth-only mode, session/swarm creation returns either its existing created
+identity or HTTP 200 `{v,status:"unavailable",availability}`. Every swarm role
+must pass preflight before persistence. Extra CLI arguments, custom launchers,
+unsupported harnesses and conversation adoption are unavailable. Model selection
+cannot enable API authentication or change a live swarm's selection. The SDK
+preserves these outcomes as data. There is no automatic harness substitution.
+
+Explicit message submission rechecks the session's selected harness/model before
+acceptance. An unavailable command has no receipt or worker and can be retried
+explicitly with the same command ID after sign-in. An accepted command still
+deduplicates normally. Swarm Start rechecks every role before its first accepted
+run; subsequent requests return the accepted receipt without relaunching members.
+
+Native provider calls bind OAuth credentials and revalidate before dispatch.
+Auth rejection blocks further calls through that binding and records phase
+`waiting`, outcome `authentication_required`, and an `authentication` pending
+action containing sanitized availability. CLI failures preserve work and require
+operator attention; a nonzero exit alone does not prove an auth failure. Rechecking
+or signing in never resumes work. A live session can accept an explicit follow-up;
+restarting an accepted swarm remains a recovery operation, not a message to its
+coordinator.
+
+Managed native Codex calls use the ChatGPT backend without API keys or global
+refresh writes. Managed Claude calls pin the OAuth token. Child CLI invocations
+remove conflicting billing environment variables; Codex receives an isolated,
+temporary login file and Claude an isolated config directory. Ordinary user and
+project Claude setting sources are disabled. All temporary login files are removed
+after the owned process exits. This does not establish compatibility with every
+installed CLI or administrator-managed policy; installed-version verification is
+a separate release gate. No credential material is included in availability or
+task events.
+
+The adapter follows the documented [Claude credential precedence](https://code.claude.com/docs/en/authentication)
+and [Codex login restrictions](https://learn.chatgpt.com/docs/auth). Those documents
+explain why selecting a login method alone is insufficient: conflicting credentials
+must be excluded from the invocation too.
 
 ## 2. Auth & handshake
 

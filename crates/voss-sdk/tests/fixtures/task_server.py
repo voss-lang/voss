@@ -13,6 +13,20 @@ os.environ["VOSS_HOME"] = str(Path.cwd() / "voss")
 from voss.harness.server import app as appmod
 from voss.harness.server.renderer import EventBusRenderer
 from voss.harness.server.serve import run_server
+from voss.harness import oauth
+
+
+def prepare(body):
+    report = oauth.Availability(harness="codex", provider="openai", model=body.model or "gpt-6-astra",
+        cli_installed=True, available=True, code="oauth_present", message="synthetic login", checked_at="2026-10-17T00:00:00Z")
+    provider = object.__new__(oauth.BoundProvider)
+    provider.availability, provider.blocked = report, None
+    provider.provider = None
+    provider.check = lambda: None
+    return report, provider
+
+
+oauth.prepare = prepare
 
 
 async def turn(session, text, mode):

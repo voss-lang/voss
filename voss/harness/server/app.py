@@ -58,6 +58,7 @@ from ..memory_gateway import open_memory_store
 from ..memory_store import MemoryStore
 from . import commands
 from . import capabilities
+from .. import oauth
 from . import events as E
 from . import models as model_selection
 from .diffs import DiffReply, DiffReviewRenderer
@@ -499,6 +500,8 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             session.record.runs.append(asdict(result.run))
     except asyncio.CancelledError:
         raise
+    except auth_mod.OAuthRequired:
+        session.turn_outcome = "authentication_required"
     except Exception as e:  # noqa: BLE001 — surface, don't vanish into a bare idle
         # A provider/backend failure (e.g. a codex 4xx from run_turn ->
         # provider.stream) would otherwise propagate past this finally as an
@@ -523,10 +526,18 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         session.task = None
 
 
+def _await_authentication(session: ServerSession, availability: oauth.Availability):
+    session.journal.update(session.id, phase="waiting", outcome="authentication_required",
+                           pending_actions=[{"kind": "authentication", **availability.model_dump()}])
+
+
 async def _drive_turn(session: ServerSession, text: str, mode: str):
     session.turn_outcome = None
     try:
         await _run_turn(session, text, mode)
+        if isinstance(session.provider, oauth.BoundProvider) and session.provider.blocked is not None:
+            _await_authentication(session, session.provider.blocked)
+            return
         snapshot = session.journal.snapshot(session.id)
         questions = [action for action in snapshot.pending_actions if action.get("kind") == "clarify"]
         phase = "completed" if session.turn_outcome == "done" else "failed"
@@ -537,6 +548,8 @@ async def _drive_turn(session: ServerSession, text: str, mode: str):
     except asyncio.CancelledError:
         session.journal.update(session.id, phase="cancelled", outcome="cancelled", pending_actions=[])
         raise
+    except auth_mod.OAuthRequired:
+        _await_authentication(session, session.provider.blocked)
     except Exception:
         session.journal.update(session.id, phase="failed", outcome="error", pending_actions=[])
     finally:
@@ -669,7 +682,7 @@ class ObserveSettingsBody(BaseModel):
 # app factory
 
 
-def create_app(token: str | None = None) -> FastAPI:
+def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI:
     token = token or secrets.token_urlsafe(32)
     mgr = SessionManager()
 
@@ -717,6 +730,8 @@ def create_app(token: str | None = None) -> FastAPI:
     app = FastAPI(title="voss-harness", version="1", lifespan=lifespan)
     app.state.token = token
     app.state.sessions = mgr
+    app.state.oauth_only = oauth_only
+    app.state.oauth_bindings = {}
     # App-scoped SwarmStore (NOT a module global module globals leak across
     # TestClient instances; Anti-Pattern). Event-log cwd defaults to
     # the serve cwd; tests override app.state.swarm_store to point at a tmp dir
@@ -757,13 +772,41 @@ def create_app(token: str | None = None) -> FastAPI:
 
     @app.get("/capabilities", response_model=capabilities.Capabilities)
     def get_capabilities():
-        return capabilities.report()
+        return capabilities.report(oauth_only=oauth_only)
+
+    @app.get("/harnesses", response_model=oauth.Catalog)
+    def harnesses():
+        return oauth.catalog()
+
+    @app.post("/harness/preflight", response_model=oauth.Availability)
+    def harness_preflight(body: oauth.PreflightBody):
+        return oauth.preflight(body)
+
+    def unavailable_response(availability):
+        return JSONResponse({"v": 1, "status": "unavailable", "availability": availability.model_dump()})
+
+    def selected_harness(requested):
+        if requested != "auto":
+            return requested
+        return os.environ.get("VOSS_SERVE_DEFAULT_AUTH") or harness_config.load_harness_config().get("auth", "auto")
 
     # session CRUD
 
     @app.post("/session", status_code=201)
     def create_session(body: CreateSessionBody) -> dict:
         cwd = Path(body.cwd or ".").resolve()
+        if oauth_only:
+            availability, provider = oauth.prepare(oauth.PreflightBody(harness=selected_harness(body.auth), model=body.model or ""))
+            if body.resume:
+                availability = oauth.unavailable(availability, "resume_unavailable", "Read the saved task state; restarting a saved conversation is unavailable here.")
+                provider = None
+            if provider is None:
+                return unavailable_response(availability)
+            s = mgr.create(cwd=cwd, model=availability.model, provider=provider, title=body.title or "")
+            s.auth = "claude-agent" if availability.harness == "claude" else "codex-oauth"
+            s.record.model_auth = availability.harness
+            s.review_diffs = body.review_diffs
+            return {"v": 1, "status": "created", "id": s.id, "auth": s.auth, "resumed": False}
         # Serve-owner session defaults (E4): SDK clients post only {cwd} the
         # public createSession surfaces carry no auth/model. The process that
         # spawns `voss serve` may pin defaults via env; an explicit body value
@@ -928,6 +971,12 @@ def create_app(token: str | None = None) -> FastAPI:
 
     @app.get("/models", response_model=model_selection.ModelCatalog)
     def list_models():
+        if oauth_only:
+            availability = {row.harness: row for row in oauth.catalog().harnesses}
+            choices = model_selection.subscription_choices()
+            for choice in choices:
+                choice.connected = availability[choice.auth].available
+            return model_selection.ModelCatalog(models=choices, warning="Local OAuth metadata only; remote access is checked on dispatch.")
         return model_selection.catalog()
 
     @app.post("/session/{session_id}/model")
@@ -937,6 +986,26 @@ def create_app(token: str | None = None) -> FastAPI:
             raise HTTPException(409, "a turn or model switch is already running")
         if not body.model.strip() and not body.auth:
             raise HTTPException(422, "model or auth is required")
+        if oauth_only:
+            current = s.provider.availability.harness
+            availability, provider = oauth.prepare(oauth.PreflightBody(harness=body.auth or current, model=body.model))
+            if s.swarm_id:
+                availability = oauth.unavailable(availability, "swarm_selection_unavailable", "Create a new swarm to change its harness or model.")
+                provider = None
+            if body.provider:
+                availability = oauth.unavailable(availability, "unsupported_harness", "API provider selection is unavailable for managed tasks.")
+                provider = None
+            if provider is None:
+                return unavailable_response(availability)
+            s.switching = True
+            try:
+                await s.provider.aclose()
+            finally:
+                s.switching = False
+            s.provider, s.model = provider, availability.model
+            s.auth = "claude-agent" if availability.harness == "claude" else "codex-oauth"
+            s.record.model, s.record.model_auth = s.model, availability.harness
+            return get_session(session_id)
         s.switching = True
         try:
             selected = await asyncio.to_thread(model_selection.prepare, body, s.model)
@@ -977,9 +1046,25 @@ def create_app(token: str | None = None) -> FastAPI:
         s = _require(session_id)
         if s.busy:
             raise HTTPException(409, "a turn is already running")
+        swarm_driver = app.state.swarm_runs.get(s.swarm_id)
+        if oauth_only and swarm_driver is not None and not swarm_driver.done():
+            raise HTTPException(409, "the swarm is already running")
         text = " ".join(p.text for p in body.parts if p.type == "text").strip()
         if not text:
             raise HTTPException(422, "empty message")
+        if oauth_only:
+            availability, provider = oauth.prepare(oauth.PreflightBody(harness=s.provider.availability.harness, model=s.model))
+            if provider is None:
+                _await_authentication(s, availability)
+                return CommandAck(status="unavailable", availability=availability)
+            s.switching = True
+            try:
+                await s.provider.aclose()
+            finally:
+                s.switching = False
+            s.provider = provider
+            if s.swarm_id:
+                app.state.oauth_bindings[s.swarm_id][s.swarm_role] = provider
         ack = mgr.journal.begin(s.id, key, payload)
         s.task = asyncio.create_task(_drive_turn(s, text, body.mode))
         return ack
@@ -1084,6 +1169,13 @@ def create_app(token: str | None = None) -> FastAPI:
     def doctor(auth: str = "auto", cwd: str = ".") -> dict:
         from .. import diagnostics as diag
 
+        if oauth_only:
+            availability = oauth.preflight(oauth.PreflightBody(harness=selected_harness(auth)))
+            return {"v": 1, "auth_source": availability.harness, "auth_detail": availability.message,
+                    "has_provider": availability.available, "default_model": availability.model,
+                    "exit_code": 0 if availability.available else 1,
+                    "checks": [{"name": "Local OAuth", "status": "ok" if availability.available else "unavailable",
+                                "detail": availability.message, "fix": availability.login_command or "Select a supported harness"}]}
         res, provider = _resolve_provider(auth)
         checks = diag.run_all_checks(Path(cwd).resolve())
         return {
@@ -1377,9 +1469,30 @@ def create_app(token: str | None = None) -> FastAPI:
         explicit = (
             [Role(**r.model_dump()) for r in body.roster] if body.roster else None
         )
+        bindings = {}
+        if oauth_only:
+            from ..swarm_store import default_roster
+            explicit = explicit or default_roster(body.builders)
+            for role in explicit:
+                harness = selected_harness(role.auth_pref) if is_native(role) else role.agent
+                availability, provider = oauth.prepare(oauth.PreflightBody(harness=harness, model="" if role.model == "default" else role.model))
+                if role.command or role.args:
+                    availability = oauth.unavailable(availability, "custom_launcher_unavailable", "Custom commands and extra launch arguments are unavailable for OAuth-only tasks.")
+                    provider = None
+                if provider is not None and not is_native(role):
+                    try:
+                        oauth.check_cli(provider)
+                    except auth_mod.OAuthRequired:
+                        availability, provider = provider.blocked, None
+                if provider is None:
+                    return unavailable_response(availability)
+                role.auth_pref, role.model = harness, availability.model
+                bindings[role.name] = provider
         swarm = store.create(
             goal=body.goal, cwd=str(cwd), builders=body.builders, roster=explicit
         )
+        if oauth_only:
+            app.state.oauth_bindings[swarm.id] = bindings
         # Per-role spawn: native (agent="voss") roles run the in-process run_turn
         # loop ( behavior). R3 CLI roles (agent!="voss") are spawned in their
         # own git worktree by the host that integration lands in a later wave
@@ -1397,10 +1510,14 @@ def create_app(token: str | None = None) -> FastAPI:
                     }
                 )
                 continue
-            res, provider = _resolve_provider(role.auth_pref)
-            if provider is None:
-                raise HTTPException(400, f"no usable credentials ({res.detail})")
-            model = _effective_model(role.model, res)
+            if oauth_only:
+                provider = bindings[role.name]
+                model = provider.availability.model
+            else:
+                res, provider = _resolve_provider(role.auth_pref)
+                if provider is None:
+                    raise HTTPException(400, f"no usable credentials ({res.detail})")
+                model = _effective_model(role.model, res)
             sess = mgr.create(cwd=cwd, model=model, provider=provider, title=role.name)
             sess.swarm_id = swarm.id
             sess.swarm_role = role.name
@@ -1630,6 +1747,25 @@ def create_app(token: str | None = None) -> FastAPI:
             return previous.model_dump()
         if coordinator.busy:
             raise HTTPException(409, "coordinator is busy")
+        bindings = app.state.oauth_bindings.get(swarm_id, {})
+        if oauth_only:
+            refreshed = {}
+            for role in swarm.roster:
+                availability, provider = oauth.prepare(oauth.PreflightBody(harness=role.auth_pref, model=role.model))
+                if provider is not None and not is_native(role):
+                    try:
+                        oauth.check_cli(provider)
+                    except auth_mod.OAuthRequired:
+                        availability, provider = provider.blocked, None
+                if provider is None:
+                    _await_authentication(coordinator, availability)
+                    return unavailable_response(availability)
+                refreshed[role.name] = provider
+            bindings.update(refreshed)
+            for rec in store.list_agents_by_swarm(swarm_id):
+                session = mgr.get(rec["session_id"])
+                if session is not None:
+                    session.provider = bindings[session.swarm_role]
         cli_roles = [role for role in swarm.roster if not is_native(role)]
         # Native builders are sessions, not subprocesses, so they are found
         # through the agents the create route registered, not the roster.
@@ -1648,16 +1784,20 @@ def create_app(token: str | None = None) -> FastAPI:
                 (r for r in swarm.roster if r.name == "coordinator"), swarm.roster[0]
             )
             try:
-                res, provider = _resolve_provider(coord.auth_pref)
-                if provider is None:
-                    raise SeedError(f"no usable credentials ({res.detail})")
+                if oauth_only:
+                    provider, model = coordinator.provider, coordinator.model
+                else:
+                    res, provider = _resolve_provider(coord.auth_pref)
+                    if provider is None:
+                        raise SeedError(f"no usable credentials ({res.detail})")
+                    model = _effective_model(coord.model, res)
                 await seed_tasks(
                     store,
                     swarm_id,
                     provider=provider,
                     # _effective_model, not the config default: on a
                     # codex-oauth host that default is an Anthropic id.
-                    model=_effective_model(coord.model, res),
+                    model=model,
                     cwd=str(repo_root),
                     slots=members,
                 )
@@ -1720,7 +1860,11 @@ def create_app(token: str | None = None) -> FastAPI:
         async def _drive() -> None:
             try:
                 if not await _seed():
-                    mgr.journal.update(coordinator.id, phase="failed", outcome="decompose_failed")
+                    blocked = next((p.blocked for p in bindings.values() if p.blocked is not None), None)
+                    if blocked is not None:
+                        _await_authentication(coordinator, blocked)
+                    else:
+                        mgr.journal.update(coordinator.id, phase="failed", outcome="decompose_failed")
                     return
                 # `run_cli_swarm` zips CLI roles against the plan in order, so
                 # the native builders take the tail and the two halves never
@@ -1736,7 +1880,8 @@ def create_app(token: str | None = None) -> FastAPI:
                         store,
                         repo_root,
                         swarm_id,
-                        spawn_fn=subprocess_spawn,
+                        spawn_fn=(lambda argv, cwd: oauth.spawn_cli(bindings[cwd.name], argv, cwd)) if oauth_only else subprocess_spawn,
+                        preflight_fn=(lambda role: oauth.check_cli(bindings[role.name])) if oauth_only else None,
                         on_event=lambda ev: _member_event(ev, held),
                     ),
                     *(
@@ -1763,7 +1908,10 @@ def create_app(token: str | None = None) -> FastAPI:
                     # swarm with no members. Silence beats a terminal event for
                     # a run that never happened.
                     return
-                if failed:
+                blocked = next((p.blocked for p in bindings.values() if p.blocked is not None), None)
+                if blocked is not None:
+                    _await_authentication(coordinator, blocked)
+                elif failed:
                     # Not `complete`: a client would read the run as finished.
                     # Each failure already has its own member_failed gate.
                     total = len(cli_ran) + len(native_tasks)

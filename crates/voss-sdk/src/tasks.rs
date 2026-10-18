@@ -36,6 +36,7 @@ pub struct TaskEvent {
 pub struct CommandAck {
     pub v: u32,
     pub status: String,
+    pub availability: Option<crate::oauth::Availability>,
     pub run_id: Option<String>,
     pub attempt_id: Option<String>,
 }
