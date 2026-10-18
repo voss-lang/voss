@@ -1,0 +1,7 @@
+name = "voss-serve-auto-jev"
+adapter = "voss-serve"
+description = "Baseline B with Jev: one voss serve session in auto mode, then a Jev review of the diff before hidden checks."
+live = true
+mode = "auto"
+auth = "auto"
+judge = "jev"

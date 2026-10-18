@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import statistics
 from collections import defaultdict
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from .spec import RunRecord
 from .store import read_runs
 
 Z95 = 1.959963984540054
+UNDERPOWERED = 10
 
 
 def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
@@ -19,6 +21,68 @@ def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
     centre = (p + z * z / (2 * n)) / denom
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
     return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def total_tokens(r: RunRecord) -> int | None:
+    parts = [r.usage.input_tokens, r.usage.output_tokens, r.usage.cache_creation_tokens, r.usage.cache_read_tokens]
+    return None if all(p is None for p in parts) else sum(p or 0 for p in parts)
+
+
+def limits(records: list[RunRecord]) -> dict[str, dict]:
+    """Per config: tokens against each scenario's token budget, wall-clock timeouts, scope violations."""
+    out = {}
+    by_config: dict[str, list[RunRecord]] = defaultdict(list)
+    for r in records:
+        if not r.skipped:
+            by_config[r.config.name].append(r)
+    for name, rows in sorted(by_config.items()):
+        tokens = [t for r in rows if (t := total_tokens(r)) is not None]
+        budgeted = [(total_tokens(r), r.budget.token_budget) for r in rows
+                    if r.budget and r.budget.token_budget and total_tokens(r) is not None]
+        scoped = [c for r in rows for c in r.checks if c.kind == "scope"]
+        out[name] = {
+            "tokens_median": statistics.median(tokens) if tokens else None,
+            "tokens_known": len(tokens),
+            "over_budget": sum(used > cap for used, cap in budgeted),
+            "budgeted": len(budgeted),
+            "timeouts": sum(r.exit_reason == "timeout" for r in rows),
+            "runs": len(rows),
+            "scope_violations": sum(not c.passed for c in scoped),
+            "scoped": len(scoped),
+        }
+    return out
+
+
+def proportion(k: int, n: int) -> dict:
+    return {"k": k, "n": n, "rate": k / n if n else None, "ci": wilson(k, n) if n else None}
+
+
+def fmt_proportion(p: dict) -> str:
+    if not p["n"]:
+        return "n/a (n=0)"
+    lo, hi = p["ci"]
+    weak = " **underpowered**" if p["n"] < UNDERPOWERED else ""
+    return f"{p['k']}/{p['n']} = {100 * p['rate']:.1f}% ({100 * lo:.1f}–{100 * hi:.1f}){weak}"
+
+
+def review_rows(records: list[RunRecord]) -> list[tuple[str, str, dict, dict]]:
+    """Completion claims and judge verdicts scored against `verified` (the hidden-check ground truth)."""
+    out = []
+    by_config: dict[str, list[RunRecord]] = defaultdict(list)
+    for r in records:
+        if not r.skipped and r.verified is not None:
+            by_config[r.config.name].append(r)
+    for name, rows in sorted(by_config.items()):
+        sources = [("own completion claim", lambda r: bool(r.claimed_complete))]
+        if any(r.judge for r in rows):
+            sources.append(("jev review", lambda r: {"accept": True, "reject": False}.get(r.judge.verdict)
+                            if r.judge else None))
+        for label, accepts in sources:
+            decided = [(accepts(r), r.verified) for r in rows if accepts(r) is not None]
+            out.append((name, label,
+                        proportion(sum(a for a, v in decided if not v), sum(1 for _, v in decided if not v)),
+                        proportion(sum(a for a, v in decided if v), sum(1 for _, v in decided if v))))
+    return out
 
 
 def summarize(records: list[RunRecord]) -> dict[str, dict]:
@@ -85,6 +149,12 @@ def render(records: list[RunRecord], title: str) -> str:
                 f"{s['graded']} | {_pct(s['rate'])} | {ci} | {s['false_claims']} of {s['claims']} claims "
                 f"| {cost} | {dur} |"
             )
+        if live:
+            models = {n: sorted({r.model or "unknown" for r in records
+                                 if r.config.name == n and not r.skipped}) for n in names}
+            if len({m for ms in models.values() for m in ms}) > 1:
+                lines += ["", "**Models differ across live configs**, so a difference between them mixes model "
+                          "and architecture: " + "; ".join(f"{n}: {', '.join(ms)}" for n, ms in models.items()) + "."]
         lines.append("")
 
     configs = list(summary)
@@ -107,6 +177,30 @@ def render(records: list[RunRecord], title: str) -> str:
         lines.append(f"| {sid} | {cat} | " + " | ".join(row) + " |")
     lines.append("")
 
+    lim = limits(records)
+    if any(v["tokens_known"] or v["scoped"] or v["timeouts"] for v in lim.values()):
+        lines += ["## Resources and limits", "",
+                  "Tokens are input + output + cache creation + cache read, as each system reports them. "
+                  "*Over token budget* compares that total with the scenario's `token_budget`; no adapter passes "
+                  "the budget to the system, so this measures overshoot, not enforcement.", "",
+                  "| config | median tokens (known) | over token budget | wall-clock timeouts | scope violations |",
+                  "|---|---|---|---|---|"]
+        for n, v in lim.items():
+            med = "unknown" if v["tokens_median"] is None else f"{v['tokens_median']:,.0f} ({v['tokens_known']})"
+            lines.append(f"| {n} | {med} | {v['over_budget']} of {v['budgeted']} | {v['timeouts']} of {v['runs']} "
+                         f"| {v['scope_violations']} of {v['scoped']} |")
+        lines.append("")
+
+    reviewed = review_rows(records)
+    if any(r.claimed_complete is not None or r.judge for r in records):
+        lines += ["## Claims and reviews against verification", "",
+                  "*False accept*: accepted runs among those that failed verification. *True accept*: accepted "
+                  "runs among verified ones. A rule that rejects everything scores 0 on both.", "",
+                  "| config | decision source | false accept (Wilson 95%) | true accept (Wilson 95%) |",
+                  "|---|---|---|---|"]
+        lines += [f"| {n} | {src} | {fmt_proportion(fa)} | {fmt_proportion(ta)} |" for n, src, fa, ta in reviewed]
+        lines.append("")
+
     missing = []
     skipped = sorted({f"{r.scenario_id}: {r.skip_reason}" for r in records if r.skipped})
     if skipped:
@@ -114,6 +208,9 @@ def render(records: list[RunRecord], title: str) -> str:
     unknown_cost = sum(1 for r in records if not r.skipped and r.usage.cost_usd is None)
     if unknown_cost:
         missing.append(f"{unknown_cost} runs have unknown cost (recorded as missing, not zero).")
+    judge_errors = [r for r in records if r.judge and r.judge.error]
+    for r in judge_errors[:10]:
+        missing.append(f"{r.scenario_id} x {r.config.name}#{r.run_idx}: judge {r.judge.error[:200]}")
     errored = [r for r in records if r.errors]
     for r in errored[:10]:
         missing.append(f"{r.scenario_id} x {r.config.name}#{r.run_idx}: {'; '.join(r.errors)[:200]}")
@@ -140,7 +237,7 @@ def outcome_key(r: RunRecord) -> tuple:
     return (
         r.skipped, r.verified, r.claimed_complete, r.exit_reason,
         tuple((c.name, c.kind, c.passed) for c in r.checks),
-        r.artifacts.get("diff"),
+        r.artifacts.get("diff"), r.judge.verdict if r.judge else None,
     )
 
 

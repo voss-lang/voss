@@ -1,0 +1,188 @@
+{
+  "additionalProperties": false,
+  "description": "One reviewer's answer on one frozen review fixture.",
+  "properties": {
+    "schema_version": {
+      "const": "review.v1",
+      "default": "review.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "experiment_id": {
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "config": {
+      "title": "Config",
+      "type": "string"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "dataset": {
+      "title": "Dataset",
+      "type": "string"
+    },
+    "split": {
+      "title": "Split",
+      "type": "string"
+    },
+    "freeze_commit": {
+      "title": "Freeze Commit",
+      "type": "string"
+    },
+    "rubric_version": {
+      "title": "Rubric Version",
+      "type": "string"
+    },
+    "fixture": {
+      "title": "Fixture",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "gold": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Gold",
+      "type": "object"
+    },
+    "flags": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Flags",
+      "type": "object"
+    },
+    "decision": {
+      "anyOf": [
+        {
+          "enum": [
+            "accept",
+            "reject"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Decision"
+    },
+    "labels": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Labels"
+    },
+    "probabilities": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Probabilities"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "cost_usd": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Usd"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    }
+  },
+  "required": [
+    "experiment_id",
+    "config",
+    "source",
+    "dataset",
+    "split",
+    "freeze_commit",
+    "rubric_version",
+    "fixture",
+    "kind",
+    "gold",
+    "flags",
+    "decision"
+  ],
+  "title": "ReviewRecord",
+  "type": "object"
+}

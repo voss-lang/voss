@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -11,13 +12,16 @@ from voss_proofs.cli import main
 from voss_proofs.evaluate import run_check
 from voss_proofs.ingest import import_voss_eval
 from voss_proofs.report import compare, render, wilson
-from voss_proofs.runner import run_experiment, run_one
-from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, load_bench, load_config, load_spec
+from voss_proofs.runner import config_ref, run_experiment, run_one
+from voss_proofs.review import ReviewDataError, import_review, read_review, render as render_review, summarize as summarize_review
+from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, Config, RunRecord, load_bench, load_config, load_spec
 from voss_proofs.store import Store, read_runs
 
 ROOT = Path(__file__).resolve().parents[1]
 REGRESSION = ROOT / "benchmarks" / "regression"
+ORCHESTRATION = ROOT / "benchmarks" / "orchestration"
 VOSS_SUITES = ROOT.parent / "tests" / "eval"
+LOCKED_REVIEW = ROOT.parent / "evals" / "review-locked-2"
 ORACLE, NULL = BUILTIN_CONFIGS["oracle"], BUILTIN_CONFIGS["null"]
 
 
@@ -33,8 +37,9 @@ def test_existing_voss_eval_tasks_load_unchanged(suite):
     assert tasks, suite
 
 
-def test_regression_scenarios_carry_provenance_and_hidden_tests():
-    for task_dir, spec in load_bench(REGRESSION):
+@pytest.mark.parametrize("bench", [REGRESSION, ORCHESTRATION], ids=["regression", "orchestration"])
+def test_scenarios_carry_provenance_and_hidden_tests(bench):
+    for task_dir, spec in load_bench(bench):
         assert spec.meta and spec.meta.synthetic and spec.meta.origin, task_dir.name
         assert spec.hidden_checks and (task_dir / "hidden").is_dir(), task_dir.name
         assert (task_dir / "reference.patch").is_file(), task_dir.name
@@ -247,3 +252,183 @@ def test_sse_heartbeats_reach_the_deadline_check_but_are_not_recorded():
     events = list(adapters._sse(Stream()))
     assert events[0] is adapters.PING
     assert events[1] == {"type": "final", "text": "hi"}
+
+
+FAKE_AGENT = """#!{python}
+import json, os, pathlib, sys, time
+name = pathlib.Path(sys.argv[0]).name
+pathlib.Path({seen!r}).write_text(json.dumps({{"argv": sys.argv[1:], "stdin": sys.stdin.read(),
+    "env": sorted(k for k in os.environ if k.startswith(("CLAUDE", "CODEX_COMPANION")))}}))
+if os.environ.get("FAKE_SLEEP"):
+    time.sleep(60)
+pathlib.Path("leap.py").write_text("def is_leap_year(y):\\n    return y % 4 == 0\\n")
+if name == "claude":
+    print(json.dumps({{"subtype": "success", "is_error": False, "result": "done", "total_cost_usd": 0.12,
+                      "usage": {{"input_tokens": 3, "output_tokens": 40, "cache_creation_input_tokens": 900,
+                                "cache_read_input_tokens": 5000}}, "modelUsage": {{"claude-x": {{}}}}}}))
+else:
+    print(json.dumps({{"type": "item.completed", "item": {{"type": "agent_message", "text": "fixed"}}}}))
+    print(json.dumps({{"type": "turn.completed", "usage": {{"input_tokens": 100, "cached_input_tokens": 60,
+                                                         "output_tokens": 7}}}}))
+"""
+
+
+@pytest.fixture
+def fake_agents(tmp_path, monkeypatch):
+    seen = tmp_path / "seen.json"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    for name in ("claude", "codex"):
+        (bindir / name).write_text(FAKE_AGENT.format(python=sys.executable, seen=str(seen)))
+        (bindir / name).chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "parent")
+    return seen
+
+
+def test_cli_claude_runs_sandboxed_without_user_settings_or_the_parent_session(tmp_path, fake_agents):
+    config = load_config("cli-claude", ROOT / "configs")
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    rec = run_one(task_dir, spec, config, Store(tmp_path / "exp"), run_idx=0, seed=0)
+    seen = json.loads(fake_agents.read_text())
+    assert "bypassPermissions" not in seen["argv"] and "acceptEdits" in seen["argv"]
+    assert json.loads(seen["argv"][seen["argv"].index("--settings") + 1])["sandbox"]["enabled"] is True
+    assert seen["argv"][seen["argv"].index("--setting-sources") + 1] == "project,local"
+    assert "--strict-mcp-config" in seen["argv"] and seen["env"] == []
+    assert rec.claimed_complete is True and rec.verified is False
+    assert (rec.usage.cache_creation_tokens, rec.usage.cost_usd, rec.model) == (900, 0.12, "claude-x")
+
+
+def test_cli_codex_gets_closed_stdin_and_unknown_cost(tmp_path, fake_agents):
+    config = load_config("cli-codex", ROOT / "configs")
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    rec = run_one(task_dir, spec, config, Store(tmp_path / "exp"), run_idx=0, seed=0)
+    seen = json.loads(fake_agents.read_text())
+    assert seen["stdin"] == "" and "workspace-write" in seen["argv"]
+    assert rec.claimed_complete is True and rec.usage.input_tokens == 100
+    assert rec.usage.cost_usd is None and "unknown" in rec.usage.cost_source
+
+
+def test_cli_agent_wall_budget_kills_the_agent(tmp_path, fake_agents, monkeypatch):
+    monkeypatch.setenv("FAKE_SLEEP", "1")
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    spec = spec.model_copy(update={"budget": spec.budget.model_copy(update={"wall_s": 1})})
+    t0 = time.monotonic()
+    rec = run_one(task_dir, spec, load_config("cli-claude", ROOT / "configs"), Store(tmp_path / "exp"),
+                  run_idx=0, seed=0)
+    assert time.monotonic() - t0 < 30
+    assert rec.exit_reason == "timeout" and rec.claimed_complete is None and rec.verified is False
+
+
+def test_cli_agent_config_names_its_agent():
+    with pytest.raises(ValueError, match="agent"):
+        Config(name="x", adapter="cli-agent")
+    with pytest.raises(ValueError, match="agent"):
+        Config(name="x", adapter="null", agent="claude")
+
+
+@pytest.mark.skipif(shutil.which("voss") is None, reason="voss not installed")
+def test_voss_swarm_records_a_failed_task_split_as_an_error_not_a_claim(tmp_path):
+    task_dir, spec = _task("reg-py-004-pagination-scope")
+    store = Store(tmp_path / "exp")
+    rec = run_one(task_dir, spec, load_config("voss-swarm-fake", ROOT / "configs"), store, run_idx=0, seed=0)
+    assert rec.exit_reason == "error" and rec.claimed_complete is False and rec.verified is False
+    assert any("decompose_failed" in e for e in rec.errors)
+    assert json.loads(store.get(rec.artifacts["swarm"]))["swarm"]["goal"] == spec.prompt
+
+
+def test_report_warns_when_live_configs_ran_different_models():
+    def rec(name, model):
+        config = Config(name=name, adapter="cli-agent", agent="claude", live=True)
+        return RunRecord(experiment_id="e", run_id=name, scenario_id="s", config=config_ref(config), live=True,
+                         model=model, started_at="t", evaluator_version="v", verified=True)
+
+    assert "Models differ" in render([rec("a", "m1"), rec("b", "m2")], "t")
+    assert "Models differ" not in render([rec("a", "m1"), rec("b", "m1")], "t")
+
+
+def test_report_counts_budget_overshoot_timeouts_and_scope_violations(tmp_path):
+    task_dir, spec = _task("reg-py-004-pagination-scope")
+    store = Store(tmp_path / "exp")
+    rec = run_one(task_dir, spec, NULL, store, run_idx=0, seed=0)
+    assert rec.budget == spec.budget
+    over = rec.model_copy(update={"run_idx": 1, "budget": spec.budget.model_copy(update={"token_budget": 10}),
+                                  "usage": rec.usage.model_copy(update={"input_tokens": 8, "cache_read_tokens": 5}),
+                                  "exit_reason": "timeout"})
+    text = render([rec, over], "t")
+    assert "| null | 6 (2) | 1 of 1 | 1 of 2 | 0 of 2 |" in text
+
+
+@pytest.mark.skipif(not LOCKED_REVIEW.is_dir(), reason="J4 review sets not checked out alongside")
+def test_review_import_reproduces_the_locked_report_and_shows_both_acceptance_rates(tmp_path):
+    store = Store(tmp_path / "rv")
+    records = import_review(LOCKED_REVIEW, "test", store)
+    assert read_review(store.root) == records
+    summary = summarize_review(records)
+    voss = json.loads((LOCKED_REVIEW / "reports" / "review-test.json").read_text())["metrics"]
+    jev = summary["jev"]["pairs"]
+    for ours, theirs in [("false_supported", "false_supported"), ("contradicted_recall", "contradicted_recall"),
+                         ("abstention", "abstention")]:
+        assert (jev[ours]["k"], jev[ours]["n"]) == (voss[theirs]["k"], voss[theirs]["n"]), ours
+    assert jev["brier"] == pytest.approx(voss["brier"])
+    b_passes = json.loads((LOCKED_REVIEW / "reports" / "review-compare.json").read_text())["reviewer_b_passes"]
+    assert (summary["reviewer-b"]["false_accept"]["k"], summary["reviewer-b"]["false_accept"]["n"]) == (
+        b_passes["k"], b_passes["n"])
+    reject_all = summary["reject-all"]
+    assert reject_all["false_accept"]["rate"] == 0 and reject_all["true_accept"]["rate"] == 0
+    assert summary["reviewer-b"]["pairs"] is None and summary["reviewer-b"]["confidence_mean"] is not None
+    text = render_review(records, "t")
+    assert "true accept" in text and "underpowered" in text
+
+
+@pytest.mark.skipif(not LOCKED_REVIEW.is_dir(), reason="J4 review sets not checked out alongside")
+def test_review_import_refuses_fixtures_changed_after_freeze(tmp_path):
+    root = tmp_path / "set"
+    shutil.copytree(LOCKED_REVIEW, root)
+    fixture = next((root / "fixtures").glob("*.jsonl"))
+    fixture.write_text(fixture.read_text().replace('"gold": "contradicted"', '"gold": "supported"', 1))
+    with pytest.raises(ReviewDataError, match="changed since freeze"):
+        import_review(root, "test", Store(tmp_path / "rv"))
+
+
+def test_review_dev_run_needs_live_and_never_reruns_a_locked_split(tmp_path):
+    with pytest.raises(SystemExit, match="--live"):
+        main(["import-review", str(tmp_path), "--split", "dev", "--run-dev", "--out", str(tmp_path / "o")])
+    with pytest.raises(SystemExit, match="dev split only"):
+        main(["import-review", str(tmp_path), "--split", "test", "--run-dev", "--live", "--out", str(tmp_path / "o")])
+
+
+def test_judge_needs_a_live_config():
+    with pytest.raises(ValueError, match="live"):
+        Config(name="x", adapter="oracle", judge="jev")
+
+
+def test_jev_judge_sees_only_visible_checks_and_never_overrides_verification(tmp_path):
+    seen = tmp_path / "seen.json"
+    fake = tmp_path / "voss"
+    fake.write_text(f"""#!{sys.executable}
+import json, pathlib, sys
+args = sys.argv[1:]
+checks = json.loads(pathlib.Path(args[args.index("--checks") + 1]).read_text())
+criteria = pathlib.Path(args[args.index("--criteria-file") + 1]).read_text().split("\\n")
+pathlib.Path({str(seen)!r}).write_text(json.dumps({{"hidden": pathlib.Path("hidden").exists(), "checks": checks}}))
+ids = [f"AC-{{n}}" for n, line in enumerate(filter(None, criteria), 1)]
+print(json.dumps({{"status": "answered", "model_returned": "jev-fake", "cost_usd": 0.0001,
+                  "answers": {{c: {{"probabilities": {{"supported": 0.95, "contradicted": 0.0,
+                                                      "insufficient_evidence": 0.05}}}} for c in ids}},
+                  "detail": {{"labels": {{c: "supported" for c in ids}}}}}}))
+""")
+    fake.chmod(0o755)
+    config = Config(name="null-jev", adapter="null", live=True, judge="jev", voss_bin=str(fake))
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    store = Store(tmp_path / "exp")
+    rec = run_one(task_dir, spec, config, store, run_idx=0, seed=0)
+    store.append(rec)
+    saw = json.loads(seen.read_text())
+    assert saw["hidden"] is False
+    assert saw["checks"] and all(c["name"] in {ch.run for ch in spec.checks} for c in saw["checks"])
+    assert rec.judge.verdict == "accept" and rec.verified is False
+    assert rec.judge.cost_usd == 0.0001 and "judge_receipt" in rec.artifacts
+    text = render(read_runs(store.root), "t")
+    assert "| null-jev | jev review | 1/1 = 100.0%" in text

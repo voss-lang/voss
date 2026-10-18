@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import __version__, workspace
 from .adapters import ADAPTERS, AdapterResult
-from .evaluate import EVALUATOR_VERSION, run_check, scope_check, verdict
+from .evaluate import EVALUATOR_VERSION, jev_review, run_check, scope_check, verdict
 from .spec import BenchmarkSpec, Config, ConfigRef, RunRecord, scenario_id
 from .store import Store
 
@@ -45,6 +45,7 @@ def run_one(task_dir: Path, spec: BenchmarkSpec, config: Config, store: Store,
         run_idx=run_idx,
         started_at=datetime.now(timezone.utc).isoformat(),
         evaluator_version=EVALUATOR_VERSION,
+        budget=spec.budget,
     )
     missing = [tool for tool in spec.requires if shutil.which(tool) is None]
     if missing:
@@ -72,6 +73,11 @@ def run_one(task_dir: Path, spec: BenchmarkSpec, config: Config, store: Store,
         changed = workspace.changed_paths(ws.repo)
 
         checks = [run_check(c, ws.repo, env, "visible", store) for c in spec.checks]
+        if config.judge == "jev":
+            record.judge, ref = jev_review(spec.acceptance.criteria, checks, ws.repo, ws.root, env,
+                                           config.voss_bin, store)
+            if ref:
+                record.artifacts["judge_receipt"] = ref
         if scope := scope_check(changed, spec.acceptance.allowed_paths):
             checks.append(scope)
         workspace.install_hidden(task_dir, ws.repo)
@@ -107,7 +113,7 @@ def run_experiment(bench: list[tuple[Path, BenchmarkSpec]], configs: list[Config
             log(f"stopping: known spend ${spent:.4f} reached --max-usd {max_usd}")
             break
         rec = run_one(task_dir, spec, config, store, run_idx=i, seed=seed)
-        spent += rec.usage.cost_usd or 0.0
+        spent += (rec.usage.cost_usd or 0.0) + ((rec.judge and rec.judge.cost_usd) or 0.0)
         store.append(rec)
         records.append(rec)
         status = "skip" if rec.skipped else {True: "verified", False: "FAILED", None: "unknown"}[rec.verified]

@@ -1,0 +1,41 @@
+prompt = """
+Add two features to the Inventory class in inventory.py.
+
+1. remove(sku, qty) takes qty units of sku out of stock. It raises ValueError if qty is not positive
+   or if fewer than qty units are in stock, and in that case changes nothing.
+2. low_stock(threshold) returns the SKUs whose total quantity is below threshold, sorted alphabetically.
+   SKUs that were added and then fully removed have quantity 0 and count as low stock.
+
+add() may be called several times for the same SKU, and quantity() must keep returning the total.
+"""
+mode = "auto"
+rubric = """
+PASS if remove and low_stock meet their description and quantity still returns totals.
+FAIL if either feature is missing or wrong, or quantity breaks.
+"""
+requires = ["python3"]
+
+[meta]
+category = "orchestration"
+synthetic = true
+origin = "hand-written for VossProofs orchestration set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: remove takes units out of stock and raises ValueError, changing nothing, for a non-positive qty or insufficient stock",
+  "AC-2: low_stock returns SKUs below the threshold sorted alphabetically, including SKUs at 0",
+  "AC-3: quantity keeps returning the total after repeated add calls and after removals",
+]
+allowed_paths = ["inventory.py", "tests/*"]
+
+[budget]
+wall_s = 900
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"

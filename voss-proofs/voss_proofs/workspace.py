@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 SECRET_ENV = re.compile(r"(_API_KEY|_TOKEN|_SECRET|_PASSWORD)$|^TYPESAFE_")
+PARENT_AGENT_ENV = re.compile(r"^(CLAUDECODE|CLAUDE_PID|CLAUDE_EFFORT)$|^(CLAUDE_CODE_|CLAUDE_PLUGIN_|CODEX_COMPANION_)")
 EXCLUDED = "\n".join([
     ".voss/", ".voss-cache/", "__pycache__/", "*.pyc", ".pytest_cache/",
     "node_modules/", "target/", "",
@@ -55,8 +56,8 @@ def prepare(task_dir: Path, scenario: str) -> Workspace:
 
 def env(ws: Workspace, *, live: bool, extra: dict[str, str] | None = None) -> dict[str, str]:
     """Live runs keep the real HOME (subscription auth lives there); offline runs get
-    a throwaway HOME/XDG and no secrets."""
-    out = dict(os.environ)
+    a throwaway HOME/XDG and no secrets. Neither inherits the session of an agent driving proofs."""
+    out = {k: v for k, v in os.environ.items() if not PARENT_AGENT_ENV.search(k)}
     real_home = Path.home()
     out["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{out.get('PATH', '')}"
     out.setdefault("RUSTUP_HOME", str(real_home / ".rustup"))

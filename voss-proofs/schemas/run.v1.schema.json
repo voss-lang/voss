@@ -1,5 +1,41 @@
 {
   "$defs": {
+    "Budget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Turns"
+        },
+        "token_budget": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token Budget"
+        },
+        "wall_s": {
+          "default": 600.0,
+          "title": "Wall S",
+          "type": "number"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
     "CheckResult": {
       "additionalProperties": false,
       "properties": {
@@ -100,6 +136,54 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "labels": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "probabilities": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "title": "Probabilities",
+          "type": "object"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
         }
       },
       "required": [
@@ -432,6 +516,17 @@
       ],
       "default": null,
       "title": "Verified"
+    },
+    "budget": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Budget"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "judge": {
       "anyOf": [

@@ -1,0 +1,7 @@
+name = "voss-swarm-auto"
+adapter = "voss-swarm"
+description = "Configuration C: voss serve swarm with the default roster (coordinator, 2 native builders, reviewer), default subscription auth."
+live = true
+auth = "auto"
+builders = 2
+model = "claude-opus-5-5"

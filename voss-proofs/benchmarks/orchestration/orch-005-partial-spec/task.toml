@@ -1,0 +1,43 @@
+prompt = """
+Implement column_total(text, column) in csvsum.py. It sums one numeric column of CSV text that has a header row.
+
+Requirements:
+1. column names the header to sum. A column that is not in the header raises KeyError.
+2. Blank lines are skipped.
+3. Fields may be quoted and may contain commas, as in "1,5" for a description.
+4. A value that is not a number raises ValueError whose message includes the 1-based line number of the bad row
+   (the header is line 1).
+The existing test only covers the basic case. Every requirement above is part of the task.
+"""
+mode = "auto"
+rubric = """
+PASS if all four requirements hold.
+FAIL if any one of them is missing, even when the existing test passes.
+"""
+requires = ["python3"]
+
+[meta]
+category = "review"
+synthetic = true
+origin = "hand-written for VossProofs orchestration set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: column_total sums the named column, and an unknown column raises KeyError",
+  "AC-2: blank lines are skipped",
+  "AC-3: quoted fields that contain commas are parsed as one field",
+  "AC-4: a non-numeric value raises ValueError whose message includes the 1-based line number",
+]
+allowed_paths = ["csvsum.py", "tests/*"]
+
+[budget]
+wall_s = 600
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"
