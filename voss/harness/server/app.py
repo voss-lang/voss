@@ -1116,10 +1116,10 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         if oauth_only and swarm_driver is not None and not swarm_driver.done():
             raise HTTPException(409, "the swarm is already running")
         text = " ".join(p.text for p in body.parts if p.type == "text").strip()
-        if s.execution_plan is not None:
-            return CommandAck(status="preview_required")
         if not text:
             raise HTTPException(422, "empty message")
+        if s.execution_plan is not None:
+            return CommandAck(status="preview_required")
         if oauth_only:
             availability, provider = oauth.prepare(oauth.PreflightBody(harness=s.provider.availability.harness, model=s.model))
             if provider is None:
@@ -1195,6 +1195,8 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         snapshot = mgr.journal.snapshot(session_id)
         if snapshot is None:
             raise HTTPException(404, "task not found")
+        return snapshot
+
     @app.get("/session/{session_id}/graph-output", response_model=task_graph.Output)
     def graph_output(session_id: str, node_id: str, attempt_id: str, after: int = 0):
         snapshot = task_snapshot(session_id)
@@ -1215,8 +1217,6 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         next_cursor = batch[-1].cursor if batch else cursor
         return task_graph.Output(status="available", events=[{"cursor": item.cursor, "event": item.event} for item in batch],
                                  next_cursor=next_cursor, has_more=bool(batch) and next_cursor < end)
-
-        return snapshot
 
     async def replay_events(session_id: str, after: int, *, envelopes: bool):
         cursor = after
@@ -1524,9 +1524,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         3 — not just the coordinator). Validates the swarm exists first so a
         forged swarm_id cannot inject into unrelated queues (T-V25-04-04)."""
         store = app.state.swarm_store
-        _publish_swarm_graph(swarm_id, graph_event or ev.model_dump())
         if store.get(swarm_id) is None:
             return
+        _publish_swarm_graph(swarm_id, graph_event or ev.model_dump())
         for rec in store.list_agents_by_swarm(swarm_id):
             sess = mgr.get(rec["session_id"])
             if sess is not None:
@@ -1661,9 +1661,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             task = store.add_task(
                 swarm_id, body.goal, body.owned_files, body.depends_on
             )
-        _publish_swarm_graph(swarm_id)
         except OwnershipOverlapError as exc:
             raise HTTPException(409, str(exc))
+        _publish_swarm_graph(swarm_id)
         return {"v": 1, "task": task.model_dump()}
 
     @app.post("/swarm/{swarm_id}/message", status_code=202)
@@ -1753,9 +1753,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         task_id=ev.get("task_id", ""),
                         session_id="",
                         owned_files=ev.get("owned_files") or [],
-                    graph_event=ev,
                         role=ev.get("role", ""),
                     ),
+                    graph_event=ev,
                 )
             elif etype == "swarm.worker_done":
                 _emit_swarm_event(
@@ -1764,9 +1764,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         swarm_id=swarm_id,
                         task_id=ev.get("task_id", ""),
                         session_id="",
-                    graph_event=ev,
                         summary=ev.get("summary"),
                     ),
+                    graph_event=ev,
                 )
             elif etype == "swarm.gate":
                 _emit_swarm_event(
@@ -1775,9 +1775,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         swarm_id=swarm_id,
                         task_id=ev.get("task_id", ""),
                         gate_type=ev.get("gate_type", ""),
-                    graph_event=ev,
                         detail=ev.get("detail", ""),
                     ),
+                    graph_event=ev,
                 )
             elif etype == "swarm.needs_operator":
                 paths = ev.get("paths") or []
@@ -1788,9 +1788,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         task_id=ev.get("task_id", ""),
                         session_id=ev.get("session_id", ""),
                         tool_name=ev.get("tool_name", "fs_write"),
-                    graph_event=ev,
                         path=", ".join(paths) if paths else ev.get("path"),
                     ),
+                    graph_event=ev,
                 )
             elif etype == "swarm.candidate_ready":
                 _emit_swarm_event(
@@ -1802,18 +1802,18 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                         branch=ev.get("branch", ""),
                         worktree=ev.get("worktree", ""),
                         head=ev.get("head", ""),
-                    graph_event=ev,
                         summary=ev.get("summary"),
                     ),
+                    graph_event=ev,
                 )
             elif etype == "swarm.candidates_ready":
                 _emit_swarm_event(
                     swarm_id,
                     E.SwarmCandidatesReady(
                         swarm_id=swarm_id,
-                    graph_event=ev,
                         candidate_count=ev.get("candidate_count", 0),
                     ),
+                    graph_event=ev,
                 )
             elif etype == "swarm.complete":
                 _emit_swarm_event(
@@ -1821,9 +1821,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                     E.SwarmComplete(
                         swarm_id=swarm_id,
                         task_count=ev.get("task_count", 0),
-                    graph_event=ev,
                         summary=ev.get("summary"),
                     ),
+                    graph_event=ev,
                 )
 
         return emit
@@ -1937,9 +1937,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             sess = mgr.get(session_id)
             if sess is None or sess.busy:
                 raise RuntimeError("native builder is unavailable or busy")
-            _assign_to_session(swarm_id, task, session_id, before)
             before = mgr.journal.snapshot(sess.id).watermark
             mgr.journal.begin(sess.id, f"swarm:{task.id}", {"goal": task.goal}, swarm_id=swarm_id, swarm_task_id=task.id)
+            _assign_to_session(swarm_id, task, session_id, before)
             sess.task = asyncio.create_task(_drive_turn(sess, task.goal, "auto"))
             try:
                 await sess.task
@@ -1999,9 +1999,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                 native_tasks = [
                     task
                     for task in store.get(swarm_id).tasks[len(cli_roles) :]
-                _publish_swarm_graph(swarm_id)
                     if task.state == OPEN
                 ]
+                _publish_swarm_graph(swarm_id)
                 held = {"candidates": 0}
                 results = await asyncio.gather(
                     run_cli_swarm(
