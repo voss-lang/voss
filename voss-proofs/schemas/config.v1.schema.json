@@ -10,7 +10,8 @@
         "oracle",
         "null",
         "voss-serve",
-        "cli-agent"
+        "cli-agent",
+        "voss-swarm"
       ],
       "title": "Adapter",
       "type": "string"
@@ -103,6 +104,11 @@
       ],
       "default": null,
       "title": "Agent"
+    },
+    "builders": {
+      "default": 2,
+      "title": "Builders",
+      "type": "integer"
     }
   },
   "required": [

@@ -95,7 +95,7 @@ class BenchmarkSpec(_Strict):
 
 class Config(_Strict):
     name: str
-    adapter: Literal["oracle", "null", "voss-serve", "cli-agent"]
+    adapter: Literal["oracle", "null", "voss-serve", "cli-agent", "voss-swarm"]
     description: str = ""
     live: bool = False
     mode: Literal["plan", "edit", "auto"] | None = None
@@ -105,6 +105,7 @@ class Config(_Strict):
     voss_bin: str = "voss"
     env: dict[str, str] = Field(default_factory=dict)
     agent: Literal["claude", "codex"] | None = None
+    builders: int = 2
 
     @model_validator(mode="after")
     def _agent_for_cli(self) -> Config:

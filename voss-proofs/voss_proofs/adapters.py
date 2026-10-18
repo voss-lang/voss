@@ -139,11 +139,7 @@ def usage_from_record(record: dict, res: AdapterResult) -> None:
     res.claimed_complete = res.exit_reason == "done"
 
 
-def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
-               config: Config, store: Store) -> AdapterResult:
-    """Drive one turn through `voss serve` REST+SSE, the public headless surface."""
-    res = AdapterResult(provider=config.auth)
-    res.voss = VossInfo(version=_voss_version(config.voss_bin))
+def _start_serve(ws: Workspace, env: dict[str, str], config: Config) -> tuple[subprocess.Popen, list[str]]:
     server_env = {
         **env,
         "LITELLM_LOCAL_MODEL_COST_MAP": "true",
@@ -157,6 +153,24 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
     )
     stderr: list[str] = []
     threading.Thread(target=lambda: stderr.extend(proc.stderr), daemon=True).start()
+    return proc, stderr
+
+
+def _stop_serve(proc: subprocess.Popen) -> None:
+    if proc.stdin:
+        proc.stdin.close()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
+               config: Config, store: Store) -> AdapterResult:
+    """Drive one turn through `voss serve` REST+SSE, the public headless surface."""
+    res = AdapterResult(provider=config.auth)
+    res.voss = VossInfo(version=_voss_version(config.voss_bin))
+    proc, stderr = _start_serve(ws, env, config)
     events: list[dict] = []
     try:
         hs = _handshake(proc, 60)
@@ -221,12 +235,106 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
         res.exit_reason = "error"
         res.errors.append(f"{type(exc).__name__}: {str(exc)[:300]}")
     finally:
-        if proc.stdin:
-            proc.stdin.close()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_serve(proc)
+        if events:
+            res.artifacts["events"] = store.put("".join(json.dumps(e, sort_keys=True) + "\n" for e in events))
+    return res
+
+
+SWARM_DONE = {"swarm.complete", "swarm.candidates_ready"}
+SWARM_FAILED = {"decompose_failed", "run_failed", "run_incomplete"}
+
+
+def _watch_member(base: str, headers: dict, sid: str, choice: str, events: list[dict],
+                  ready: threading.Event, done: threading.Event, outcome: list[dict]) -> None:
+    try:
+        with httpx.Client(base_url=base, headers=headers, timeout=httpx.Timeout(30, read=60)) as c, \
+                c.stream("GET", f"/session/{sid}/events", headers={"Accept": "text/event-stream"}) as sse:
+            ready.set()
+            for ev in _sse(sse):
+                if done.is_set():
+                    return
+                if ev is PING:
+                    continue
+                events.append({**ev, "member_session": sid})
+                if ev["type"] == "permission.updated":
+                    c.post(f"/session/{sid}/permission", json={"id": ev["id"], "choice": choice})
+                elif ev["type"] in SWARM_DONE or (ev["type"] == "swarm.gate" and ev.get("gate_type") in SWARM_FAILED):
+                    outcome.append(ev)
+                    done.set()
+    except httpx.HTTPError:
+        ready.set()
+
+
+def voss_swarm(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
+               config: Config, store: Store) -> AdapterResult:
+    """Configuration C: `POST /swarm` with the default native roster, then `/swarm/{id}/run`."""
+    res = AdapterResult(provider=config.auth)
+    res.voss = VossInfo(version=_voss_version(config.voss_bin))
+    proc, stderr = _start_serve(ws, env, config)
+    events: list[dict] = []
+    try:
+        hs = _handshake(proc, 60)
+        if hs is None:
+            res.exit_reason = "error"
+            res.errors.append("serve handshake timeout: " + "".join(stderr[-5:])[-300:])
+            return res
+        base = f"http://127.0.0.1:{hs['port']}"
+        headers = {"Authorization": f"Bearer {hs['token']}"}
+        deadline = time.monotonic() + spec.budget.wall_s
+        with httpx.Client(base_url=base, headers=headers, timeout=httpx.Timeout(30, read=60)) as c:
+            caps = c.get("/capabilities")
+            if caps.status_code == 200:
+                body = caps.json()
+                res.voss.capabilities = list(body.get("capabilities", []) if isinstance(body, dict) else body)
+            r = c.post("/swarm", json={"goal": spec.prompt, "cwd": str(ws.repo), "builders": config.builders})
+            r.raise_for_status()
+            created = r.json()
+            members = [m for m in created["sessions"] if m.get("session_id")]
+            res.model = ",".join(sorted({m["model"] for m in members if m.get("model")})) or None
+            done, outcome = threading.Event(), []
+            choice = config.permission_choice or spec.permission_choice
+            for m in members:
+                ready = threading.Event()
+                threading.Thread(target=_watch_member, daemon=True, args=(
+                    base, headers, m["session_id"], choice, events, ready, done, outcome)).start()
+                ready.wait(timeout=30)
+            c.post(f"/swarm/{created['id']}/run").raise_for_status()
+            if not done.wait(timeout=max(0.0, deadline - time.monotonic())):
+                for m in members:
+                    c.post(f"/session/{m['session_id']}/abort")
+                res.exit_reason = "timeout"
+                res.errors.append(f"wall budget {spec.budget.wall_s}s exceeded")
+            elif outcome[0]["type"] in SWARM_DONE:
+                res.exit_reason, res.claimed_complete = "done", True
+            else:
+                res.exit_reason, res.claimed_complete = "error", False
+                res.errors.append(f"swarm gate {outcome[0].get('gate_type')}: {outcome[0].get('detail', '')[:300]}")
+            res.artifacts["swarm"] = store.put(json.dumps(c.get(f"/swarm/{created['id']}").json(), sort_keys=True))
+            costs = [c.get(f"/session/{m['session_id']}/cost").json() for m in members]
+            if any(cost.get("turns") for cost in costs):
+                res.usage.cost_usd = sum(float(cost.get("total_usd") or 0) for cost in costs)
+                res.usage.cost_source = "serve:/cost summed over member sessions; excludes the coordinator's task split"
+        totals = {"input_tokens": 0, "output_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0}
+        for m in members:
+            path = ws.repo / ".voss" / "sessions" / f"{m['session_id']}.json"
+            if not path.is_file():
+                continue
+            res.artifacts[f"session_record:{m['role']}"] = store.put(path.read_bytes())
+            member = AdapterResult(usage=Usage(cost_usd=res.usage.cost_usd))
+            usage_from_record(json.loads(path.read_text()), member)
+            for key in totals:
+                totals[key] += getattr(member.usage, key) or 0
+        if any(totals.values()):
+            res.usage = res.usage.model_copy(update=totals)
+            if res.usage.cost_usd == 0 and res.usage.output_tokens:
+                res.usage.cost_usd = None
+                res.usage.cost_source = "unknown: voss reported $0 for a run that used tokens"
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        res.exit_reason = "error"
+        res.errors.append(f"{type(exc).__name__}: {str(exc)[:300]}")
+    finally:
+        _stop_serve(proc)
         if events:
             res.artifacts["events"] = store.put("".join(json.dumps(e, sort_keys=True) + "\n" for e in events))
     return res
@@ -317,4 +425,5 @@ def cli_agent(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str,
     return res
 
 
-ADAPTERS = {"oracle": oracle, "null": null, "voss-serve": voss_serve, "cli-agent": cli_agent}
+ADAPTERS = {"oracle": oracle, "null": null, "voss-serve": voss_serve, "cli-agent": cli_agent,
+            "voss-swarm": voss_swarm}

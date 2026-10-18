@@ -322,3 +322,13 @@ def test_cli_agent_config_names_its_agent():
         Config(name="x", adapter="cli-agent")
     with pytest.raises(ValueError, match="agent"):
         Config(name="x", adapter="null", agent="claude")
+
+
+@pytest.mark.skipif(shutil.which("voss") is None, reason="voss not installed")
+def test_voss_swarm_records_a_failed_task_split_as_an_error_not_a_claim(tmp_path):
+    task_dir, spec = _task("reg-py-004-pagination-scope")
+    store = Store(tmp_path / "exp")
+    rec = run_one(task_dir, spec, load_config("voss-swarm-fake", ROOT / "configs"), store, run_idx=0, seed=0)
+    assert rec.exit_reason == "error" and rec.claimed_complete is False and rec.verified is False
+    assert any("decompose_failed" in e for e in rec.errors)
+    assert json.loads(store.get(rec.artifacts["swarm"]))["swarm"]["goal"] == spec.prompt

@@ -13,6 +13,7 @@ This page explains how a run becomes a result. If a report says something the de
    - `cli-agent` (Baseline A) runs one external coding agent non-interactively in the workspace, with stdin closed and the same wall-clock budget. When the budget runs out, the agent's whole process group is killed.
      - `claude` runs as `claude -p --output-format json`. File edits are accepted. Shell commands run in the Claude Code sandbox, so they can write only inside the workspace. User settings, hooks and MCP servers are off.
      - `codex` runs as `codex exec --json` in the `workspace-write` sandbox, with the user's `config.toml` ignored.
+   - `voss-swarm` (Configuration C) starts `voss serve` and creates a swarm with the default roster: a coordinator, `builders` native builders (default 2) and a reviewer. It then calls `/swarm/{id}/run`. The coordinator splits the prompt into tasks, and each builder runs one turn in the workspace. The adapter watches every member session's events, answers permission prompts and stops on `swarm.complete` or on a `decompose_failed`, `run_failed` or `run_incomplete` gate. The wall-clock budget covers the whole swarm.
 4. **Evidence.** The staged diff (`git add -A`, so new files count), the final text, the event stream and the Voss session record are stored by sha256.
 5. **Visible checks** run, followed by the **scope check**: changed paths must match `acceptance.allowed_paths` when that list is set.
 6. **Hidden checks.** `hidden/` is copied into the workspace and the hidden checks run.
@@ -25,6 +26,7 @@ A run is skipped when a toolchain listed in `requires` is missing. Skipped runs 
 `claimed_complete` comes from the system itself:
 - For `voss-serve`, it is true when the session's last run has `exit_reason == "done"`.
 - For `oracle`, it is always true.
+- For `voss-swarm`, it is true when the swarm emits `swarm.complete`, and false when it emits a failure gate. A member's task counts as done when its turn ends, whether or not the member did the work (upstream gap 18). So `swarm.complete` is a claim, and the hidden checks decide.
 - For `cli-agent`, it is true when the agent finished without an error: `claude` reports `subtype: success`, and `codex` completes a turn with no failure event.
 - For `null`, and for runs with no session record, it is null.
 
@@ -59,6 +61,7 @@ Job order is shuffled with `--seed` (default 0), so a slow or stateful scenario 
 - For `voss-serve`, cost comes from `/session/{id}/cost` when the server recorded at least one run. Token counts come from the saved session record.
 - The fake serve turn records no run, so its cost stays unknown.
 - When Voss reports $0 for a run that consumed tokens, the cost is recorded as unknown. Subscription providers do this.
+- `voss-swarm` sums `/cost` and the session-record tokens over its member sessions. The coordinator's task split runs outside any session, so it is missing from both totals (upstream gap 19).
 - `claude -p` reports `total_cost_usd` even on a subscription. It is stored with a `cost_source` that says it is a list-price estimate. `codex exec` reports no cost, so codex cost is unknown.
 - Token counts are stored as recorded: prompt, completion, cache creation and cache read. None of them is summed into a single "input tokens" figure.
 
