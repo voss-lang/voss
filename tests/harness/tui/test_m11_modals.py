@@ -93,6 +93,17 @@ async def test_probable_inspect_modal_includes_confidence_value_and_bar() -> Non
 
 
 @pytest.mark.asyncio
+async def test_probable_inspect_modal_shows_unknown_confidence() -> None:
+    cls = _modal_class("voss.harness.tui.widgets.probable_modal", "ProbableInspectModal")
+    app = _ModalHost(cls("Decision 0\nchoose parser\nconfidence: unknown\nfeeds into tests"))
+    async with app.run_test():
+        rendered = _rendered_text(app)
+        assert "confidence unknown" in rendered
+        assert "0.00" not in rendered
+        assert list(app.query(ConfidenceBar)) == []
+
+
+@pytest.mark.asyncio
 async def test_budget_trace_modal_includes_cumulative_tokens_and_meter() -> None:
     app = _ModalHost(_budget_trace_modal())
     async with app.run_test():

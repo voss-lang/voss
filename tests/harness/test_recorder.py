@@ -108,6 +108,31 @@ def test_decisions_mirror_to_markdown_renders_exact_bytes(
     )
 
 
+@pytest.mark.parametrize(
+    "decision",
+    [
+        {"title": "a", "confidence": None},
+        {"title": "b"},
+        {"title": "c", "confidence": "high"},
+        {"title": "d", "confidence": True},
+    ],
+)
+def test_decisions_without_a_number_say_unknown(tmp_path: Path, decision: dict) -> None:
+    import voss.harness.recorder as recorder
+
+    run = RunRecord(id="r1", started_at="t0", ended_at="t1", decisions=[decision])
+    [path] = recorder.write_decisions_md(tmp_path, run, session_id="abc123")
+    assert "confidence: unknown\n" in path.read_text()
+
+
+def test_decisions_keep_numeric_confidence(tmp_path: Path) -> None:
+    import voss.harness.recorder as recorder
+
+    run = RunRecord(id="r1", started_at="t0", ended_at="t1", decisions=[{"title": "e", "confidence": 0.47}])
+    [path] = recorder.write_decisions_md(tmp_path, run, session_id="abc123")
+    assert "confidence: 0.47\n" in path.read_text()
+
+
 # ---------------------------------------------------------------------------
 # T2-01: begin_batch / end_batch capture API.
 # ---------------------------------------------------------------------------

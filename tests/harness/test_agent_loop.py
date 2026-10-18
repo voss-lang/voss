@@ -525,3 +525,87 @@ async def test_note_turn_carries_iteration_count_and_exit_reason(
 def test_substitute_placeholders_is_gone() -> None:
     # Hard removal: agent module must not expose the function.
     assert not hasattr(agent_mod, "_substitute_placeholders")
+
+
+def _unparsed_script(text: str | None) -> list[ProviderStreamEvent]:
+    events: list[ProviderStreamEvent] = [TextDelta(text=text)] if text else []
+    return events + [Done(stop_reason="end_turn")]
+
+
+async def _run_unparsed(tmp_path: Path, text: str | None, renderer: RecordingRenderer):
+    provider = FakeStreamingProvider(scripts=[_unparsed_script(text)])
+    return await _run_turn_exec(
+        "do thing",
+        tools={},
+        cwd=tmp_path,
+        renderer=renderer,
+        provider=provider,
+        model="stub-model",
+        confidence_threshold=0.60,
+    )
+
+
+@pytest.mark.asyncio
+async def test_unparsed_plan_shows_raw_reply_without_clarify(tmp_path: Path) -> None:
+    renderer = RecordingRenderer()
+    result = await _run_unparsed(tmp_path, "plain reply", renderer)
+
+    assert renderer.clarify_calls == []
+    assert result.final == "plain reply"
+    assert result.confidence is None
+
+
+@pytest.mark.asyncio
+async def test_unparsed_plan_records_unknown_confidence(tmp_path: Path, monkeypatch) -> None:
+    captured: list[dict] = []
+    real_emit = telemetry.emit
+
+    def fake_emit(event_type, level="info", *, data=None, **kw):
+        captured.append(dict(data or {}))
+        return real_emit(event_type, level, data=data, **kw)
+
+    monkeypatch.setattr(agent_mod.telemetry, "emit", fake_emit)
+    renderer = RecordingRenderer()
+    result = await _run_unparsed(tmp_path, "plain reply", renderer)
+
+    assert result.confidence is None
+    assert isinstance(result.plan, Plan)
+    assert result.plan.confidence is None
+    assert result.run is not None
+    assert result.run.iterations[-1].plan["confidence"] is None
+    assistant = [c for c in renderer.finalize_calls if c["role"] == "assistant"]
+    assert assistant and all(c["confidence"] is None for c in assistant)
+    assert not any(d.get("confidence") == 1.0 for d in captured)
+
+
+@pytest.mark.asyncio
+async def test_unparsed_empty_reply_uses_placeholder_text(tmp_path: Path) -> None:
+    result = await _run_unparsed(tmp_path, None, RecordingRenderer())
+
+    assert result.final == "(provider returned no parsed plan)"
+    assert result.confidence is None
+
+
+@pytest.mark.asyncio
+async def test_parsed_low_confidence_plan_still_clarifies(tmp_path: Path) -> None:
+    plan = _make_plan(steps=[], confidence=0.3, final_when_done="maybe", open_question="which file?")
+    provider = FakeStreamingProvider(scripts=[_done_script(plan=plan)])
+    renderer = RecordingRenderer()
+
+    await _run_turn_exec(
+        "do thing",
+        tools={},
+        cwd=tmp_path,
+        renderer=renderer,
+        provider=provider,
+        model="stub-model",
+        confidence_threshold=0.60,
+    )
+
+    assert renderer.clarify_calls == [("which file?", 0.3)]
+
+
+def test_plan_schema_keeps_required_confidence() -> None:
+    schema = Plan.model_json_schema()
+    assert "confidence" in schema["required"]
+    assert schema["properties"]["confidence"]["type"] == "number"
