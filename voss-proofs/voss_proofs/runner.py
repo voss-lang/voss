@@ -45,6 +45,7 @@ def run_one(task_dir: Path, spec: BenchmarkSpec, config: Config, store: Store,
         run_idx=run_idx,
         started_at=datetime.now(timezone.utc).isoformat(),
         evaluator_version=EVALUATOR_VERSION,
+        budget=spec.budget,
     )
     missing = [tool for tool in spec.requires if shutil.which(tool) is None]
     if missing:

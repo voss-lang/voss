@@ -18,6 +18,7 @@ from voss_proofs.store import Store, read_runs
 
 ROOT = Path(__file__).resolve().parents[1]
 REGRESSION = ROOT / "benchmarks" / "regression"
+ORCHESTRATION = ROOT / "benchmarks" / "orchestration"
 VOSS_SUITES = ROOT.parent / "tests" / "eval"
 ORACLE, NULL = BUILTIN_CONFIGS["oracle"], BUILTIN_CONFIGS["null"]
 
@@ -34,8 +35,9 @@ def test_existing_voss_eval_tasks_load_unchanged(suite):
     assert tasks, suite
 
 
-def test_regression_scenarios_carry_provenance_and_hidden_tests():
-    for task_dir, spec in load_bench(REGRESSION):
+@pytest.mark.parametrize("bench", [REGRESSION, ORCHESTRATION], ids=["regression", "orchestration"])
+def test_scenarios_carry_provenance_and_hidden_tests(bench):
+    for task_dir, spec in load_bench(bench):
         assert spec.meta and spec.meta.synthetic and spec.meta.origin, task_dir.name
         assert spec.hidden_checks and (task_dir / "hidden").is_dir(), task_dir.name
         assert (task_dir / "reference.patch").is_file(), task_dir.name
@@ -342,3 +344,15 @@ def test_report_warns_when_live_configs_ran_different_models():
 
     assert "Models differ" in render([rec("a", "m1"), rec("b", "m2")], "t")
     assert "Models differ" not in render([rec("a", "m1"), rec("b", "m1")], "t")
+
+
+def test_report_counts_budget_overshoot_timeouts_and_scope_violations(tmp_path):
+    task_dir, spec = _task("reg-py-004-pagination-scope")
+    store = Store(tmp_path / "exp")
+    rec = run_one(task_dir, spec, NULL, store, run_idx=0, seed=0)
+    assert rec.budget == spec.budget
+    over = rec.model_copy(update={"run_idx": 1, "budget": spec.budget.model_copy(update={"token_budget": 10}),
+                                  "usage": rec.usage.model_copy(update={"input_tokens": 8, "cache_read_tokens": 5}),
+                                  "exit_reason": "timeout"})
+    text = render([rec, over], "t")
+    assert "| null | 6 (2) | 1 of 1 | 1 of 2 | 0 of 2 |" in text

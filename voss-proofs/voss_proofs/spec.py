@@ -182,6 +182,7 @@ class RunRecord(_Strict):
     skip_reason: str | None = None
     claimed_complete: bool | None = None
     verified: bool | None = None
+    budget: Budget | None = None
     judge: Judge | None = None
     evaluator_version: str
 
