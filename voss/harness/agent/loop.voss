@@ -13,13 +13,8 @@ use voss::harness::tools::ToolEntry
 fn route_intent(task: string) -> string {
     ctx(budget: 1000 tokens) {
         let prompt = "Classify this coding task as edit, inspect, explain, test, or general: " + task
-        let route: probable<string> = ask(prompt)
-
-        if route @ p >= 0.80 {
-            return route.value
-        } else {
-            return "general"
-        }
+        let route: string = ask(prompt)
+        return route or "general"
     }
 }
 
