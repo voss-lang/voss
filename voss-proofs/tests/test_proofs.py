@@ -12,8 +12,8 @@ from voss_proofs.cli import main
 from voss_proofs.evaluate import run_check
 from voss_proofs.ingest import import_voss_eval
 from voss_proofs.report import compare, render, wilson
-from voss_proofs.runner import run_experiment, run_one
-from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, Config, load_bench, load_config, load_spec
+from voss_proofs.runner import config_ref, run_experiment, run_one
+from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, Config, RunRecord, load_bench, load_config, load_spec
 from voss_proofs.store import Store, read_runs
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -332,3 +332,13 @@ def test_voss_swarm_records_a_failed_task_split_as_an_error_not_a_claim(tmp_path
     assert rec.exit_reason == "error" and rec.claimed_complete is False and rec.verified is False
     assert any("decompose_failed" in e for e in rec.errors)
     assert json.loads(store.get(rec.artifacts["swarm"]))["swarm"]["goal"] == spec.prompt
+
+
+def test_report_warns_when_live_configs_ran_different_models():
+    def rec(name, model):
+        config = Config(name=name, adapter="cli-agent", agent="claude", live=True)
+        return RunRecord(experiment_id="e", run_id=name, scenario_id="s", config=config_ref(config), live=True,
+                         model=model, started_at="t", evaluator_version="v", verified=True)
+
+    assert "Models differ" in render([rec("a", "m1"), rec("b", "m2")], "t")
+    assert "Models differ" not in render([rec("a", "m1"), rec("b", "m1")], "t")

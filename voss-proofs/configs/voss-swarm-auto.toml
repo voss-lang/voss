@@ -4,3 +4,4 @@ description = "Configuration C: voss serve swarm with the default roster (coordi
 live = true
 auth = "auto"
 builders = 2
+model = "claude-opus-5-5"

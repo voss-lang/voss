@@ -85,6 +85,12 @@ def render(records: list[RunRecord], title: str) -> str:
                 f"{s['graded']} | {_pct(s['rate'])} | {ci} | {s['false_claims']} of {s['claims']} claims "
                 f"| {cost} | {dur} |"
             )
+        if live:
+            models = {n: sorted({r.model or "unknown" for r in records
+                                 if r.config.name == n and not r.skipped}) for n in names}
+            if len({m for ms in models.values() for m in ms}) > 1:
+                lines += ["", "**Models differ across live configs**, so a difference between them mixes model "
+                          "and architecture: " + "; ".join(f"{n}: {', '.join(ms)}" for n, ms in models.items()) + "."]
         lines.append("")
 
     configs = list(summary)

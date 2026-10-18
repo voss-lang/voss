@@ -287,7 +287,11 @@ def voss_swarm(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
             if caps.status_code == 200:
                 body = caps.json()
                 res.voss.capabilities = list(body.get("capabilities", []) if isinstance(body, dict) else body)
-            r = c.post("/swarm", json={"goal": spec.prompt, "cwd": str(ws.repo), "builders": config.builders})
+            body = {"goal": spec.prompt, "cwd": str(ws.repo), "builders": config.builders}
+            if config.model:
+                names = ["coordinator", *(f"builder-{i}" for i in range(1, config.builders + 1)), "reviewer"]
+                body["roster"] = [{"name": n, "model": config.model, "auth_pref": config.auth} for n in names]
+            r = c.post("/swarm", json=body)
             r.raise_for_status()
             created = r.json()
             members = [m for m in created["sessions"] if m.get("session_id")]
