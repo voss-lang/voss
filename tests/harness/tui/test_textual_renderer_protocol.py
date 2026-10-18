@@ -174,3 +174,12 @@ def _spans(text) -> set[str]:
     if text.style:
         classes.add(str(text.style))
     return classes
+
+
+def test_textual_renderer_show_final_passes_unknown_confidence() -> None:
+    renderer = TextualRenderer(app=MagicMock())
+    posted: list[dict] = []
+    renderer._turn_view = lambda: MagicMock()
+    renderer._post = lambda fn, *args, **kwargs: posted.append(kwargs)
+    renderer.show_final("hi", confidence=None, cost_usd=0.0)
+    assert posted[0]["confidence"] is None

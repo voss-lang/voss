@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from .. import session as session_store
 from ..memory_api_client import MemoryApiError
 from ..memory_gateway import MemoryGatewayError, open_memory_store
+from ..render import format_confidence
 from ..skill_registry import default_skill_registry
 from ..subagents import default_subagent_registry, register_agent_files
 from ..tools import attach_mcp_tools, make_toolset
@@ -198,7 +199,7 @@ def _why(session: ServerSession) -> CommandResult:
     plan = session.last_plan
     if plan is None:
         return CommandResult(stderr="no plan yet — run a turn first")
-    lines = [f"  rationale: {plan.rationale}", f"  confidence: {plan.confidence:.2f}"]
+    lines = [f"  rationale: {plan.rationale}", f"  confidence: {format_confidence(plan.confidence)}"]
     if plan.steps:
         lines.append("  steps:")
         for i, step in enumerate(plan.steps, 1):

@@ -18,6 +18,7 @@ from voss.harness.render import (
     PlainRenderer,
     Renderer,
     TtyRenderer,
+    format_confidence,
     make_renderer,
 )
 
@@ -250,3 +251,36 @@ class TestNoteTurnPassthrough:
         assert meta.get("exit_reason") == "done"
         assert meta.get("cost_usd") == pytest.approx(0.1)
         assert meta.get("outcome") == "complete"
+
+
+class TestUnknownConfidence:
+    def test_format_confidence(self) -> None:
+        assert format_confidence(None) == "unknown"
+        assert format_confidence(0.9) == "0.90"
+        assert format_confidence(1) == "1.00"
+
+    def _console(self) -> tuple[io.StringIO, Console]:
+        buf = io.StringIO()
+        return buf, Console(file=buf, width=80, force_terminal=False)
+
+    def test_tty_footer_says_unknown(self) -> None:
+        buf, console = self._console()
+        TtyRenderer(console=console).show_final("hi", confidence=None, cost_usd=0.001)
+        assert "confidence unknown" in buf.getvalue()
+        assert "$0.0010" in buf.getvalue()
+
+    def test_tty_footer_keeps_numbers(self) -> None:
+        buf, console = self._console()
+        TtyRenderer(console=console).show_final("hi", confidence=0.9, cost_usd=0.001)
+        assert "confidence 0.90" in buf.getvalue()
+
+    def test_compact_footer_says_unknown(self) -> None:
+        buf, console = self._console()
+        CompactRenderer(console=console).show_final("hi", confidence=None, cost_usd=0.001)
+        assert "conf unknown" in buf.getvalue()
+
+    def test_json_final_sends_null(self, capsys) -> None:
+        JsonRenderer().show_final("hi", confidence=None, cost_usd=0.001)
+        ev = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert ev["type"] == "final"
+        assert ev["confidence"] is None

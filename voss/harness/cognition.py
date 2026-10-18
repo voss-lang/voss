@@ -27,6 +27,7 @@ from .cognition_schemas import (
     SafetyConfig,
     ValidationConfig,
 )
+from .render import format_confidence
 
 ANALYZER_VERSION = 1
 DRIFT_COMMITS = 20
@@ -702,7 +703,7 @@ def write_plan_md(
     path = reserve_filename(plans_dir, base)
     id_str = path.stem
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    confidence = float(getattr(plan, "confidence", 0.0))
+    confidence = getattr(plan, "confidence", None)
     rationale = getattr(plan, "rationale", "") or ""
     steps_block = _render_steps_for_plan_md(getattr(plan, "steps", []) or [])
     heading = title or "Plan"
@@ -712,7 +713,7 @@ def write_plan_md(
         "status: open\n"
         f"related_session: {session_id}\n"
         f"model: {model}\n"
-        f"confidence: {confidence:.2f}\n"
+        f"confidence: {format_confidence(confidence)}\n"
         f"created_at: {created_at}\n"
         "---\n\n"
         f"# {heading}\n\n"

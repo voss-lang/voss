@@ -310,11 +310,11 @@ type EventEnvelope_Event struct {
 
 // FinalEvent defines model for FinalEvent.
 type FinalEvent struct {
-	Confidence float32 `json:"confidence"`
-	CostUsd    float32 `json:"cost_usd"`
-	Text       string  `json:"text"`
-	Type       string  `json:"type"`
-	V          *int    `json:"v,omitempty"`
+	Confidence *float32 `json:"confidence"`
+	CostUsd    float32  `json:"cost_usd"`
+	Text       string   `json:"text"`
+	Type       string   `json:"type"`
+	V          *int     `json:"v,omitempty"`
 }
 
 // GateUpdated defines model for GateUpdated.

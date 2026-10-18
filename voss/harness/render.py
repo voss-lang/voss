@@ -19,6 +19,10 @@ from rich.console import Console
 ACCENT_ORANGE = "#ff5b1f"
 
 
+def format_confidence(confidence: float | None) -> str:
+    return "unknown" if confidence is None else f"{confidence:.2f}"
+
+
 # ---------------------------------------------------------------------------
 # Public protocol
 # ---------------------------------------------------------------------------
@@ -46,7 +50,7 @@ class Renderer(Protocol):
         output: str | None = None,
     ) -> None: ...
     def show_clarify(self, question: str, confidence: float) -> None: ...
-    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None: ...
+    def show_final(self, text: str, *, confidence: float | None, cost_usd: float) -> None: ...
     def stream_delta(self, text: str) -> None: ...
     def finalize_stream(
         self,
@@ -236,11 +240,11 @@ class TtyRenderer:
         )
         self.console.print(f"  {question}\n")
 
-    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+    def show_final(self, text: str, *, confidence: float | None, cost_usd: float) -> None:
         self.console.print()
         self.console.print(text)
         self.console.print(
-            f"\n  [dim]confidence {confidence:.2f} · ${cost_usd:.4f}[/dim]"
+            f"\n  [dim]confidence {format_confidence(confidence)} · ${cost_usd:.4f}[/dim]"
         )
         self.console.print()
 
@@ -398,10 +402,10 @@ class CompactRenderer:
             f"[dim]conf {confidence:.2f}[/dim] {question}"
         )
 
-    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+    def show_final(self, text: str, *, confidence: float | None, cost_usd: float) -> None:
         self.console.print(text)
         self.console.print(
-            f"[dim]conf {confidence:.2f} · ${cost_usd:.4f}[/dim]"
+            f"[dim]conf {format_confidence(confidence)} · ${cost_usd:.4f}[/dim]"
         )
 
     def stream_delta(self, text: str) -> None:
@@ -529,7 +533,7 @@ class PlainRenderer:
     def show_clarify(self, question: str, confidence: float) -> None:
         print(question)
 
-    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+    def show_final(self, text: str, *, confidence: float | None, cost_usd: float) -> None:
         print(text)
 
     def stream_delta(self, text: str) -> None:
@@ -659,7 +663,7 @@ class JsonRenderer:
     def show_clarify(self, question: str, confidence: float) -> None:
         self._emit(type="clarify", question=question, confidence=confidence)
 
-    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+    def show_final(self, text: str, *, confidence: float | None, cost_usd: float) -> None:
         self._emit(type="final", text=text, confidence=confidence, cost_usd=cost_usd)
 
     def stream_delta(self, text: str) -> None:

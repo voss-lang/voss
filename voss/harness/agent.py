@@ -337,6 +337,10 @@ class Plan(BaseModel):
     )
 
 
+class UnparsedPlan(Plan):
+    confidence: float | None = None
+
+
 class RunSemantics(BaseModel):
     """Closing-turn semantics produced by the privileged record_run call.
 
@@ -511,7 +515,7 @@ def _is_done_plan(plan) -> bool:
 @dataclass
 class TurnResult:
     plan: Plan
-    confidence: float
+    confidence: float | None
     final: str
     tool_results: list[str]
     cost_usd: float
@@ -1009,10 +1013,9 @@ async def _run_turn_exec(
                         "".join(accumulated_text_buffer)[:1000]
                         or "(provider returned no parsed plan)"
                     )
-                    this_iter_plan = Plan(
+                    this_iter_plan = UnparsedPlan(
                         rationale="(unparsed)",
                         steps=[],
-                        confidence=1.0,
                         final_when_done=final_text,
                     )
 
@@ -1052,7 +1055,7 @@ async def _run_turn_exec(
 
                 if _is_done_plan(this_iter_plan):
                     # Terminating iter — confidence gate fires HERE only.
-                    if this_iter_plan.confidence < confidence_threshold:
+                    if this_iter_plan.confidence is not None and this_iter_plan.confidence < confidence_threshold:
                         question = (
                             this_iter_plan.open_question
                             or "I'm not confident enough — can you clarify the task?"

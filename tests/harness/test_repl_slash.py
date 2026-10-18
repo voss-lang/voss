@@ -274,6 +274,14 @@ class TestT6Behaviors:
         assert "0.82" in out
         assert "fs_grep" in out and "fs_read" in out
 
+    def test_why_says_unknown_for_unmeasured_plan(self, fake_ctx, capsys):
+        from voss.harness.cli import _build_slash_registry
+
+        fake_ctx.last_plan.confidence = None
+        reg = _build_slash_registry()
+        reg.lookup("/why").handler(fake_ctx, [], "/why")
+        assert "  confidence: unknown" in capsys.readouterr().out
+
     def test_why_no_plan_errors_cleanly(self, fake_ctx, capsys):
         from voss.harness.cli import _build_slash_registry
 

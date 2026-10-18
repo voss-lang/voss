@@ -340,8 +340,8 @@ class TextualRenderer:
         )
         self._mount_confidence_bar(conf, is_final=False)
 
-    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
-        conf = float(confidence)
+    def show_final(self, text: str, *, confidence: float | None, cost_usd: float) -> None:
+        conf = None if confidence is None else float(confidence)
         tv = self._turn_view()
         if tv is None:
             return

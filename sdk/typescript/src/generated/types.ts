@@ -792,7 +792,7 @@ export interface components {
         /** FinalEvent */
         FinalEvent: {
             /** Confidence */
-            confidence: number;
+            confidence: number | null;
             /** Cost Usd */
             cost_usd: number;
             /** Text */

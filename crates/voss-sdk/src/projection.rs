@@ -18,7 +18,7 @@ pub enum UiProjection {
     StreamFinalize,
     Final {
         text: String,
-        confidence: f64,
+        confidence: Option<f64>,
     },
     Clarify {
         question: String,
@@ -228,7 +228,7 @@ mod tests {
         let event = AgentEvent::FinalEvent(FinalEvent {
             v: 1,
             text: "done".into(),
-            confidence: 0.8,
+            confidence: Some(0.8),
             cost_usd: 0.02,
         });
 
@@ -236,7 +236,25 @@ mod tests {
             UiProjection::try_from(&event),
             Ok(UiProjection::Final {
                 text: "done".into(),
-                confidence: 0.8,
+                confidence: Some(0.8),
+            })
+        );
+    }
+
+    #[test]
+    fn projection_final_unknown_confidence() {
+        let event = AgentEvent::FinalEvent(FinalEvent {
+            v: 1,
+            text: "done".into(),
+            confidence: None,
+            cost_usd: 0.02,
+        });
+
+        assert_eq!(
+            UiProjection::try_from(&event),
+            Ok(UiProjection::Final {
+                text: "done".into(),
+                confidence: None,
             })
         );
     }

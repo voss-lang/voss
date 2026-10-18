@@ -162,46 +162,10 @@
                 "synthetic": false
               },
               "parts": [
-                "probable"
+                "string"
               ]
             },
-            "generics": [
-              {
-                "_node": "TypeRef",
-                "span": {
-                  "file": "classify.voss",
-                  "lines": [
-                    0,
-                    0
-                  ],
-                  "cols": [
-                    0,
-                    0
-                  ],
-                  "synthetic": false
-                },
-                "name": {
-                  "_node": "QualName",
-                  "span": {
-                    "file": "classify.voss",
-                    "lines": [
-                      0,
-                      0
-                    ],
-                    "cols": [
-                      0,
-                      0
-                    ],
-                    "synthetic": false
-                  },
-                  "parts": [
-                    "string"
-                  ]
-                },
-                "generics": [],
-                "kwargs": []
-              }
-            ],
+            "generics": [],
             "kwargs": []
           },
           "value": {
@@ -304,7 +268,7 @@
           }
         },
         {
-          "_node": "IfStmt",
+          "_node": "ReturnStmt",
           "span": {
             "file": "classify.voss",
             "lines": [
@@ -317,8 +281,8 @@
             ],
             "synthetic": false
           },
-          "condition": {
-            "_node": "ConfidenceGate",
+          "value": {
+            "_node": "BinOp",
             "span": {
               "file": "classify.voss",
               "lines": [
@@ -331,7 +295,8 @@
               ],
               "synthetic": false
             },
-            "target": {
+            "op": "or",
+            "left": {
               "_node": "Identifier",
               "span": {
                 "file": "classify.voss",
@@ -347,12 +312,8 @@
               },
               "name": "intent"
             },
-            "op": ">=",
-            "threshold": 0.8
-          },
-          "then_body": [
-            {
-              "_node": "ReturnStmt",
+            "right": {
+              "_node": "StringLit",
               "span": {
                 "file": "classify.voss",
                 "lines": [
@@ -365,74 +326,10 @@
                 ],
                 "synthetic": false
               },
-              "value": {
-                "_node": "Member",
-                "span": {
-                  "file": "classify.voss",
-                  "lines": [
-                    0,
-                    0
-                  ],
-                  "cols": [
-                    0,
-                    0
-                  ],
-                  "synthetic": false
-                },
-                "obj": {
-                  "_node": "Identifier",
-                  "span": {
-                    "file": "classify.voss",
-                    "lines": [
-                      0,
-                      0
-                    ],
-                    "cols": [
-                      0,
-                      0
-                    ],
-                    "synthetic": false
-                  },
-                  "name": "intent"
-                },
-                "attr": "value"
-              }
+              "value": "unknown",
+              "triple": false
             }
-          ],
-          "else_body": [
-            {
-              "_node": "ReturnStmt",
-              "span": {
-                "file": "classify.voss",
-                "lines": [
-                  0,
-                  0
-                ],
-                "cols": [
-                  0,
-                  0
-                ],
-                "synthetic": false
-              },
-              "value": {
-                "_node": "StringLit",
-                "span": {
-                  "file": "classify.voss",
-                  "lines": [
-                    0,
-                    0
-                  ],
-                  "cols": [
-                    0,
-                    0
-                  ],
-                  "synthetic": false
-                },
-                "value": "unknown",
-                "triple": false
-              }
-            }
-          ]
+          }
         }
       ],
       "decorators": []

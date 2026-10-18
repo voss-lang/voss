@@ -331,8 +331,15 @@
     "FinalEvent": {
       "properties": {
         "confidence": {
-          "title": "Confidence",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Confidence"
         },
         "cost_usd": {
           "title": "Cost Usd",

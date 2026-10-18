@@ -264,3 +264,20 @@ async def test_resumed_chat_sees_saved_conversation_and_keeps_run_context(server
         assert seen["prior_context"][0]["goal"] == "fix Atlas"
         assert seen["history"] is resumed.history
         assert resumed.prior_context is None
+
+
+async def test_why_says_unknown_for_unparsed_reply(server, monkeypatch):
+    app, provider, cwd = server
+    plan = Plan.model_construct(
+        rationale="(unparsed)", steps=[], confidence=None, final_when_done="raw reply", open_question=None
+    )
+
+    async def run(text, **kwargs):
+        return TurnResult(plan, None, "raw reply", [], 0, None)
+
+    monkeypatch.setattr(appmod, "run_turn", run)
+    async with client(app) as api:
+        s = await session(api, app, cwd)
+        await send(api, s, "run inspect the parser")
+        stdout = (await api.post(f"/session/{s.id}/command", json={"name": "/why"})).json()["stdout"]
+        assert "  confidence: unknown" in stdout

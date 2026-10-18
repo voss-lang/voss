@@ -38,24 +38,27 @@ class ProbableInspectModal(ModalScreen):
         with Vertical(id="probable-body"):
             yield Static(self.title, id="probable-title", classes="modal-title")
             yield Static("")
-            yield ConfidenceBar(
-                value=self.confidence,
-                is_final=True,
-                id="probable-confidence",
-            )
+            if self.confidence is None:
+                yield Static("confidence unknown", id="probable-confidence")
+            else:
+                yield ConfidenceBar(
+                    value=self.confidence,
+                    is_final=True,
+                    id="probable-confidence",
+                )
             yield Static("")
             yield Static(self.text, id="probable-sequence")
             yield Static("")
             yield Static("Press Esc to close", id="probable-footer")
 
 
-def _confidence_value(confidence: float | None, text: str) -> float:
+def _confidence_value(confidence: float | None, text: str) -> float | None:
     if confidence is not None:
         return confidence
     match = _CONFIDENCE_RE.search(text)
     if match is None:
-        return 0.0
+        return None
     try:
         return float(match.group(1))
     except ValueError:
-        return 0.0
+        return None

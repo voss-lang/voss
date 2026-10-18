@@ -44,7 +44,7 @@ from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .claude_agent_provider import ClaudeAgentProvider
 from .providers import OpenAIOAuthProvider
-from .render import make_renderer
+from .render import format_confidence, make_renderer
 from .sandbox import SandboxError, jail_path
 from .multiagent import DEFAULT_PARENT_RESERVE, attach_multiagent_tools
 from .session_tree import SessionTreeManager, SessionTreeNode, finalize_node, write_judgments_sidecar
@@ -1388,7 +1388,7 @@ def _build_slash_registry() -> SlashRegistry:
             click.echo("no plan yet — run a turn first", err=True)
             return
         click.echo(f"  rationale: {plan.rationale}")
-        click.echo(f"  confidence: {plan.confidence:.2f}")
+        click.echo(f"  confidence: {format_confidence(plan.confidence)}")
         if plan.steps:
             click.echo("  steps:")
             for i, step in enumerate(plan.steps, 1):

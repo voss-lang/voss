@@ -26,7 +26,7 @@ Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a
 
 First-class primitives:
 
-- Probable values + confidence gates: `let intent: probable<string> = ask(...)` with `if intent @ p >= 0.80 { ... }`
+- Probable values + confidence gates: each probable value records where its number came from. A plain `ask()` reply is unmeasured, so a gate on it never passes. `judge(...).to_probable()` gives a real probability for `if p @ p >= 0.80 { ... }` (see `examples/judgments/triage.voss`).
 - Context budgets: `ctx(budget: 4000 tokens) { include ... yield ask(...) }` and `within budget(tokens: N, latency: Ts) { ... } fallback { ... }`
 - Semantic routing: `match userMessage { case similar("angry customer") => ... case _ => ... }`
 - Agents, spawn, gather: `spawn Researcher(topic)` + `gather(researchers, timeout: 60s)`
@@ -220,21 +220,19 @@ or pre-populate the keychain for scripted use.
 
 The runtime exposes `ProbableValue`, `ContextScope`, `BudgetScope`, `SemanticMatcher`, `VossAgent`, `gather`, `@tool`, and the three memory primitives. See:
 
-- [`examples/raw_python/classify.py`](examples/raw_python/classify.py) — PRD §7.1, confidence-gated classification
+- [`examples/raw_python/classify.py`](examples/raw_python/classify.py) — PRD §7.1, classification with an empty-reply fallback
 - [`examples/raw_python/support.py`](examples/raw_python/support.py) — PRD §7.2, semantic routing + ContextScope fallback
 - [`examples/raw_python/research.py`](examples/raw_python/research.py) — PRD §7.3, agent swarm with `gather` + `run_with_budget` fallback
 
 ```python
 import asyncio
-from voss_runtime import ContextScope, ProbableValue
+from voss_runtime import ContextScope
 
 async def classify(text: str) -> str:
     async with ContextScope(token_budget=1000) as ctx:
         await ctx.add(f"Classify: {text}")
-        intent: ProbableValue = await ctx.ask(
-            "Return only the intent label.", return_type=ProbableValue
-        )
-        return intent.value if intent @ 0.80 else "unknown"
+        intent = await ctx.ask("Return only the intent label.")
+        return intent or "unknown"
 
 print(asyncio.run(classify("I want to cancel my subscription")))
 ```

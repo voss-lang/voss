@@ -4,21 +4,16 @@
 
 ## Classify
 
-The .voss program declares the classifier's return type as `probable<string>` and gates use of `intent.value` on `@ p >= 0.80` — the confidence threshold is a syntactic construct, not a magic number buried in an `if`. Raw Python achieves the same behavior with `ContextScope` + `ProbableValue` + the `@` operator, but the surrounding ceremony (async context manager, explicit `return_type=ProbableValue`, manual `await ctx.add`) dilutes the intent.
+The .voss program asks for the intent as a plain `string` and falls back to `"unknown"` when the reply is empty. `ask()` does not measure confidence, so the sample does not gate on it. A measured confidence gate lives in [`examples/judgments/triage.voss`](../examples/judgments/triage.voss), which gets a real probability from `judge(...).to_probable()` and then checks `@ p >= 0.80`. Raw Python does the same work with `ContextScope`, but the surrounding ceremony (async context manager, manual `await ctx.add`) dilutes the intent.
 
 `samples/classify.voss`:
 
 ```voss
 # classify.voss
-# classify.voss — probable<T>, confidence gate (@ p >= 0.80), implicit ctx fallback.
+# classify.voss: implicit ctx ask() with an empty-reply fallback. For a measured confidence gate see examples/judgments/triage.voss.
 fn classifyIntent(input: string) -> string {
-    let intent: probable<string> = ask("Classify the intent: " + input)
-    
-    if intent @ p >= 0.80 {
-        return intent.value
-    } else {
-        return "unknown"
-    }
+    let intent: string = ask("Classify the intent: " + input)
+    return intent or "unknown"
 }
 
 let result = classifyIntent("I want to cancel my subscription")
@@ -31,17 +26,13 @@ print(result)
 """PRD §7.1 — probabilistic classification, hand-written in Python."""
 from __future__ import annotations
 import asyncio
-from voss_runtime import ContextScope, ProbableValue
+from voss_runtime import ContextScope
 
 async def classify_intent(user_input: str) -> str:
     async with ContextScope(token_budget=1000) as ctx:
         await ctx.add(f"Classify the intent: {user_input}")
-        intent: ProbableValue = await ctx.ask(
-            "Return only the intent label.", return_type=ProbableValue,
-        )
-        if intent @ 0.80:
-            return intent.value
-        return "unknown"
+        intent = await ctx.ask("Return only the intent label.")
+        return intent or "unknown"
 
 if __name__ == "__main__":
     result = asyncio.run(classify_intent("I want to cancel my subscription"))
