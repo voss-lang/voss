@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import signal
 import subprocess
 from pathlib import Path
 
-from .spec import AnyCheck, CheckResult, CmdCheck, FileContainsCheck, FileExistsCheck
+from .spec import AnyCheck, CheckResult, CmdCheck, FileContainsCheck, FileExistsCheck, Judge
 from .store import Store
 
 EVALUATOR_VERSION = "deterministic.v1"
@@ -51,3 +52,34 @@ def scope_check(changed: list[str], allowed: list[str]) -> CheckResult | None:
 def verdict(checks: list[CheckResult]) -> bool | None:
     """Verified only when every deterministic check passed. No checks -> unknown."""
     return all(c.passed for c in checks) if checks else None
+
+
+def jev_review(criteria: list[str], visible: list[CheckResult], repo: Path, scratch: Path,
+               env: dict[str, str], voss_bin: str, store: Store) -> tuple[Judge, str | None]:
+    """`voss judge review` on the working tree. Runs before hidden checks exist and sees only visible ones."""
+    if not criteria:
+        return Judge(verdict="failed", error="scenario has no acceptance criteria"), None
+    (scratch / "criteria.txt").write_text("\n".join(criteria) + "\n")
+    (scratch / "checks.json").write_text(json.dumps(
+        [{"name": c.name, "status": "passed" if c.passed else "failed"} for c in visible]))
+    try:
+        p = subprocess.run(
+            [voss_bin, "judge", "review", "--criteria-file", str(scratch / "criteria.txt"),
+             "--checks", str(scratch / "checks.json"), "--json"],
+            cwd=repo, env=env, capture_output=True, text=True, timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        return Judge(verdict="failed", error="voss judge review timed out"), None
+    if p.returncode != 0:
+        return Judge(verdict="failed", error=(p.stderr.strip() or f"exit {p.returncode}")[:300]), None
+    receipt = json.loads(p.stdout)
+    ref = store.put(p.stdout)
+    if receipt.get("status") != "answered":
+        return Judge(verdict="failed", model=receipt.get("model_returned"), cost_usd=receipt.get("cost_usd"),
+                     error=f"status {receipt.get('status')}: {receipt.get('fallback_reason')}"), ref
+    labels = receipt["detail"]["labels"]
+    return Judge(
+        verdict="accept" if all(v == "supported" for v in labels.values()) else "reject",
+        model=receipt.get("model_returned"), labels=labels, cost_usd=receipt.get("cost_usd"),
+        probabilities={c: a["probabilities"] for c, a in receipt["answers"].items() if a.get("probabilities")},
+    ), ref

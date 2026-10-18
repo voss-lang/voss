@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -12,12 +13,14 @@ from voss_proofs.evaluate import run_check
 from voss_proofs.ingest import import_voss_eval
 from voss_proofs.report import compare, render, wilson
 from voss_proofs.runner import run_experiment, run_one
-from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, load_bench, load_config, load_spec
+from voss_proofs.review import ReviewDataError, import_review, read_review, render as render_review, summarize as summarize_review
+from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, Config, load_bench, load_config, load_spec
 from voss_proofs.store import Store, read_runs
 
 ROOT = Path(__file__).resolve().parents[1]
 REGRESSION = ROOT / "benchmarks" / "regression"
 VOSS_SUITES = ROOT.parent / "tests" / "eval"
+LOCKED_REVIEW = ROOT.parent / "evals" / "review-locked-2"
 ORACLE, NULL = BUILTIN_CONFIGS["oracle"], BUILTIN_CONFIGS["null"]
 
 
@@ -247,3 +250,77 @@ def test_sse_heartbeats_reach_the_deadline_check_but_are_not_recorded():
     events = list(adapters._sse(Stream()))
     assert events[0] is adapters.PING
     assert events[1] == {"type": "final", "text": "hi"}
+
+
+@pytest.mark.skipif(not LOCKED_REVIEW.is_dir(), reason="J4 review sets not checked out alongside")
+def test_review_import_reproduces_the_locked_report_and_shows_both_acceptance_rates(tmp_path):
+    store = Store(tmp_path / "rv")
+    records = import_review(LOCKED_REVIEW, "test", store)
+    assert read_review(store.root) == records
+    summary = summarize_review(records)
+    voss = json.loads((LOCKED_REVIEW / "reports" / "review-test.json").read_text())["metrics"]
+    jev = summary["jev"]["pairs"]
+    for ours, theirs in [("false_supported", "false_supported"), ("contradicted_recall", "contradicted_recall"),
+                         ("abstention", "abstention")]:
+        assert (jev[ours]["k"], jev[ours]["n"]) == (voss[theirs]["k"], voss[theirs]["n"]), ours
+    assert jev["brier"] == pytest.approx(voss["brier"])
+    b_passes = json.loads((LOCKED_REVIEW / "reports" / "review-compare.json").read_text())["reviewer_b_passes"]
+    assert (summary["reviewer-b"]["false_accept"]["k"], summary["reviewer-b"]["false_accept"]["n"]) == (
+        b_passes["k"], b_passes["n"])
+    reject_all = summary["reject-all"]
+    assert reject_all["false_accept"]["rate"] == 0 and reject_all["true_accept"]["rate"] == 0
+    assert summary["reviewer-b"]["pairs"] is None and summary["reviewer-b"]["confidence_mean"] is not None
+    text = render_review(records, "t")
+    assert "true accept" in text and "underpowered" in text
+
+
+@pytest.mark.skipif(not LOCKED_REVIEW.is_dir(), reason="J4 review sets not checked out alongside")
+def test_review_import_refuses_fixtures_changed_after_freeze(tmp_path):
+    root = tmp_path / "set"
+    shutil.copytree(LOCKED_REVIEW, root)
+    fixture = next((root / "fixtures").glob("*.jsonl"))
+    fixture.write_text(fixture.read_text().replace('"gold": "contradicted"', '"gold": "supported"', 1))
+    with pytest.raises(ReviewDataError, match="changed since freeze"):
+        import_review(root, "test", Store(tmp_path / "rv"))
+
+
+def test_review_dev_run_needs_live_and_never_reruns_a_locked_split(tmp_path):
+    with pytest.raises(SystemExit, match="--live"):
+        main(["import-review", str(tmp_path), "--split", "dev", "--run-dev", "--out", str(tmp_path / "o")])
+    with pytest.raises(SystemExit, match="dev split only"):
+        main(["import-review", str(tmp_path), "--split", "test", "--run-dev", "--live", "--out", str(tmp_path / "o")])
+
+
+def test_judge_needs_a_live_config():
+    with pytest.raises(ValueError, match="live"):
+        Config(name="x", adapter="oracle", judge="jev")
+
+
+def test_jev_judge_sees_only_visible_checks_and_never_overrides_verification(tmp_path):
+    seen = tmp_path / "seen.json"
+    fake = tmp_path / "voss"
+    fake.write_text(f"""#!{sys.executable}
+import json, pathlib, sys
+args = sys.argv[1:]
+checks = json.loads(pathlib.Path(args[args.index("--checks") + 1]).read_text())
+criteria = pathlib.Path(args[args.index("--criteria-file") + 1]).read_text().split("\\n")
+pathlib.Path({str(seen)!r}).write_text(json.dumps({{"hidden": pathlib.Path("hidden").exists(), "checks": checks}}))
+ids = [f"AC-{{n}}" for n, line in enumerate(filter(None, criteria), 1)]
+print(json.dumps({{"status": "answered", "model_returned": "jev-fake", "cost_usd": 0.0001,
+                  "answers": {{c: {{"probabilities": {{"supported": 0.95, "contradicted": 0.0,
+                                                      "insufficient_evidence": 0.05}}}} for c in ids}},
+                  "detail": {{"labels": {{c: "supported" for c in ids}}}}}}))
+""")
+    fake.chmod(0o755)
+    config = Config(name="null-jev", adapter="null", live=True, judge="jev", voss_bin=str(fake))
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    store = Store(tmp_path / "exp")
+    rec = run_one(task_dir, spec, config, store, run_idx=0, seed=0)
+    store.append(rec)
+    saw = json.loads(seen.read_text())
+    assert saw["hidden"] is False
+    assert saw["checks"] and all(c["name"] in {ch.run for ch in spec.checks} for c in saw["checks"])
+    assert rec.judge.verdict == "accept" and rec.verified is False
+    assert rec.judge.cost_usd == 0.0001 and "judge_receipt" in rec.artifacts
+    text = render(read_runs(store.root), "t")
+    assert "| null-jev | jev review | 1/1 = 100.0%" in text
