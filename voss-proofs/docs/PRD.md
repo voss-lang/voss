@@ -85,21 +85,23 @@ Delivered:
 
 ### Phase 2: Decision and review research (H1, H3)
 
-1. A `review` adapter. It verifies J4 `freeze.json` hashes, runs `python -m voss.eval.review run --split dev`, and ingests `rows.jsonl` and `receipts.jsonl` as records with `judge` and `usage` filled in. The locked split runs once per config and is never used for tuning.
-2. A criterion-level semantic evaluator for VossBench diffs, using `voss judge review --criteria-file --ref --checks --json` (explicit Jev, opt-in). It reports supported, contradicted or insufficient evidence for each acceptance criterion.
-3. Configs to compare:
-   - the agent's own completion claim
-   - Jev requirement review
-   - the existing Reviewer-B baseline
-4. Metrics:
-   - false-supported rate (Wilson interval)
-   - contradicted recall
-   - coverage and abstention
-   - Brier score on P(supported)
+Delivered:
+- `proofs import-review` reads a frozen J4 review set. It checks the `freeze.json` hashes, requires a complete report on the same commit, and writes review.v1 records with labels copied as-is. With `--run-dev --live` it first runs `voss.eval.review` on the dev split in a temp copy, so Voss's files stay untouched. Locked splits are imported and never rerun.
+- Four review configs:
+  - *author-claim*, which accepts every change
+  - *reject-all*, which rejects every change
+  - *jev*, the Jev requirement review
+  - *reviewer-b*, the existing Reviewer B baseline
+- Change-level false accept and true accept, always shown together. Criterion-level false supported, supported recall, contradicted recall, abstention and Brier on P(supported). Self-reported confidence is shown on its own and never scored as a probability. Any rate over fewer than 10 items is marked underpowered.
+- An opt-in Jev judge for VossBench runs (`judge = "jev"`, live configs only). It runs `voss judge review` on the diff after the visible checks and before hidden tests exist, and it sees only the visible checks. The report scores the judge and the system's own completion claim against `verified`.
+- First study: [studies/2026-10-18-review-baselines.md](studies/2026-10-18-review-baselines.md).
 
-   Categorical probabilities are kept separate from self-reported confidence.
+**Gate.** A report that compares at least two valid configs on these metrics. Met by the locked-set study, which compares four.
 
-**Gate.** A report that compares at least two valid configs on these metrics.
+**Next in this phase:**
+- Run `oracle-jev`, `null-jev` and `voss-serve-auto-jev` once a Jev key is available.
+- Add accept-worthy changes, so change-level true accept stops being underpowered (upstream gap 17). VossBench `oracle-jev` adds 8 now. A decoy patch per scenario (passes the visible tests, fails the hidden ones) would add matched negatives.
+- Add a heuristic-confidence baseline on the same pairs, so H3 can be tested.
 
 ### Phase 3: Swarm and orchestration (H2, H5)
 

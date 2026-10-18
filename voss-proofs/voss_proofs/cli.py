@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .ingest import import_voss_eval
 from .report import compare, write_report
+from .review import ReviewDataError, import_review, run_dev, write_review_report
 from .runner import BudgetExceeded, run_experiment
 from .spec import BUILTIN_CONFIGS, SCHEMAS, load_bench, load_config, scenario_id
 from .store import Store, read_runs
@@ -90,6 +91,25 @@ def cmd_import(args) -> int:
     return 0
 
 
+def cmd_import_review(args) -> int:
+    root = Path(args.root)
+    store = Store(_out(args.out))
+    with tempfile.TemporaryDirectory(prefix="proofs-review-") as tmp:
+        if args.run_dev:
+            if not args.live:
+                sys.exit("--run-dev calls Jev; pass --live to opt in")
+            if args.split != "dev":
+                sys.exit("--run-dev runs the dev split only; locked splits are imported, never rerun")
+            root = run_dev(root, args.location, Path(tmp) / root.name)
+        try:
+            records = import_review(root, args.split, store)
+        except ReviewDataError as exc:
+            sys.exit(str(exc))
+    print(f"imported {len(records)} review records -> {store.root / 'review.jsonl'}")
+    print(f"report: {write_review_report(store.root)}")
+    return 0
+
+
 def cmd_schema(args) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -136,6 +156,15 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("runs_jsonl")
     i.add_argument("--out")
     i.set_defaults(fn=cmd_import)
+
+    ir = sub.add_parser("import-review", help="import a frozen J4 review set's finished runs")
+    ir.add_argument("root", help="review set, e.g. ../evals/review-locked-2")
+    ir.add_argument("--split", choices=("dev", "test"), default="test")
+    ir.add_argument("--out")
+    ir.add_argument("--run-dev", action="store_true", help="run Jev on the dev split first (live)")
+    ir.add_argument("--live", action="store_true")
+    ir.add_argument("--location", default="local")
+    ir.set_defaults(fn=cmd_import_review)
 
     s = sub.add_parser("schema", help="export JSON Schemas")
     s.add_argument("--out", default="schemas")

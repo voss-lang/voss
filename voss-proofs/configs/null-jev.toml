@@ -1,0 +1,5 @@
+name = "null-jev"
+adapter = "null"
+description = "changes nothing, then asks Jev whether the empty diff meets each acceptance criterion"
+live = true
+judge = "jev"

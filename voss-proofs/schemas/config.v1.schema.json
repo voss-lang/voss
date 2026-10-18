@@ -86,6 +86,19 @@
       },
       "title": "Env",
       "type": "object"
+    },
+    "judge": {
+      "anyOf": [
+        {
+          "const": "jev",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Judge"
     }
   },
   "required": [
