@@ -1,0 +1,40 @@
+prompt = """
+Make the retry count of the fetcher package configurable. Today it is hard-coded to 3 in fetcher/client.py.
+
+1. fetcher/settings.py: Settings gains retries: int, default 3. load() reads it from the "retries" key
+   and raises ValueError if it is negative or not an int.
+2. fetcher/client.py: Client uses settings.retries instead of the hard-coded 3. With retries = 0 it tries
+   exactly once.
+3. fetcher/cli.py: main() accepts --retries N and passes it into the settings it loads.
+"""
+mode = "auto"
+rubric = """
+PASS if retries flows from the command line through Settings into Client, with validation.
+FAIL if any of the three files still ignores it.
+"""
+requires = ["python3"]
+
+[meta]
+category = "orchestration"
+synthetic = true
+origin = "hand-written for VossProofs orchestration set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: Settings has retries defaulting to 3, and load rejects a negative or non-int value with ValueError",
+  "AC-2: Client makes 1 + settings.retries attempts at most, and exactly one when retries is 0",
+  "AC-3: fetcher.cli main accepts --retries N and the client it builds uses N",
+]
+allowed_paths = ["fetcher/*", "tests/*"]
+
+[budget]
+wall_s = 900
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"

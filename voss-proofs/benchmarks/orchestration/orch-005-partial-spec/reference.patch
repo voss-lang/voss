@@ -1,0 +1,26 @@
+diff --git a/csvsum.py b/csvsum.py
+index b74e9a5..a5ce9dc 100644
+--- a/csvsum.py
++++ b/csvsum.py
+@@ -1,3 +1,20 @@
++import csv
++
++
+ def column_total(text: str, column: str) -> float:
+     """Sum one numeric column of CSV text with a header row."""
+-    raise NotImplementedError
++    lines = text.splitlines()
++    header = next(csv.reader([lines[0]]))
++    index = header.index(column) if column in header else None
++    if index is None:
++        raise KeyError(column)
++    total = 0.0
++    for number, line in enumerate(lines[1:], start=2):
++        if not line.strip():
++            continue
++        value = next(csv.reader([line]))[index]
++        try:
++            total += float(value)
++        except ValueError:
++            raise ValueError(f"line {number}: {value!r} is not a number") from None
++    return total

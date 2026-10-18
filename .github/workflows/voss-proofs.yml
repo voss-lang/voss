@@ -39,7 +39,9 @@ jobs:
       - run: uv pip install --system -e ".[dev]" -e "..[server]"
       - run: pip install "ruff==0.16.6" && ruff check voss_proofs tests
       - name: Every scenario is solvable and non-trivial
-        run: proofs validate --bench benchmarks/regression
+        run: |
+          proofs validate --bench benchmarks/regression
+          proofs validate --bench benchmarks/orchestration
       - run: pytest -q
       - name: Two offline experiments produce identical outcomes
         run: |
