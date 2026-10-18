@@ -167,7 +167,7 @@ First event is always `server.connected`. Turn completion is signalled by `sessi
 | `plan` | `confidence, steps:[{name,args}], cost_usd` | `:502` |
 | `tool` | `name, args, summary, state` (state ∈ `ok\|error\|pending`) | `:510` |
 | `clarify` | `question, confidence` | `:513` |
-| `final` | `text, confidence, cost_usd` | `:516` |
+| `final` | `text, confidence (null when unknown), cost_usd` | `:516` |
 | `stream.delta` | `text` | `:519` |
 | `stream.finalize` | `role, confidence, cost_usd, timestamp` | `:522` |
 | `status` | `model, tokens, cost_usd, ctx_pct`, optional `phase: ambient \| run` | `:539` |

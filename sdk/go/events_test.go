@@ -55,6 +55,16 @@ func envFromEvent(t *testing.T, eventJSON string) EventEnvelope {
 	return EventEnvelope{Event: u}
 }
 
+func TestDecodeFinalConfidenceCanBeNull(t *testing.T) {
+	ev, err := Decode(envFromEvent(t, `{"v":1,"type":"final","text":"done","confidence":null,"cost_usd":0.42}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := ev.(FinalEvent); e.Confidence != nil {
+		t.Fatalf("final confidence = %v, want nil", *e.Confidence)
+	}
+}
+
 func TestDecodeStatusPhaseIsOptional(t *testing.T) {
 	for _, phase := range []string{"", "ambient", "run"} {
 		t.Run(phase, func(t *testing.T) {
@@ -164,8 +174,11 @@ func decodeTable() []decodeCase {
 			if !ok {
 				t.Fatalf("got %T, want FinalEvent", ev)
 			}
-			if e.Text != "done" || e.Confidence != 0.8 || e.CostUsd != 0.42 {
-				t.Fatalf("final fields = %q/%v/%v, want done/0.8/0.42", e.Text, e.Confidence, e.CostUsd)
+			if e.Confidence == nil {
+				t.Fatalf("final confidence = nil, want 0.8")
+			}
+			if e.Text != "done" || *e.Confidence != 0.8 || e.CostUsd != 0.42 {
+				t.Fatalf("final fields = %q/%v/%v, want done/0.8/0.42", e.Text, *e.Confidence, e.CostUsd)
 			}
 		}},
 		{"stream.delta", `{"v":1,"type":"stream.delta","text":"hi"}`, func(t *testing.T, ev TypedEvent) {

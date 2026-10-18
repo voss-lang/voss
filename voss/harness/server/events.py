@@ -122,7 +122,7 @@ class ClarifyEvent(_Base):
 class FinalEvent(_Base):
     type: Literal["final"] = "final"
     text: str
-    confidence: float
+    confidence: float | None
     cost_usd: float
 
 
