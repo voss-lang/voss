@@ -150,6 +150,7 @@ Delivered so far:
   - Two sequence scenarios.
   - Configs for a no-memory control, Claude Code auto-memory, Claude resume, a fresh Voss session and a resumed Voss session.
 - Workspace cleanup removes the Claude Code project folder of its own workspace, so live runs cannot read answers left by earlier runs.
+- Sealed answers for locked sets (`proofs seal`), and a contamination scan of every run's output for the benchmark source path.
 
 Still to do: the k ≥ 3 repeated-run study over the frozen sets, the safety and runtime suites, a locked set, and growth toward 80–120 scenarios.
 

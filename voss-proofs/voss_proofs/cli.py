@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .freeze import FreezeError, check, claim_locked_run, freeze
+from . import sealed
+from .sealed import SealError, seal
 from .ingest import import_voss_eval
 from .report import compare, write_report
 from .retrieval import import_retrieval, render as render_retrieval
@@ -141,6 +143,24 @@ def cmd_import_retrieval(args) -> int:
     return 0
 
 
+def cmd_seal(args) -> int:
+    """Encrypt each scenario's answers once oracle and null check out. Then freeze the set with --locked."""
+    if cmd_validate(args):
+        sys.exit("fix the scenarios above before sealing")
+    try:
+        sealed.key(confirm=True)
+    except SealError as exc:
+        sys.exit(str(exc))
+    for task_dir, _ in load_bench(Path(args.bench)):
+        if (task_dir / "hidden").is_dir():
+            try:
+                print(f"sealed {seal(task_dir)}")
+            except SealError as exc:
+                sys.exit(str(exc))
+    print(f"now run: proofs freeze --bench {args.bench} --locked")
+    return 0
+
+
 def cmd_freeze(args) -> int:
     print(f"wrote {freeze(Path(args.bench), load_bench(Path(args.bench)), locked=args.locked)}")
     return 0
@@ -208,6 +228,10 @@ def main(argv: list[str] | None = None) -> int:
     ir2.add_argument("--split", choices=("dev", "test"), default="test")
     ir2.add_argument("--out")
     ir2.set_defaults(fn=cmd_import_retrieval)
+
+    se = sub.add_parser("seal", help="encrypt a locked set's hidden tests and reference patches")
+    bench_args(se)
+    se.set_defaults(fn=cmd_seal)
 
     fz = sub.add_parser("freeze", help="write freeze.json hashes for a scenario set")
     fz.add_argument("--bench", required=True)

@@ -81,6 +81,14 @@ To change a frozen scenario, bump its `meta.version` and freeze again. `regressi
 
 A set frozen with `--locked` is a held-out set. A live run on it needs `--locked-final`, and each config may run it once. The claim goes into `<set>/locked-runs.jsonl` before any run starts, so a crashed run still counts. Nothing may be tuned against a locked set.
 
+A locked set's answers are sealed, because a live agent can read any file your user can read, and committed plaintext answers can also end up in model training data. `proofs seal --bench <set>` works like this:
+1. It runs `validate`.
+2. It asks for a key twice.
+3. It encrypts each scenario's `hidden/` and `reference.patch` into `answers.enc` with `openssl` (AES-256, PBKDF2).
+4. It checks that the archive opens, then deletes the plaintext.
+
+After sealing, freeze the set with `--locked`. At run time, the answers are decrypted into a temp directory only after the system under test exits, or for `oracle`, which calls no model. The key is typed in when `proofs` asks. It is never put in an environment variable or a file, because other processes of the same user can read both, including through `ps eww` on macOS. A lost key cannot be recovered.
+
 ## Multi-step scenarios and memory (H4)
 
 A scenario may list follow-up prompts in `steps`. The runner sends the prompt and then each step to the same workspace, and the checks run once at the end. Step results are merged:
@@ -127,4 +135,5 @@ The checks still run, so a no-run counts as a failed attempt in the verified rat
 - `codex exec` always loads `~/.codex/AGENTS.md`, the user's personal instructions. The only way to skip that file is a separate `CODEX_HOME`, which would split the Codex login, so `cli-codex` runs carry the user's instructions. `cli-claude` loads no user settings or memory. Prefer `cli-claude` as Baseline A.
 - **Known limit:** a live agent with shell access could still read this repository by absolute path, because there is no OS sandbox on macOS. Until runs use an OS sandbox (Voss-OS) or a container, a live result from scenarios stored in this repo is a dev-set result, not a locked holdout result.
 - Locked sets use `freeze.json` hashes and a run-once marker (see "Versioned scenario sets").
+- After every run, its own output is scanned for the benchmark's source path and answer file names. That output is the events, final text, session records, swarm state and diff. A match is recorded in `contamination`, and the report lists those runs as possibly contaminated. `claude -p` runs with `--output-format stream-json`, so its tool calls are in the scanned events. Reads that leave no trace in a system's output can still go undetected.
 - Live runs share the real HOME, and Claude Code keeps sessions and auto-memory under `~/.claude/projects/<workspace path>`. An earlier run of the same scenario could leave answers there. A live agent was seen browsing those folders. So workspace cleanup deletes the Claude project folder for its own workspace path, and no other one. That covers both `claude -p` and the claude-agent provider inside `voss serve`.

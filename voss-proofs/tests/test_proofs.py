@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from voss_proofs import adapters, workspace
+from voss_proofs import adapters, sealed, workspace
 from voss_proofs.cli import main
 from voss_proofs.evaluate import run_check
 from voss_proofs.freeze import FreezeError, claim_locked_run
@@ -264,7 +264,8 @@ if os.environ.get("FAKE_SLEEP"):
     time.sleep(60)
 pathlib.Path("leap.py").write_text("def is_leap_year(y):\\n    return y % 4 == 0\\n")
 if name == "claude":
-    print(json.dumps({{"subtype": "success", "is_error": False, "result": "done", "total_cost_usd": 0.12,
+    print(json.dumps({{"type": "assistant", "message": {{"content": [{{"type": "tool_use", "name": "Read"}}]}}}}))
+    print(json.dumps({{"type": "result", "subtype": "success", "is_error": False, "result": "done", "total_cost_usd": 0.12,
                       "session_id": "fake-session",
                       "usage": {{"input_tokens": 3, "output_tokens": 40, "cache_creation_input_tokens": 900,
                                 "cache_read_input_tokens": 5000}}, "modelUsage": {{"claude-x": {{}}}}}}))
@@ -541,3 +542,34 @@ def test_retrieval_import_copies_the_locked_result_and_refuses_a_changed_set(tmp
     labels.write_text(labels.read_text() + "\n")
     with pytest.raises(SystemExit, match="changed since freeze"):
         main(["import-retrieval", str(copy), "--out", str(tmp_path / "b")])
+
+
+def test_sealed_answers_stay_encrypted_in_the_repo_and_still_grade(tmp_path, monkeypatch):
+    monkeypatch.setattr(sealed, "_key", "test-key")
+    bench = tmp_path / "locked"
+    shutil.copytree(REGRESSION / "reg-py-005-leap-year-trap", bench / "reg-py-005-leap-year-trap")
+    task_dir = bench / "reg-py-005-leap-year-trap"
+    secret = (task_dir / "hidden" / "test_hidden.py").read_text().splitlines()[-1].strip()
+    main(["seal", "--bench", str(bench)])
+    assert not (task_dir / "hidden").exists() and not (task_dir / "reference.patch").exists()
+    assert not any(secret.encode() in p.read_bytes() for p in task_dir.rglob("*") if p.is_file())
+    records = run_experiment(load_bench(bench), [ORACLE, NULL], Store(tmp_path / "exp"), log=lambda _: None)
+    assert {r.config.name: r.verified for r in records} == {"oracle": True, "null": False}
+    monkeypatch.setattr(sealed, "_key", "wrong-key")
+    with pytest.raises(sealed.SealError, match="wrong key"):
+        run_one(task_dir, load_spec(task_dir), NULL, Store(tmp_path / "x"), run_idx=0, seed=0)
+
+
+def test_run_output_that_mentions_the_benchmark_source_is_flagged(tmp_path, monkeypatch):
+    def peeker(spec, task_dir, ws, env, config, store):
+        return adapters.AdapterResult(exit_reason="done", final=f"I read {task_dir / 'reference.patch'}")
+
+    monkeypatch.setitem(adapters.ADAPTERS, "null", peeker)
+    task_dir, spec = _task("reg-py-005-leap-year-trap")
+    store = Store(tmp_path / "exp")
+    rec = run_one(task_dir, spec, NULL, store, run_idx=0, seed=0)
+    store.append(rec)
+    assert rec.contamination and any("final mentions" in c for c in rec.contamination)
+    assert "may have read the benchmark's own files" in render(read_runs(store.root), "t")
+    clean = run_one(task_dir, spec, ORACLE, store, run_idx=0, seed=0)
+    assert clean.contamination == []

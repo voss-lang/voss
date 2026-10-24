@@ -30,6 +30,7 @@ Other commands:
 - `proofs import-voss-eval <runs.jsonl>` converts `voss eval` output into run.v1 records.
 - `proofs import-review ../evals/review-locked-2` imports a frozen J4 requirement-review set. It compares the author-claim, reject-all, Jev and Reviewer B configs in `review.md`. Add `--split dev --run-dev --live` to run Jev on the dev split first.
 - `proofs import-retrieval ../evals/retrieval` imports the frozen J3 code-recall set's finished rerank run into `retrieval.md`.
+- `proofs seal --bench <set>` encrypts a held-out set's hidden tests and reference patches, so agents and training crawlers cannot read them. Freeze the set with `--locked` afterwards.
 - `proofs freeze --bench <set>` records scenario hashes. `run` and `validate` then refuse a changed set. Add `--locked` for a held-out set that runs once per config.
 - `benchmarks/memory` holds multi-step scenarios. Run them with `cli-claude-nomemory`, `cli-claude`, `cli-claude-resume`, `voss-serve-auto` and `voss-serve-auto-resume` to compare memory setups.
 - Configs with `judge = "jev"` (`oracle-jev`, `null-jev`, `voss-serve-auto-jev`) also ask Jev whether each run's diff meets the scenario's acceptance criteria. They need `--live` and a Jev key.

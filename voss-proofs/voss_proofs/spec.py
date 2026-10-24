@@ -205,6 +205,7 @@ class RunRecord(_Strict):
     claimed_complete: bool | None = None
     verified: bool | None = None
     budget: Budget | None = None
+    contamination: list[str] = Field(default_factory=list)
     judge: Judge | None = None
     evaluator_version: str
 

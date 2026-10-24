@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import __version__, workspace
+from . import __version__, sealed, workspace
 from .adapters import ADAPTERS, AdapterResult
 from .evaluate import EVALUATOR_VERSION, jev_review, run_check, scope_check, verdict
 from .spec import BenchmarkSpec, Config, ConfigRef, RunRecord, Usage, scenario_id
@@ -24,6 +24,16 @@ class BudgetExceeded(Exception):
 def config_ref(config: Config) -> ConfigRef:
     sha = hashlib.sha256(config.model_dump_json().encode()).hexdigest()
     return ConfigRef(name=config.name, adapter=config.adapter, sha256=sha)
+
+
+def contamination(artifacts: dict[str, str], store: Store, task_dir: Path) -> list[str]:
+    """Signs the system read the benchmark's own files: its source path or answer file names in what it produced."""
+    needles = [str(task_dir.resolve().parent), "reference.patch", sealed.SEALED]
+    found = []
+    for name, sha in sorted(artifacts.items()):
+        text = store.get(sha).decode(errors="replace")
+        found += [f"{name} mentions {n}" for n in needles if n in text]
+    return found
 
 
 def _merge(steps: list[AdapterResult]) -> AdapterResult:
@@ -126,7 +136,9 @@ def run_one(task_dir: Path, spec: BenchmarkSpec, config: Config, store: Store,
                 record.artifacts["judge_receipt"] = ref
         if scope := scope_check(changed, spec.acceptance.allowed_paths):
             checks.append(scope)
-        workspace.install_hidden(task_dir, ws.repo)
+        record.contamination = contamination(record.artifacts, store, task_dir)
+        with sealed.answers(task_dir) as src:
+            workspace.install_hidden(src, ws.repo)
         checks += [run_check(c, ws.repo, env, "hidden", store) for c in spec.hidden_checks]
         record.checks = checks
         record.verified = False if result.exit_reason == "error" else verdict(checks)

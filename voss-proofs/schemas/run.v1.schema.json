@@ -528,6 +528,13 @@
       ],
       "default": null
     },
+    "contamination": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Contamination",
+      "type": "array"
+    },
     "judge": {
       "anyOf": [
         {

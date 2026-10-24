@@ -257,6 +257,11 @@ def render(records: list[RunRecord], title: str) -> str:
     judge_errors = [r for r in records if r.judge and r.judge.error]
     for r in judge_errors[:10]:
         missing.append(f"{r.scenario_id} x {r.config.name}#{r.run_idx}: judge {r.judge.error[:200]}")
+    tainted = [r for r in records if r.contamination]
+    if tainted:
+        missing.append(f"{len(tainted)} runs may have read the benchmark's own files, so treat them as contaminated: "
+                       + "; ".join(f"{r.scenario_id} x {r.config.name}#{r.run_idx} ({r.contamination[0]})"
+                                   for r in tainted[:5]))
     errored = [r for r in records if r.errors]
     for r in errored[:10]:
         missing.append(f"{r.scenario_id} x {r.config.name}#{r.run_idx}: {'; '.join(r.errors)[:200]}")

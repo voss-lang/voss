@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 
+from . import sealed
 from .spec import BenchmarkSpec, Config, Usage, VossInfo
 from .store import Store
 from .workspace import Workspace
@@ -39,13 +40,14 @@ def _no_model() -> Usage:
 
 
 def oracle(spec, task_dir, ws, env, config, store) -> AdapterResult:
-    patch = task_dir / "reference.patch"
-    if not patch.is_file():
-        return AdapterResult(exit_reason="error", errors=["no reference.patch"])
-    p = subprocess.run(
-        ["git", "apply", "--whitespace=nowarn", str(patch)],
-        cwd=ws.repo, capture_output=True, text=True,
-    )
+    with sealed.answers(task_dir) as src:
+        patch = src / "reference.patch"
+        if not patch.is_file():
+            return AdapterResult(exit_reason="error", errors=["no reference.patch"])
+        p = subprocess.run(
+            ["git", "apply", "--whitespace=nowarn", str(patch)],
+            cwd=ws.repo, capture_output=True, text=True,
+        )
     if p.returncode != 0:
         return AdapterResult(exit_reason="error", errors=[f"git apply: {p.stderr.strip()[:300]}"])
     return AdapterResult(exit_reason="done", claimed_complete=True, usage=_no_model())
@@ -351,7 +353,7 @@ CLAUDE_SANDBOX = json.dumps({"sandbox": {"enabled": True, "autoAllowBashIfSandbo
 
 
 def _claude_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config, resume: str | None) -> list[str]:
-    cmd = ["claude", "-p", spec.prompt, "--output-format", "json", "--permission-mode", "acceptEdits",
+    cmd = ["claude", "-p", spec.prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
            "--settings", CLAUDE_SANDBOX, "--setting-sources", "project,local", "--strict-mcp-config"]
     cmd += ["--resume", resume] if resume else []
     cmd += [] if config.memory == "resume" else ["--no-session-persistence"]
@@ -365,7 +367,7 @@ def _codex_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config, resume: str |
 
 
 def _claude_result(out: str, res: AdapterResult) -> None:
-    data = json.loads(out)
+    data = [e for e in map(json.loads, filter(None, out.splitlines())) if e.get("type") == "result"][-1]
     res.final = data.get("result") or ""
     res.session_id = data.get("session_id")
     res.claimed_complete = data.get("subtype") == "success" and not data.get("is_error")
@@ -425,7 +427,7 @@ def cli_agent(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str,
         return res
     try:
         parse(out, res)
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+    except (json.JSONDecodeError, KeyError, TypeError, IndexError) as exc:
         res.exit_reason, res.claimed_complete = "error", None
         res.errors.append(f"{config.agent} output: {type(exc).__name__}: {(err or out)[-300:]}")
     if p.returncode and res.exit_reason == "done":
