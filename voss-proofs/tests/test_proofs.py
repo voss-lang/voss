@@ -10,8 +10,9 @@ import pytest
 from voss_proofs import adapters, workspace
 from voss_proofs.cli import main
 from voss_proofs.evaluate import run_check
+from voss_proofs.freeze import FreezeError, claim_locked_run
 from voss_proofs.ingest import import_voss_eval
-from voss_proofs.report import compare, render, wilson
+from voss_proofs.report import compare, paired, paired_bootstrap, render, wilson
 from voss_proofs.runner import config_ref, run_experiment, run_one
 from voss_proofs.review import ReviewDataError, import_review, read_review, render as render_review, summarize as summarize_review
 from voss_proofs.spec import CmdCheck, BUILTIN_CONFIGS, SCHEMAS, Config, RunRecord, load_bench, load_config, load_spec
@@ -264,6 +265,7 @@ if os.environ.get("FAKE_SLEEP"):
 pathlib.Path("leap.py").write_text("def is_leap_year(y):\\n    return y % 4 == 0\\n")
 if name == "claude":
     print(json.dumps({{"subtype": "success", "is_error": False, "result": "done", "total_cost_usd": 0.12,
+                      "session_id": "fake-session",
                       "usage": {{"input_tokens": 3, "output_tokens": 40, "cache_creation_input_tokens": 900,
                                 "cache_read_input_tokens": 5000}}, "modelUsage": {{"claude-x": {{}}}}}}))
 else:
@@ -432,3 +434,110 @@ print(json.dumps({{"status": "answered", "model_returned": "jev-fake", "cost_usd
     assert rec.judge.cost_usd == 0.0001 and "judge_receipt" in rec.artifacts
     text = render(read_runs(store.root), "t")
     assert "| null-jev | jev review | 1/1 = 100.0%" in text
+
+
+def test_paired_comparison_resamples_scenarios_and_skips_mixed_live_pairs():
+    assert paired_bootstrap([0.0] * 5) == (0.0, 0.0)
+    low, high = paired_bootstrap([1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0])
+    assert 0 < low < 0.75 < high <= 1.0
+
+    def rec(name, sid, verified, live):
+        config = Config(name=name, adapter="cli-agent", agent="claude", live=live) if live else NULL
+        return RunRecord(experiment_id="e", run_id=f"{name}{sid}", scenario_id=sid, config=config_ref(config),
+                         live=live, started_at="t", evaluator_version="v", verified=verified)
+
+    rows = [rec("a", "s1", True, True), rec("a", "s2", True, True), rec("b", "s1", False, True),
+            rec("b", "s2", True, True), rec("null", "s1", False, False)]
+    result = paired(rows)
+    assert [(p["a"], p["b"], p["scenarios"], p["diff"]) for p in result] == [("a", "b", 2, 0.5)]
+
+
+def test_frozen_set_refuses_a_changed_scenario_and_records_its_freeze(tmp_path):
+    bench = tmp_path / "set"
+    shutil.copytree(REGRESSION / "reg-py-005-leap-year-trap", bench / "reg-py-005-leap-year-trap")
+    main(["freeze", "--bench", str(bench)])
+    main(["run", "--bench", str(bench), "--config", "null", "--out", str(tmp_path / "a")])
+    manifest = json.loads((tmp_path / "a" / "manifest.json").read_text())
+    assert manifest["freeze"]["locked"] is False and manifest["freeze"]["sha256"]
+    task = bench / "reg-py-005-leap-year-trap" / "hidden" / "test_hidden.py"
+    task.write_text(task.read_text() + "\n")
+    with pytest.raises(SystemExit, match="changed since freeze.json: reg-py-005"):
+        main(["run", "--bench", str(bench), "--config", "null", "--out", str(tmp_path / "b")])
+    with pytest.raises(SystemExit, match="changed since"):
+        main(["validate", "--bench", str(bench)])
+
+
+def test_locked_set_needs_locked_final_and_runs_once_per_config(tmp_path):
+    bench = tmp_path / "locked"
+    shutil.copytree(REGRESSION / "reg-py-005-leap-year-trap", bench / "reg-py-005-leap-year-trap")
+    main(["freeze", "--bench", str(bench), "--locked"])
+    with pytest.raises(SystemExit, match="--locked-final"):
+        main(["run", "--bench", str(bench), "--config", "cli-claude", "--configs-dir", str(ROOT / "configs"),
+              "--live", "--max-runs", "1", "--out", str(tmp_path / "o")])
+    config = load_config("cli-claude", ROOT / "configs")
+    claim_locked_run(bench, [config])
+    with pytest.raises(FreezeError, match="runs once per config"):
+        claim_locked_run(bench, [config])
+
+
+def test_sequence_steps_share_a_workspace_and_resume_only_when_configured(tmp_path, monkeypatch):
+    calls = []
+
+    def spy(spec, task_dir, ws, env, config, store, resume=None):
+        calls.append((spec.prompt, resume))
+        (ws.repo / f"step{len(calls)}.txt").write_text("x")
+        return adapters.AdapterResult(exit_reason="done", claimed_complete=True, session_id=f"s{len(calls)}",
+                                      usage=adapters.Usage(input_tokens=10, cost_usd=None))
+
+    monkeypatch.setitem(adapters.ADAPTERS, "voss-serve", spy)
+    bench = ROOT / "benchmarks" / "memory"
+    task_dir, spec = bench / "mem-001-vendor-facts", load_spec(bench / "mem-001-vendor-facts")
+    for name, expected in (("voss-serve-auto-resume", [None, "s1"]), ("voss-serve-auto", [None, None])):
+        calls.clear()
+        store = Store(tmp_path / name)
+        rec = run_one(task_dir, spec, load_config(name, ROOT / "configs"), store, run_idx=0, seed=0)
+        assert [c[0] for c in calls] == [spec.prompt, spec.steps[0]]
+        assert [c[1] for c in calls] == expected
+        assert rec.usage.input_tokens == 20 and rec.claimed_complete is True
+        assert "step1.txt" in store.get(rec.artifacts["diff"]).decode() and "step2.txt" in store.get(
+            rec.artifacts["diff"]).decode()
+    with pytest.raises(ValueError, match="resume"):
+        Config(name="x", adapter="cli-agent", agent="codex", memory="resume")
+
+
+def test_cli_claude_resume_keeps_the_session_and_passes_it_on(tmp_path, fake_agents):
+    task_dir = ROOT / "benchmarks" / "memory" / "mem-001-vendor-facts"
+    spec = load_spec(task_dir)
+    config = load_config("cli-claude-resume", ROOT / "configs")
+    run_one(task_dir, spec, config, Store(tmp_path / "exp"), run_idx=0, seed=0)
+    argv = json.loads(fake_agents.read_text())["argv"]
+    assert argv[argv.index("--resume") + 1] == "fake-session" and "--no-session-persistence" not in argv
+
+
+def test_workspace_cleanup_removes_its_claude_project_folder_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    task_dir, _ = _task("reg-py-005-leap-year-trap")
+    ws = workspace.prepare(task_dir, "x")
+    mine = workspace.claude_project_dir(ws.repo)
+    other = mine.parent / "-Users-someone-Projects-keep"
+    for d in (mine / "memory", other):
+        d.mkdir(parents=True)
+    assert mine.name.startswith("-") and "proofs-x-" in mine.name
+    ws.cleanup()
+    assert not mine.exists() and other.exists()
+
+
+@pytest.mark.skipif(not (ROOT.parent / "evals" / "retrieval").is_dir(), reason="J3 set not checked out alongside")
+def test_retrieval_import_copies_the_locked_result_and_refuses_a_changed_set(tmp_path):
+    root = ROOT.parent / "evals" / "retrieval"
+    main(["import-retrieval", str(root), "--out", str(tmp_path / "a")])
+    manifest = json.loads((tmp_path / "a" / "manifest.json").read_text())
+    report = json.loads((root / "reports" / "rerank-test.json").read_text())
+    assert manifest["summary"]["ranking"] == report["ranking"]
+    assert "nDCG@5" in (tmp_path / "a" / "retrieval.md").read_text()
+    copy = tmp_path / "set"
+    shutil.copytree(root, copy)
+    labels = next((copy / "labels").glob("*.csv"))
+    labels.write_text(labels.read_text() + "\n")
+    with pytest.raises(SystemExit, match="changed since freeze"):
+        main(["import-retrieval", str(copy), "--out", str(tmp_path / "b")])

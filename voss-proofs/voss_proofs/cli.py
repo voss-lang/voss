@@ -8,12 +8,21 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .freeze import FreezeError, check, claim_locked_run, freeze
 from .ingest import import_voss_eval
 from .report import compare, write_report
+from .retrieval import import_retrieval, render as render_retrieval
 from .review import ReviewDataError, import_review, run_dev, write_review_report
 from .runner import BudgetExceeded, run_experiment
 from .spec import BUILTIN_CONFIGS, SCHEMAS, load_bench, load_config, scenario_id
 from .store import Store, read_runs
+
+
+def _frozen(args) -> dict | None:
+    try:
+        return check(Path(args.bench), load_bench(Path(args.bench)))
+    except FreezeError as exc:
+        sys.exit(str(exc))
 
 
 def _bench(args) -> list:
@@ -36,10 +45,19 @@ def cmd_run(args) -> int:
         sys.exit(f"configs {live} call live models; pass --live (and --max-runs) to opt in")
     if live and args.max_runs is None:
         sys.exit("live runs need an explicit --max-runs cap")
+    frozen = _frozen(args)
+    bench = _bench(args)
+    if frozen and frozen["locked"] and live:
+        if not args.locked_final:
+            sys.exit(f"{args.bench} is a locked set; pass --locked-final for its one scored run per config")
+        try:
+            claim_locked_run(Path(args.bench), [c for c in configs if c.live])
+        except FreezeError as exc:
+            sys.exit(str(exc))
     store = Store(_out(args.out))
     try:
-        run_experiment(_bench(args), configs, store, k=args.k, seed=args.seed,
-                       max_runs=args.max_runs, max_usd=args.max_usd)
+        run_experiment(bench, configs, store, k=args.k, seed=args.seed,
+                       max_runs=args.max_runs, max_usd=args.max_usd, frozen=frozen)
     except BudgetExceeded as exc:
         sys.exit(str(exc))
     print(f"report: {write_report(store.root)}")
@@ -48,6 +66,7 @@ def cmd_run(args) -> int:
 
 def cmd_validate(args) -> int:
     """Every scenario must be solvable (oracle verified) and non-trivial (null not verified)."""
+    _frozen(args)
     with tempfile.TemporaryDirectory(prefix="proofs-validate-") as tmp:
         store = Store(Path(tmp) / "validate")
         records = run_experiment(_bench(args), [BUILTIN_CONFIGS["oracle"], BUILTIN_CONFIGS["null"]],
@@ -110,6 +129,23 @@ def cmd_import_review(args) -> int:
     return 0
 
 
+def cmd_import_retrieval(args) -> int:
+    store = Store(_out(args.out))
+    try:
+        summary = import_retrieval(Path(args.root), args.split, store)
+    except ReviewDataError as exc:
+        sys.exit(str(exc))
+    out = store.root / "retrieval.md"
+    out.write_text(render_retrieval(summary))
+    print(f"report: {out}")
+    return 0
+
+
+def cmd_freeze(args) -> int:
+    print(f"wrote {freeze(Path(args.bench), load_bench(Path(args.bench)), locked=args.locked)}")
+    return 0
+
+
 def cmd_schema(args) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -137,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--live", action="store_true", help="allow configs that call live models")
     r.add_argument("--max-runs", type=int)
     r.add_argument("--max-usd", type=float)
+    r.add_argument("--locked-final", action="store_true", help="the one scored live run of a locked set")
     r.set_defaults(fn=cmd_run)
 
     v = sub.add_parser("validate", help="oracle must pass and null must fail on every scenario")
@@ -165,6 +202,17 @@ def main(argv: list[str] | None = None) -> int:
     ir.add_argument("--live", action="store_true")
     ir.add_argument("--location", default="local")
     ir.set_defaults(fn=cmd_import_review)
+
+    ir2 = sub.add_parser("import-retrieval", help="import a frozen J3 code-recall set's finished rerank run")
+    ir2.add_argument("root", help="retrieval set, e.g. ../evals/retrieval")
+    ir2.add_argument("--split", choices=("dev", "test"), default="test")
+    ir2.add_argument("--out")
+    ir2.set_defaults(fn=cmd_import_retrieval)
+
+    fz = sub.add_parser("freeze", help="write freeze.json hashes for a scenario set")
+    fz.add_argument("--bench", required=True)
+    fz.add_argument("--locked", action="store_true", help="live runs need --locked-final and run once per config")
+    fz.set_defaults(fn=cmd_freeze)
 
     s = sub.add_parser("schema", help="export JSON Schemas")
     s.add_argument("--out", default="schemas")

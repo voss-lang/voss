@@ -26,7 +26,13 @@ class Workspace:
     home: Path
 
     def cleanup(self) -> None:
+        shutil.rmtree(claude_project_dir(self.repo), ignore_errors=True)
         shutil.rmtree(self.root, ignore_errors=True)
+
+
+def claude_project_dir(repo: Path) -> Path:
+    """Where Claude Code keeps sessions and auto-memory for `repo`. A later run could read it, so it goes too."""
+    return Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(repo.resolve()))
 
 
 def _git(repo: Path, *args: str) -> str:

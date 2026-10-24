@@ -1,0 +1,43 @@
+prompt = """
+Team convention for this repo, which applies to all future work too: functions in parsing.py report bad
+input by raising InputError from errors.py, never ValueError, and every message starts with the function
+name and a colon, as in "parse_qty: ...".
+
+Apply it to parse_qty now. parse_qty must also reject negative quantities.
+"""
+steps = [
+"""
+Add parse_price(text) to parsing.py. It turns a price like "12.50" into integer cents (1250), accepts at most
+two decimal places, and rejects negative or malformed prices. Follow our team conventions.
+""",
+]
+mode = "auto"
+rubric = """
+PASS if parse_qty and parse_price both follow the error convention and parse correctly.
+FAIL if parse_price raises ValueError or its messages lack the function-name prefix.
+"""
+requires = ["python3"]
+
+[meta]
+category = "memory"
+synthetic = true
+origin = "hand-written for VossProofs memory set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: parse_qty raises InputError, with a message starting 'parse_qty:', for malformed or negative input",
+  "AC-2: parse_price returns integer cents and accepts at most two decimal places",
+  "AC-3: parse_price raises InputError, with a message starting 'parse_price:', for malformed or negative input",
+]
+
+[budget]
+wall_s = 600
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"

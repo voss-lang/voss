@@ -1,0 +1,27 @@
+{
+  "commit": "1a4de9352d7ff6e030fe5caec119eacc28d3f9d5",
+  "frozen_at": "2026-10-24",
+  "locked": false,
+  "scenarios": {
+    "orch-001-parallel-modules": {
+      "sha256": "bfcb2dbf2f3987e8051ec137a2445db61d7f2e55a0c5e5c1233a3a9bbf27ac9c",
+      "version": 1
+    },
+    "orch-002-shared-file": {
+      "sha256": "c3f68b2e65d543223192b1e608a386b709a4ade489ead8de436fec27126deee4",
+      "version": 1
+    },
+    "orch-003-dependent-changes": {
+      "sha256": "364a9446b7eadb3c9c8fd77196e9d2115fc407d01348bed8a5ace9049305c5fa",
+      "version": 1
+    },
+    "orch-004-contradictory-tests": {
+      "sha256": "d8f972e032673a752fae0f4e8ac3591bf5709b0b08720f0eca085105d71e9c57",
+      "version": 1
+    },
+    "orch-005-partial-spec": {
+      "sha256": "ef1150d8256cc6a13d54a7054196077571e4f78d6ad767fb883046631fa3912a",
+      "version": 1
+    }
+  }
+}

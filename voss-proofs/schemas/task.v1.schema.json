@@ -414,6 +414,13 @@
       },
       "title": "Requires",
       "type": "array"
+    },
+    "steps": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Steps",
+      "type": "array"
     }
   },
   "required": [

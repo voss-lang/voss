@@ -31,6 +31,7 @@ class AdapterResult:
     voss: VossInfo | None = None
     artifacts: dict[str, str] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    session_id: str | None = None
 
 
 def _no_model() -> Usage:
@@ -166,7 +167,7 @@ def _stop_serve(proc: subprocess.Popen) -> None:
 
 
 def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
-               config: Config, store: Store) -> AdapterResult:
+               config: Config, store: Store, resume: str | None = None) -> AdapterResult:
     """Drive one turn through `voss serve` REST+SSE, the public headless surface."""
     res = AdapterResult(provider=config.auth)
     res.voss = VossInfo(version=_voss_version(config.voss_bin))
@@ -189,10 +190,12 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
             session = {"cwd": str(ws.repo), "auth": config.auth}
             if config.model:
                 session["model"] = config.model
+            if resume:
+                session["resume"] = resume
             r = c.post("/session", json=session)
             r.raise_for_status()
             created = r.json()
-            sid = created["id"]
+            sid = res.session_id = created["id"]
             res.provider = created.get("auth") or config.auth
             res.model = c.get(f"/session/{sid}").json().get("model")
             message = {
@@ -347,14 +350,15 @@ def voss_swarm(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
 CLAUDE_SANDBOX = json.dumps({"sandbox": {"enabled": True, "autoAllowBashIfSandboxed": True}})
 
 
-def _claude_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config) -> list[str]:
+def _claude_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config, resume: str | None) -> list[str]:
     cmd = ["claude", "-p", spec.prompt, "--output-format", "json", "--permission-mode", "acceptEdits",
-           "--settings", CLAUDE_SANDBOX, "--setting-sources", "project,local", "--strict-mcp-config",
-           "--no-session-persistence"]
+           "--settings", CLAUDE_SANDBOX, "--setting-sources", "project,local", "--strict-mcp-config"]
+    cmd += ["--resume", resume] if resume else []
+    cmd += [] if config.memory == "resume" else ["--no-session-persistence"]
     return cmd + (["--model", config.model] if config.model else [])
 
 
-def _codex_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config) -> list[str]:
+def _codex_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config, resume: str | None) -> list[str]:
     cmd = ["codex", "exec", "--json", "--ephemeral", "-s", "workspace-write", "--ignore-user-config",
            "-C", str(ws.repo)]
     return cmd + (["-m", config.model] if config.model else []) + [spec.prompt]
@@ -363,6 +367,7 @@ def _codex_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config) -> list[str]:
 def _claude_result(out: str, res: AdapterResult) -> None:
     data = json.loads(out)
     res.final = data.get("result") or ""
+    res.session_id = data.get("session_id")
     res.claimed_complete = data.get("subtype") == "success" and not data.get("is_error")
     res.exit_reason = "done" if res.claimed_complete else "error"
     usage = data.get("usage") or {}
@@ -400,11 +405,11 @@ CLI_AGENTS = {"claude": (_claude_cmd, _claude_result), "codex": (_codex_cmd, _co
 
 
 def cli_agent(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
-              config: Config, store: Store) -> AdapterResult:
+              config: Config, store: Store, resume: str | None = None) -> AdapterResult:
     """Baseline A: one external coding agent, run non-interactively and sandboxed in the workspace."""
     build, parse = CLI_AGENTS[config.agent]
     res = AdapterResult(provider=f"{config.agent}-cli", model=config.model)
-    p = subprocess.Popen(build(spec, ws, config), cwd=ws.repo, env={**env, **config.env}, text=True,
+    p = subprocess.Popen(build(spec, ws, config, resume), cwd=ws.repo, env={**env, **config.env}, text=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                          start_new_session=True)
     try:

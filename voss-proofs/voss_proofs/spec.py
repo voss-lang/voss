@@ -91,6 +91,7 @@ class BenchmarkSpec(_Strict):
     hidden_checks: list[AnyCheck] = Field(default_factory=list)
     budget: Budget = Field(default_factory=Budget)
     requires: list[str] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
 
 
 class Config(_Strict):
@@ -107,11 +108,18 @@ class Config(_Strict):
     agent: Literal["claude", "codex"] | None = None
     builders: int = 2
     judge: Literal["jev"] | None = None
+    memory: Literal["fresh", "resume"] = "fresh"
 
     @model_validator(mode="after")
     def _agent_for_cli(self) -> Config:
         if (self.adapter == "cli-agent") != (self.agent is not None):
             raise ValueError("agent is required by, and only valid for, the cli-agent adapter")
+        return self
+
+    @model_validator(mode="after")
+    def _resume_needs_serve(self) -> Config:
+        if self.memory == "resume" and not (self.adapter == "voss-serve" or self.agent == "claude"):
+            raise ValueError("memory = resume is only supported by voss-serve and the claude cli-agent")
         return self
 
     @model_validator(mode="after")

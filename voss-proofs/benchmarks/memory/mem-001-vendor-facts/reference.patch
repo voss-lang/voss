@@ -1,0 +1,18 @@
+diff --git a/vendor.py b/vendor.py
+index 14c6f2f..877e303 100644
+--- a/vendor.py
++++ b/vendor.py
+@@ -1,10 +1,10 @@
+ BASE_URL = "https://api.acme.test/"
+-RATE_LIMIT_PER_SECOND = None
++RATE_LIMIT_PER_SECOND = 7
+ 
+ 
+ def build_url(path: str) -> str:
+-    return BASE_URL + path
++    return BASE_URL + path.lstrip("/")
+ 
+ 
+ def build_request(path: str) -> dict:
+-    return {"url": build_url(path), "headers": {}}
++    return {"url": build_url(path), "headers": {"X-Client": "proofs-7731"}}
