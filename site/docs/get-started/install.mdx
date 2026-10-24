@@ -20,16 +20,16 @@ npm i -g @vosslang/cli
 
 ## Alternative: pip
 
-If you already manage Python 3.11+ yourself:
+If you already manage Python 3.11+ yourself, install from GitHub. Voss is not published to PyPI, and the `voss` package there is an unrelated project.
 
 ```bash
-pip install voss
+pip install "voss @ git+https://github.com/voss-lang/voss"
 ```
 
 Semantic memory/search dependencies are optional because they pull heavier vector-search packages:
 
 ```bash
-pip install "voss[search]"
+pip install "voss[search] @ git+https://github.com/voss-lang/voss"
 ```
 
 ## Source checkout
