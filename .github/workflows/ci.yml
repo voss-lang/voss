@@ -76,9 +76,6 @@ jobs:
             echo "::error::_substitute_placeholders re-introduced — forbidden by T1 ITER-02"
             exit 1
           fi
-      - name: snap11 isolation probe (temporary)
-        continue-on-error: true
-        run: pytest -q tests/harness/tui/test_paste_image.py --snapshot-report=snapshot_report_probe.html
       # -n 2, not `auto`: the runner has 4 vCPU and many tests spawn their own
       # `voss` subprocess, so `auto` put ~8 heavy processes on 4 cores and the
       # run got SLOWER (18m vs 15m). Coverage runs only on the leg that uploads
@@ -99,14 +96,6 @@ jobs:
           # litellm fetches its model-cost map over the network on import;
           # force the bundled local map so tests never wait on that request.
           LITELLM_LOCAL_MODEL_COST_MAP: "true"
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: snapshot-report-${{ matrix.python-version }}
-          path: |
-            snapshot_report.html
-            snapshot_report_probe.html
-          if-no-files-found: ignore
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() && matrix.python-version == '3.12' }}
         with:
@@ -132,7 +121,7 @@ jobs:
         id: baseline-ref
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Run baseline coverage tests
-        run: pytest -q -m "$PYTEST_MARKERS" --cov=voss_runtime --cov-report=term-missing --cov-report=xml --snapshot-report=/dev/null
+        run: pytest -q -m "$PYTEST_MARKERS" --cov=voss_runtime --cov-report=term-missing --cov-report=xml
         env:
           PYTEST_MARKERS: not live and not slow
       - name: Upload baseline coverage

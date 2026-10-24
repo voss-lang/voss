@@ -115,7 +115,7 @@ Editable Python installs and `npm link` automatically use this local build.
 `VOSS_TUI_BIN` can select a different binary explicitly.
 
 The npm platform packages include `voss-tui`. Use `VOSS_USE_TUI=0 voss` for
-Textual; it also remains the fallback when the Go binary is missing. `voss ui`
+the plain line-by-line chat; it is also the fallback when the Go binary is missing. `voss ui`
 launches Go explicitly. `/resume` opens a saved-session picker; `/resume <id-or-name>`
 and `voss ui resume <id-or-name>` resume directly. Earlier conversation context
 is restored on the server, and saved messages appear in the transcript. The picker
@@ -146,7 +146,7 @@ Decision numbers start at zero. `/vdiff <file.voss>` shows source and generated
 Python without executing it or changing workspace files. These read-only panels
 use the same scrolling and close keys as code results, and retain their output in
 the transcript. Queued work resumes after the panel closes.
-The remaining slash commands are available through Textual.
+The remaining slash commands are available in the plain chat.
 
 ## Local MCP servers and skills
 
@@ -170,7 +170,7 @@ voss skills
 voss chat --allow-net
 ```
 
-In Textual, use `/skill <name> <task>` or `$name <task>`. In either TUI, ask
+In the plain chat, use `/skill <name> <task>` or `$name <task>`. In either, ask
 to use a skill by name. MCP calls retain Voss's network and permission checks;
 set `[tools] allow_net = true` in Voss's `config.toml` for network tools in Go.
 Requests about open PRs, GitHub, MCP, or skills enter the tool-enabled run.
@@ -182,7 +182,7 @@ environment variables. Legacy SSE endpoints require a Streamable HTTP endpoint.
 ## First run · `voss login`
 
 Run `voss login` to configure credentials before opening the Go client.
-Textual also opens the sign-in wizard automatically when credentials are
+The plain chat also opens the sign-in wizard automatically when credentials are
 missing, and supports `/login` inside its REPL.
 
 ```text

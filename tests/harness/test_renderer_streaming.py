@@ -157,7 +157,7 @@ class TestCompactRenderer:
 
     def test_make_renderer_compact_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("VOSS_RENDERER", "compact")
-        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        renderer = make_renderer(json_mode=False, plain=False)
         assert isinstance(renderer, CompactRenderer)
 
     def test_make_renderer_embedded_env_does_not_force_compact(
@@ -165,73 +165,20 @@ class TestCompactRenderer:
     ) -> None:
         monkeypatch.setenv("VOSS_EMBEDDED", "1")
         monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        renderer = make_renderer(json_mode=False, plain=False)
         assert isinstance(renderer, PlainRenderer)
 
     def test_make_renderer_plain_wins_over_compact(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("VOSS_RENDERER", "compact")
-        renderer = make_renderer(json_mode=False, plain=True, force_tui=False)
+        renderer = make_renderer(json_mode=False, plain=True)
         assert isinstance(renderer, PlainRenderer)
-
-    def test_force_tui_env_wins_over_compact(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """VOSS_FORCE_TUI=1 overrides VOSS_RENDERER=compact (embedded pane fix)."""
-        monkeypatch.setenv("VOSS_RENDERER", "compact")
-        monkeypatch.setenv("VOSS_FORCE_TUI", "1")
-        from voss.harness.tui.renderer import TextualRenderer
-
-        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
-        assert isinstance(renderer, TextualRenderer)
-
-
-class TestTextualRendererDelegates:
-    def test_stream_delta_forwards_to_turn_view(self, monkeypatch) -> None:
-        from voss.harness.tui.renderer import TextualRenderer
-
-        recorded: list[tuple[str, tuple, dict]] = []
-
-        class RecordingRenderer(TextualRenderer):
-            def __init__(self) -> None:  # bypass app dependency
-                pass
-
-            def _safe(self, widget_fn, attr, *args, **kwargs):
-                recorded.append((attr, args, kwargs))
-
-        r = RecordingRenderer()
-        r.stream_delta("hello")
-        r.finalize_stream(
-            role="assistant",
-            confidence=0.92,
-            cost_usd=0.012,
-            timestamp="2026-05-15T00:00:00+00:00",
-        )
-
-        assert recorded[0][0] == "stream_delta"
-        assert recorded[0][1] == ("hello",)
-
-        # R2 rebaseline (tui-redesign-spec §3.6/§6.3): stream_delta also
-        # ticks the working-indicator token estimate via a coalesced
-        # update_working post, so it lands between the two original calls.
-        assert recorded[1][0] == "update_working"
-
-        assert recorded[-1][0] == "finalize_stream"
-        assert recorded[-1][2] == {
-            "role": "assistant",
-            "confidence": 0.92,
-            "cost_usd": 0.012,
-            "timestamp": "2026-05-15T00:00:00+00:00",
-            "accumulated_text": None,
-        }
 
 
 class TestProtocolMembership:
     def test_concrete_impls_satisfy_protocol(self) -> None:
-        # Renderer is runtime_checkable. All three concrete impls (TextualRenderer
-        # tested separately above) must now satisfy isinstance check after the
-        # new method addition.
+        # Renderer is runtime_checkable; every concrete impl must satisfy it.
         assert isinstance(TtyRenderer(console=Console(file=io.StringIO())), Renderer)
         assert isinstance(CompactRenderer(console=Console(file=io.StringIO())), Renderer)
         assert isinstance(PlainRenderer(), Renderer)

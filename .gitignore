@@ -21,7 +21,6 @@ snitchfindings/
 # Clipboard/screenshot artifacts dropped into workspace by tools.
 clipboard-*
 screenshot-*
-snapshot_report.html
 .playwright-mcp/
 
 # NDJSON artifacts/logs.
