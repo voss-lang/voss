@@ -1,7 +1,9 @@
 """Metrics and Markdown evidence reports. Raw dimensions only, no composite score."""
 from __future__ import annotations
 
+import itertools
 import math
+import random
 import statistics
 from collections import defaultdict
 from pathlib import Path
@@ -11,6 +13,8 @@ from .store import read_runs
 
 Z95 = 1.959963984540054
 UNDERPOWERED = 10
+BOOTSTRAP_B = 10_000
+BOOTSTRAP_SEED = 20261024
 
 
 def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
@@ -82,6 +86,36 @@ def review_rows(records: list[RunRecord]) -> list[tuple[str, str, dict, dict]]:
             out.append((name, label,
                         proportion(sum(a for a, v in decided if not v), sum(1 for _, v in decided if not v)),
                         proportion(sum(a for a, v in decided if v), sum(1 for _, v in decided if v))))
+    return out
+
+
+def paired_bootstrap(diffs: list[float], *, b: int = BOOTSTRAP_B, seed: int = BOOTSTRAP_SEED) -> tuple[float, float]:
+    """95% percentile interval of the mean difference, resampling scenarios (same method as J3)."""
+    rng = random.Random(seed)
+    n = len(diffs)
+    means = sorted(math.fsum(rng.choices(diffs, k=n)) / n for _ in range(b))
+    return means[int(b * 0.025)], means[int(b * 0.975) - 1]
+
+
+def paired(records: list[RunRecord]) -> list[dict]:
+    """Verified-rate difference for each pair of configs with the same `live` flag, paired by scenario."""
+    rates: dict[str, dict[str, float]] = defaultdict(dict)
+    live: dict[str, bool] = {}
+    cells: dict[tuple[str, str], list[bool]] = defaultdict(list)
+    for r in records:
+        live[r.config.name] = r.live
+        if not r.skipped and r.verified is not None:
+            cells[(r.config.name, r.scenario_id)].append(r.verified)
+    for (name, sid), vs in cells.items():
+        rates[name][sid] = sum(vs) / len(vs)
+    out = []
+    for a, b in itertools.combinations(sorted(rates), 2):
+        common = sorted(set(rates[a]) & set(rates[b]))
+        if live[a] != live[b] or not common:
+            continue
+        diffs = [rates[a][s] - rates[b][s] for s in common]
+        out.append({"a": a, "b": b, "scenarios": len(common), "diff": math.fsum(diffs) / len(diffs),
+                    "ci": paired_bootstrap(diffs)})
     return out
 
 
@@ -176,6 +210,18 @@ def render(records: list[RunRecord], title: str) -> str:
             row.append(f"{sum(r.verified for r in graded)}/{len(graded)}" if graded else "–")
         lines.append(f"| {sid} | {cat} | " + " | ".join(row) + " |")
     lines.append("")
+
+    pairs = paired(records)
+    if pairs:
+        lines += ["## Paired comparisons", "",
+                  "Difference in verified rate (A minus B), paired by scenario. The interval is a 95% paired "
+                  f"bootstrap over scenarios ({BOOTSTRAP_B:,} resamples, seed {BOOTSTRAP_SEED}). Each scenario's rate "
+                  "is its verified share over k runs. An interval that includes 0 shows no difference.", "",
+                  "| A | B | scenarios | A − B | 95% CI |", "|---|---|---|---|---|"]
+        lines += [f"| {p['a']} | {p['b']} | {p['scenarios']} | {100 * p['diff']:+.1f} pts "
+                  f"| {100 * p['ci'][0]:+.1f} to {100 * p['ci'][1]:+.1f}"
+                  f"{' **underpowered**' if p['scenarios'] < UNDERPOWERED else ''} |" for p in pairs]
+        lines.append("")
 
     lim = limits(records)
     if any(v["tokens_known"] or v["scoped"] or v["timeouts"] for v in lim.values()):
