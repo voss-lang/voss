@@ -5,7 +5,7 @@ library** (`voss_runtime`) and the **harness library** (`voss.harness`).
 Together they are the SDK.
 
 There is no separate "SDK package" — the same wheel you install with
-`pip install voss` (or `npm i -g voss` in M6) exposes both surfaces.
+`pip install "voss @ git+https://github.com/voss-lang/voss"` (or `npm i -g @vosslang/cli`) exposes both surfaces.
 
 ---
 
@@ -58,7 +58,7 @@ release before removal. Pre-1.0 this is best-effort, not a hard guarantee.
 
 ## `voss_runtime` — runtime + embedding
 
-Install: `pip install voss` (the wheel ships both `voss` and `voss_runtime`).
+Install: `pip install "voss @ git+https://github.com/voss-lang/voss"` (the package ships both `voss` and `voss_runtime`).
 
 ### Quick start
 
@@ -189,7 +189,7 @@ compiled `.voss` program (`triage.voss`).
 
 ## `voss.harness` — agent loop + CLI embedding
 
-Install: same `pip install voss`. Imports under `voss.harness`.
+Install: same as above. Imports under `voss.harness`.
 
 ### Quick start — drive a turn programmatically
 

@@ -47,16 +47,16 @@ Brings the Voss CLI with a vendored Python 3.12 + the v0.1 voss wheel + all depe
 
 ### Alternative: pip
 
-If you already manage Python 3.11+ yourself, install from PyPI:
+If you already manage Python 3.11+ yourself, install from GitHub. Voss is not published to PyPI, and the `voss` package there is an unrelated project.
 
 ```bash
-pip install voss
+pip install "voss @ git+https://github.com/voss-lang/voss"
 ```
 
 Semantic memory (`memory.semantic`, `match similar(...)`) is an optional extra — it pulls torch + sentence-transformers + chromadb:
 
 ```bash
-pip install 'voss[search]'
+pip install "voss[search] @ git+https://github.com/voss-lang/voss"
 ```
 
 ### Container image
