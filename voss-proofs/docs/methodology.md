@@ -70,8 +70,36 @@ Job order is shuffled with `--seed` (default 0), so a slow or stateful scenario 
 
 - Rates are reported as `verified / graded` with a Wilson 95% interval. That interval reflects sampling error only.
 - Small n is the norm in this suite, so intervals are wide on purpose. Don't read 8/8 vs 6/8 as a finding.
-- Paired comparisons between configs on the same scenarios are a Phase 2+ deliverable. They will reuse the paired-bootstrap approach of the J3 retrieval eval: resampling by group, fixed seed.
+- **Paired comparisons.** For each pair of configs with the same `live` flag, the report gives the difference in verified rate, paired by scenario. Each scenario's rate is its verified share over k runs. The 95% interval is a paired bootstrap over scenarios: 10,000 resamples with seed 20261024, the same method as the J3 retrieval eval. A pair with fewer than 10 scenarios is marked underpowered.
 - There is no composite score. Each dimension stays visible.
+
+## Versioned scenario sets
+
+`proofs freeze --bench <set>` writes `<set>/freeze.json`, which holds each scenario's version and the sha256 of its directory. `proofs run` and `proofs validate` check the whole set against it, even when `--task` narrows the run. They refuse to start if a scenario changed, appeared or disappeared, and the run's manifest records the freeze hash.
+
+To change a frozen scenario, bump its `meta.version` and freeze again. `regression`, `orchestration` and `memory` are frozen as dev sets.
+
+A set frozen with `--locked` is a held-out set. A live run on it needs `--locked-final`, and each config may run it once. The claim goes into `<set>/locked-runs.jsonl` before any run starts, so a crashed run still counts. Nothing may be tuned against a locked set.
+
+## Multi-step scenarios and memory (H4)
+
+A scenario may list follow-up prompts in `steps`. The runner sends the prompt and then each step to the same workspace, and the checks run once at the end. Step results are merged:
+- tokens and cost are summed, and cost stays unknown if any step's cost is unknown
+- the exit reason is the first step that did not finish
+- artifacts are kept per step
+- a step that does not finish ends the sequence
+
+`oracle` and `null` act once.
+
+`memory` in a config decides what a later step can see:
+- `fresh` (default): a new session per step. It sees the workspace and whatever the system itself persisted.
+- `resume`: the step continues the previous step's session. `voss-serve` passes `resume=<session id>` to `POST /session`. `cli-claude-resume` runs `claude -p --resume`.
+
+Claude Code keeps its own auto-memory per workspace path, so plain `cli-claude` also carries facts between steps. `cli-claude-nomemory` turns that off with `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, which makes it the no-memory control.
+
+The memory set separates two cases:
+- `mem-001` needs a fact that exists only in the conversation.
+- `mem-002` needs a convention that the step-1 code also shows.
 
 ## Cost and usage
 
@@ -98,4 +126,5 @@ The checks still run, so a no-run counts as a failed attempt in the verified rat
 - Workspaces are temp directories outside this repository. The agent's cwd contains only the fixture.
 - `codex exec` always loads `~/.codex/AGENTS.md`, the user's personal instructions. The only way to skip that file is a separate `CODEX_HOME`, which would split the Codex login, so `cli-codex` runs carry the user's instructions. `cli-claude` loads no user settings or memory. Prefer `cli-claude` as Baseline A.
 - **Known limit:** a live agent with shell access could still read this repository by absolute path, because there is no OS sandbox on macOS. Until runs use an OS sandbox (Voss-OS) or a container, a live result from scenarios stored in this repo is a dev-set result, not a locked holdout result.
-- Locked datasets, from Phase 4 on, follow the J3/J4 pattern: `freeze.json` hashes, a run-once marker, and no tuning against the locked split.
+- Locked sets use `freeze.json` hashes and a run-once marker (see "Versioned scenario sets").
+- Live runs share the real HOME, and Claude Code keeps sessions and auto-memory under `~/.claude/projects/<workspace path>`. An earlier run of the same scenario could leave answers there. A live agent was seen browsing those folders. So workspace cleanup deletes the Claude project folder for its own workspace path, and no other one. That covers both `claude -p` and the claude-agent provider inside `voss serve`.
