@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from voss.harness.tools import _line_anchor, make_toolset
-from voss.harness.tui.widgets.diff_modal import DiffDecision, Hunk
+from voss.harness.tools import DiffDecision, Hunk
 
 
 class _FakeRenderer:

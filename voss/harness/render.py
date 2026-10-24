@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,70 +91,24 @@ def make_renderer(
     *,
     json_mode: bool,
     plain: bool = False,
-    force_tui: bool = False,
 ) -> Renderer:
-    """Renderer factory honoring TUI capability rules.
+    """Renderer factory.
 
-    Decision order (M9-07 — default-path flip):
-      1. json_mode=True → JsonRenderer (NDJSON on stdout; unchanged).
+    Decision order:
+      1. json_mode=True → JsonRenderer (NDJSON on stdout).
       2. plain=True or VOSS_PLAIN=1 → PlainRenderer.
       3. VOSS_RENDERER=compact → CompactRenderer.
-      4. force_tui=True (or VOSS_FORCE_TUI=1) + size < 60x12 → stderr + exit(2).
-      5. capability.tui_should_activate says yes → TextualRenderer (new default).
-      6. capability rejected with Windows-console reason → emit locked stderr
-         notice + PlainRenderer.
-      7. non-TTY stdout → PlainRenderer.
-      8. TTY but capability rejected (e.g. textual import failed, terminal
-         too small without force_tui) → legacy TtyRenderer.
+      4. non-TTY stdout → PlainRenderer.
+      5. otherwise → TtyRenderer.
     """
     if json_mode:
         return JsonRenderer()
 
-    if not force_tui and os.environ.get("VOSS_FORCE_TUI") == "1":
-        force_tui = True
-
     if plain or os.environ.get("VOSS_PLAIN") == "1" or "--plain" in sys.argv[1:]:
         return PlainRenderer()
 
-    if (
-        not force_tui
-        and (
-            os.environ.get("VOSS_RENDERER", "").lower() == "compact"
-        )
-    ):
+    if os.environ.get("VOSS_RENDERER", "").lower() == "compact":
         return CompactRenderer()
-
-    from .tui.capability import min_size_guard, tui_should_activate
-
-    decision = tui_should_activate(json_mode=False)
-    if decision.reason in ("--plain flag", "VOSS_PLAIN env"):
-        return PlainRenderer()
-
-    if force_tui:
-        if decision.reason == "terminal below 60x12":
-            size = shutil.get_terminal_size(fallback=(80, 24))
-            sys.stderr.write(min_size_guard((size.columns, size.lines)) + "\n")
-            sys.stderr.flush()
-            sys.exit(2)
-        from .tui.app import VossTUIApp
-        from .tui.renderer import TextualRenderer
-
-        return TextualRenderer(VossTUIApp())
-
-    if decision.activate:
-        from .tui.app import VossTUIApp
-        from .tui.renderer import TextualRenderer
-
-        return TextualRenderer(VossTUIApp())
-
-    # M9-07 Windows-console strategy: locked notice to stderr, PlainRenderer
-    # fallback. Fires whether stdout is a TTY or not.
-    if decision.reason.startswith("Windows console missing capability"):
-        sys.stderr.write(
-            "voss: Windows console missing capability · using --plain mode\n"
-        )
-        sys.stderr.flush()
-        return PlainRenderer()
 
     if not sys.stdout.isatty():
         return PlainRenderer()
