@@ -5,6 +5,10 @@ This is the glue tying together the already-built Wave 1/2 pieces (see
 from __future__ import annotations
 
 import subprocess
+import asyncio
+import os
+import signal
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,6 +26,7 @@ from .swarm_review import schedule_candidate_review
 from .swarm_store import CANDIDATE_READY, DONE, Role, SwarmStore, Task
 from .swarm_watch import OwnershipWatcher, detect_violations, revert_paths
 from .swarm_worktree import (
+    _git,
     changed_files,
     create_member_worktree,
     remove_member_worktree,
@@ -58,7 +63,12 @@ class _PopenHandle:
 
     def terminate(self) -> None:
         try:
-            self._proc.terminate()
+            os.killpg(self._proc.pid, signal.SIGTERM)
+            try:
+                self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(self._proc.pid, signal.SIGKILL)
+                self._proc.wait()
         except (OSError, ProcessLookupError):
             pass
 
@@ -70,7 +80,7 @@ def subprocess_spawn(argv: list[str], cwd: Path) -> SpawnHandle:
     plain subprocess in its worktree. (The GUI/Tauri PTY backend is separate.)
     `shell=False` is implicit since argv is a list, so no shell-injection surface.
     """
-    proc = subprocess.Popen(argv, cwd=str(cwd), env=scrubbed_env())
+    proc = subprocess.Popen(argv, cwd=str(cwd), env=scrubbed_env(), start_new_session=True)
     return _PopenHandle(proc)
 
 
@@ -108,6 +118,8 @@ async def run_cli_member(
     spawn_fn: SpawnFn,
     on_event: EventHook = None,
     context: str = "",
+    preflight_fn: Callable[[Role], None] | None = None,
+    attempt_id: str | None = None,
 ) -> MemberResult:
     """Orchestrate ONE CLI swarm member through its full lifecycle.
 
@@ -150,6 +162,8 @@ async def run_cli_member(
             summary=result.summary if result is not None else None,
         )
 
+    if preflight_fn is not None:
+        preflight_fn(role)
     mw = create_member_worktree(repo_root, swarm_id, role.name)
 
     # File-bus task lives in the MAIN checkout (shared), per R3
@@ -178,6 +192,11 @@ async def run_cli_member(
             "task_id": task.id,
             "role": role.name,
             "owned_files": list(task.owned_files),
+            "branch": mw.branch,
+            "worktree": str(mw.path),
+            "repository": str(repo_root),
+            "base_revision": _git(mw.path, "rev-parse", "HEAD"),
+            "launched": True,
         },
     )
 
@@ -216,22 +235,27 @@ async def run_cli_member(
     except (OSError, ValueError):
         pass
 
-    # Belt-and-suspenders live watcher; the post-exit check below is the authority
-    # so a missed fs event cannot make us wrong. on_violation here is
-    # flagging the deterministic pass re-detects and re-emits
-    watcher = OwnershipWatcher(mw, task.owned_files, on_violation=lambda _paths: None)
+    observed_violations: set[str] = set()
+    watcher = OwnershipWatcher(mw, task.owned_files, on_violation=observed_violations.update)
     watcher.start()
     try:
         handle = spawn_fn(argv, mw.path)
-        exit_code = handle.wait()
+        waiter = asyncio.create_task(asyncio.to_thread(handle.wait))
+        try:
+            exit_code = await asyncio.shield(waiter)
+        except asyncio.CancelledError:
+            await asyncio.to_thread(handle.terminate)
+            await waiter
+            raise
     finally:
         watcher.stop()
 
     # Deterministic post-exit ownership reconciliation do NOT rely on the watcher
     changed = changed_files(mw)
-    violations = detect_violations(changed, task.owned_files)
+    remaining_violations = detect_violations(changed, task.owned_files)
+    violations = sorted(observed_violations.union(remaining_violations))
     if violations:
-        revert_paths(mw, violations)
+        revert_paths(mw, remaining_violations)
         _emit(
             on_event,
             {
@@ -270,11 +294,12 @@ async def run_cli_member(
                 "role": role.name,
                 "branch": mw.branch,
                 "worktree": str(mw.path),
+                "repository": str(repo_root),
                 "head": candidate_head,
                 "summary": summary,
             },
         )
-        schedule_candidate_review(repo_root, swarm_id, task.id, task.goal, candidate_head, violations)
+        schedule_candidate_review(repo_root, swarm_id, task.id, task.goal, candidate_head, violations, attempt_id=attempt_id)
     else:
         store.mark_done(swarm_id, task.id, summary=summary)
         remove_member_worktree(repo_root, mw)
@@ -287,6 +312,7 @@ async def run_cli_member(
             "task_id": task.id,
             "role": role.name,
             "summary": summary,
+            "exit_code": exit_code,
         },
     )
 
@@ -365,6 +391,7 @@ async def run_cli_swarm(
     spawn_fn: SpawnFn,
     on_event: EventHook = None,
     max_concurrency: int = 6,
+    preflight_fn: Callable[[Role], None] | None = None,
 ) -> list[MemberResult]:
     """Run every NON-native CLI member of a swarm concurrently.
 
@@ -392,6 +419,10 @@ async def run_cli_swarm(
     async def _guarded(role: Role, task: Task) -> MemberResult:
         """One member, isolated: its failure is reported, never its siblings'."""
         async with sem:
+            attempt_id = uuid.uuid4().hex
+            def emit(event):
+                _emit(on_event, {**event, "attempt_id": attempt_id, "role": role.name,
+                    "harness": role.agent, "model": role.model if role.model != "default" else None})
             try:
                 return await run_cli_member(
                     store,
@@ -400,11 +431,12 @@ async def run_cli_swarm(
                     role,
                     task,
                     spawn_fn=spawn_fn,
-                    on_event=on_event,
+                    preflight_fn=preflight_fn,
+                    attempt_id=attempt_id,
+                    on_event=emit,
                 )
             except Exception as exc:  # noqa: BLE001 — reported, not swallowed
-                _emit(
-                    on_event,
+                emit(
                     {
                         "type": "swarm.gate",
                         "swarm_id": swarm_id,

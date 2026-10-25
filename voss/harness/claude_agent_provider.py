@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import math
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Optional
 
@@ -32,7 +33,7 @@ from pydantic import BaseModel
 
 from voss_runtime.providers.base import ProviderResponse
 
-from . import telemetry
+from . import telemetry, auth
 from .providers import Done, ParsedPlan, ProviderStreamEvent, TextDelta, Usage
 
 # A wedged `claude` subprocess (auth stall, orphaned pipe) yields no SDK
@@ -151,10 +152,12 @@ class ClaudeAgentProvider:
         model_default: str = "claude-sonnet-4-5",
         cli_path: str | Path | None = None,
         query_fn: Optional[Callable[..., AsyncIterator[Any]]] = None,
+        oauth_token: str | None = None,
     ):
         self.model_default = model_default
         self.cli_path = str(cli_path) if cli_path is not None else None
         self._query_fn = query_fn
+        self._oauth_token = oauth_token
 
     # ------------------------------------------------------------------
     # SDK plumbing
@@ -192,6 +195,10 @@ class ClaudeAgentProvider:
                 {"type": "json_schema", "schema": schema} if schema else None
             ),
         }
+        if self._oauth_token is not None:
+            kwargs["env"].update({key: "" for key in _API_BILLING_ENV_KEYS_TO_SHADOW})
+            kwargs["env"]["CLAUDE_CODE_OAUTH_TOKEN"] = self._oauth_token
+            kwargs["settings"] = '{"forceLoginMethod":"claudeai","apiKeyHelper":""}'
         try:
             from claude_agent_sdk import (  # type: ignore[import-not-found]
                 ClaudeAgentOptions,
@@ -250,8 +257,12 @@ class ClaudeAgentProvider:
         inactivity_timeout = (
             timeout if timeout is not None else _default_inactivity_timeout()
         )
-        it = aiter(query(prompt=prompt, options=options))
+        directory = tempfile.TemporaryDirectory(prefix="voss-oauth-") if self._oauth_token is not None else None
+        if directory is not None:
+            options.env["CLAUDE_CONFIG_DIR"] = directory.name
+        it = None
         try:
+            it = aiter(query(prompt=prompt, options=options))
             while True:
                 try:
                     msg = await asyncio.wait_for(anext(it), inactivity_timeout)
@@ -262,16 +273,24 @@ class ClaudeAgentProvider:
                         f"claude-agent call timed out after {inactivity_timeout}s "
                         "(no event from the claude subprocess)"
                     ) from None
-                except (RuntimeError, asyncio.CancelledError):
+                except asyncio.CancelledError:
                     raise
                 except Exception as e:  # noqa: BLE001 — SDK error types stay contained
+                    if self._oauth_token is not None and type(e).__name__ in {"ProcessError", "AuthenticationError"}:
+                        raise auth.OAuthRequired("Claude worker needs operator attention", code="worker_unavailable") from None
+                    if isinstance(e, RuntimeError):
+                        raise
                     raise self._wrap_error(e) from e
 
+                if self._oauth_token is not None and getattr(msg, "error", None) == "authentication_failed":
+                    raise auth.OAuthRequired("Claude OAuth requires sign-in")
                 # ResultMessage: terminal accounting + structured output.
                 if hasattr(msg, "total_cost_usd"):
                     if getattr(msg, "is_error", False):
                         subtype = getattr(msg, "subtype", "error")
                         status = getattr(msg, "api_error_status", None)
+                        if self._oauth_token is not None:
+                            raise auth.OAuthRequired("Claude worker needs operator attention", code="oauth_rejected" if status in (401, 403) else "worker_unavailable")
                         detail = (
                             getattr(msg, "errors", None)
                             or getattr(msg, "result", None)
@@ -356,6 +375,8 @@ class ClaudeAgentProvider:
                     await aclose()
                 except Exception:  # noqa: BLE001 — close is best-effort
                     pass
+            if directory is not None:
+                directory.cleanup()
 
     @staticmethod
     def _extract_plan(

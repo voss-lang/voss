@@ -28,7 +28,7 @@ def server(monkeypatch, tmp_path):
 
     monkeypatch.setattr("voss.harness.cli._scoped_turn", scoped)
     monkeypatch.setattr(appmod, "attach_mcp_tools", no_mcp)
-    monkeypatch.setattr(appmod, "make_toolset", lambda cwd, **kw: make_toolset(cwd, background_indexing=False, **kw))
+    monkeypatch.setattr(appmod, "make_toolset", lambda cwd, **kw: make_toolset(cwd, **{**kw, "background_indexing": False}))
     (tmp_path / "f.txt").write_text("alpha\nbeta\n")
     return appmod.create_app("test-diff"), tmp_path
 
@@ -217,7 +217,7 @@ async def test_old_clients_keep_behavior_and_resuming_can_opt_in(server, monkeyp
         assert resumed.id == s.id
 
 
-async def test_sse_disconnect_cancels_pending_edit(server, monkeypatch):
+async def test_sse_disconnect_keeps_pending_edit_for_reconnect(server, monkeypatch):
     app, cwd = server
     edit(monkeypatch)
     async with client(app) as api:
@@ -247,7 +247,11 @@ async def test_sse_disconnect_cancels_pending_edit(server, monkeypatch):
         finally:
             disconnected.set()
             await asyncio.wait_for(stream, 3)
+        assert not task.done()
+        assert len(s.pending_diffs) == 1
+        assert (await api.post(f"/session/{s.id}/abort")).status_code == 202
         with pytest.raises(asyncio.CancelledError):
             await task
         assert not s.pending_diffs
+        assert (cwd / "f.txt").read_text() == "alpha\nbeta\n"
         assert (cwd / "f.txt").read_text() == "alpha\nbeta\n"

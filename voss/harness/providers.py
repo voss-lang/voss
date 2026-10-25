@@ -490,8 +490,10 @@ class OpenAIOAuthProvider:
         *,
         client: Optional[httpx.AsyncClient] = None,
         base_url: Optional[str] = None,
+        allow_refresh: bool = True,
     ):
         self.creds = creds
+        self.allow_refresh = allow_refresh
         self._client = client
         # ChatGPT-mode tokens go to chatgpt.com; api-key mode goes to api.openai.com.
         if base_url is None:
@@ -690,6 +692,8 @@ class OpenAIOAuthProvider:
             )
 
         resp = await _post()
+        if resp.status_code in (401, 403) and not self.allow_refresh:
+            raise auth.OAuthRequired("Codex OAuth requires sign-in")
         if resp.status_code == 401 and self.creds.refresh_token:
             self.creds = auth.refresh_codex(self.creds)
             resp = await _post()
@@ -770,6 +774,8 @@ class OpenAIOAuthProvider:
             async with client.stream(
                 "POST", url, json=body, headers=self._headers(), timeout=timeout
             ) as resp:
+                if resp.status_code in (401, 403) and not self.allow_refresh:
+                    raise auth.OAuthRequired("Codex OAuth requires sign-in")
                 if (
                     resp.status_code == 401
                     and not refreshed

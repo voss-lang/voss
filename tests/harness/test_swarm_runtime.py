@@ -244,6 +244,13 @@ def test_run_cli_swarm_runs_cli_members(repo: Path) -> None:
 
     assert len(results) == 2
     assert {r.role for r in results} == {"builder-1", "builder-2"}
+    assignments = [event for event in events if event["type"] == "swarm.assign"]
+    assert len({event["attempt_id"] for event in assignments}) == 2
+    for assignment in assignments:
+        worker_events = [event for event in events if event.get("task_id") == assignment["task_id"]]
+        assert {event["attempt_id"] for event in worker_events} == {assignment["attempt_id"]}
+        assert assignment["harness"] == "codex"
+        assert assignment["worktree"] and assignment["branch"] and assignment["base_revision"]
     assert all(
         r.violations == [] and not r.merged and r.candidate_ready for r in results
     )
@@ -361,3 +368,52 @@ def test_a_member_that_cannot_start_is_reported_and_spares_its_sibling(repo: Pat
     # open for a retry instead of sitting in `assigned` with no process behind it.
     assert store.get(swarm.id).task(broken.id).state == OPEN
     assert store.get(swarm.id).task(healthy.id).state == CANDIDATE_READY
+
+
+async def test_cancellation_stops_member_before_returning_and_retains_worktree(repo):
+    import threading
+    stopped = threading.Event()
+    started = asyncio.Event()
+
+    class WaitingHandle:
+        def wait(self, timeout=None):
+            assert stopped.wait(5), "cancel did not stop the synthetic worker"
+            return -15
+
+        def terminate(self):
+            stopped.set()
+
+    store = SwarmStore(cwd=repo)
+    swarm = store.create("cancel fixture", cwd=str(repo), roster=[Role(name="builder-1", agent="codex")])
+    task = store.add_task(swarm.id, "synthetic task", owned_files=["owned.py"])
+    paths = []
+
+    def spawn(argv, cwd):
+        paths.append(cwd)
+        started.set()
+        return WaitingHandle()
+
+    driver = asyncio.create_task(run_cli_member(store, repo, swarm.id, swarm.roster[0], task, spawn_fn=spawn))
+    await asyncio.wait_for(started.wait(), 5)
+    driver.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await driver
+    assert stopped.is_set()
+    assert paths[0].exists()
+    assert store.get(swarm.id).tasks[0].state not in (DONE, CANDIDATE_READY)
+
+
+async def test_live_revert_preserves_scope_violation_in_member_result(repo, monkeypatch):
+    from voss.harness.swarm_watch import OwnershipWatcher
+
+    monkeypatch.setattr(OwnershipWatcher, "start", lambda self: None)
+    monkeypatch.setattr(OwnershipWatcher, "stop", lambda self: self._handle_batch())
+    store = SwarmStore(cwd=repo)
+    swarm = store.create("scope fixture", cwd=str(repo), roster=[Role(name="builder-1", agent="codex")])
+    task = store.add_task(swarm.id, "synthetic task", owned_files=["owned.py"])
+    events = []
+    spawn = _spawn_with_result(repo, {"owned.py": "changed\n", "outside.txt": "not owned\n"}, swarm.id, "builder-1", "done")
+    result = await run_cli_member(store, repo, swarm.id, swarm.roster[0], task, spawn_fn=spawn, on_event=events.append)
+    assert result.violations == ["outside.txt"]
+    assert not (Path(result.candidate_worktree) / "outside.txt").exists()
+    assert any(event["type"] == "swarm.needs_operator" and event["paths"] == ["outside.txt"] for event in events)

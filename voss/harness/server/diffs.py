@@ -55,3 +55,5 @@ class DiffReviewRenderer(EventBusRenderer):
         finally:
             self.session.pending_diffs.pop(proposal.id, None)
             self.emit(E.DiffResolved(id=proposal.id))
+            if self.session.journal:
+                self.session.journal.resolve(self.session.id, proposal.id)

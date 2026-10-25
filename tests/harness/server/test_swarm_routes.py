@@ -721,23 +721,17 @@ def test_a_second_run_leaves_finished_and_busy_members_alone(client, monkeypatch
         sid = r["id"]
         coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
 
-        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        accepted = client.post(f"/swarm/{sid}/run", headers=_auth())
+        assert accepted.status_code == 202
         first = _drain_until(client, sid, coord, "swarm.complete")
         assert [e.type for e in first].count("swarm.assign") == 2
 
-        # Nothing is open any more, so a second run drives nothing and says so
-        # with silence rather than a terminal event for a run that never was.
-        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        # A run is one accepted command per swarm: a second call returns the
+        # first receipt and drives nothing.
+        again = client.post(f"/swarm/{sid}/run", headers=_auth())
+        assert again.status_code == 202
+        assert again.json()["run_id"] == accepted.json()["run_id"]
         assert _drain_until(client, sid, coord, "swarm.complete", tries=5) == []
-
-        # And a run already in flight is not joined by a second one.
-        client.app.state.swarm_runs[sid] = object()
-        assert (
-            client.post(f"/swarm/{sid}/run", headers=_auth()).json()["status"]
-            == "already running"
-        )
-        assert _drain(client, sid, coord) == []
-        client.app.state.swarm_runs.pop(sid, None)
 
 
 def _stubbed_cli_run(monkeypatch, result):

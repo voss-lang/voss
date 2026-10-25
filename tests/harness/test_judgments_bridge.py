@@ -102,7 +102,7 @@ def test_run_server_does_not_read_judgments_keychain(monkeypatch):
     order = []
     monkeypatch.setattr(j, "bridge_judgments_env", lambda: order.append("bridge"))
 
-    def create_app(token):
+    def create_app(token, **kwargs):
         order.append("create_app")
         raise RuntimeError("stop")
 

@@ -49,7 +49,7 @@ def run_server(host: str = "127.0.0.1", port: int = 0, token: str | None = None)
     sock.listen(128)
     chosen_port = sock.getsockname()[1]
 
-    app = create_app(token)
+    app = create_app(token, oauth_only=os.environ.get("VOSS_SERVE_OAUTH_ONLY") == "1")
 
     # Handshake line the client reads exactly this to discover port + token
     print(json.dumps({"v": 1, "port": chosen_port, "token": token}), flush=True)
@@ -60,7 +60,7 @@ def run_server(host: str = "127.0.0.1", port: int = 0, token: str | None = None)
     if not sys.stdin.isatty():
         threading.Thread(target=_watch_stdin_eof, daemon=True).start()
 
-    config = uvicorn.Config(app, log_level="warning")
+    config = uvicorn.Config(app, log_level="warning", timeout_graceful_shutdown=1)
     server = uvicorn.Server(config)
 
     async def _serve() -> None:

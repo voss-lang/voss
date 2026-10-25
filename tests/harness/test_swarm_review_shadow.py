@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 import json
 import logging
@@ -26,7 +27,7 @@ NOT_ENABLED = "judgments:\n  enabled: false\n  review: shadow\n"
 GOAL = "owned.py says changed by builder"
 ROOT = Path(__file__).resolve().parents[2]
 PLACEHOLDER_KEYS = (
-    "swarm_id", "task_id", "head", "branch", "worktree", "candidate_head", "candidate_branch", "candidate_worktree",
+    "swarm_id", "task_id", "attempt_id", "base_revision", "repository", "head", "branch", "worktree", "candidate_head", "candidate_branch", "candidate_worktree",
 )
 
 
@@ -426,6 +427,28 @@ def test_review_in_flight_finishes_when_asyncio_run_shuts_down(tmp_path, monkeyp
     assert "Task was destroyed but it is pending" not in capsys.readouterr().err
 
 
+def test_review_queued_behind_busy_executor_still_runs_at_shutdown(tmp_path, monkeypatch):
+    install_jev(monkeypatch, _ok)
+    repo = _repo(tmp_path / "proj")
+    store, swarm_id, role, task, spawn = _member(repo, {"owned.py": "# changed\n"})
+    release = threading.Event()
+
+    class HoldExecutor(list):
+        def append(self, event):
+            super().append(event)
+            if event["type"] == "swarm.candidate_ready":
+                asyncio.get_running_loop().run_in_executor(None, release.wait, 5)
+                threading.Timer(0.3, release.set).start()
+
+    async def go():
+        asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=1))
+        return await run_cli_member(store, repo, swarm_id, role, task, spawn_fn=spawn, on_event=HoldExecutor().append)
+
+    asyncio.run(go())
+
+    assert _review(repo, swarm_id, task.id)["receipts"][0]["status"] == "answered"
+
+
 def _normalize(items: list[dict]) -> list[dict]:
     labels: dict[str, str] = {}
 
@@ -485,6 +508,13 @@ def _identity_scenario(root: Path, config_text: str) -> tuple[dict, list[str], l
     }
     reviews = [f for f in files if f.startswith("reviews/")]
     paths = [decision_review.candidate_review_path(repo, swarm.id, t.id) for t in tasks]
+    for task, path in zip(tasks, paths):
+        if path.exists():
+            link = json.loads(path.read_text())["task_review"]
+            candidate = next(e for e in events if e['type'] == 'swarm.candidate_ready' and e['task_id'] == task.id)
+            assert (link['swarm_id'], link['task_id'], link['attempt_id'], link['candidate_revision']) == (swarm.id, task.id, candidate['attempt_id'], candidate['head'])
+            assert link['criteria_source'] == 'task_goal' and link['criteria'][0]['text'] == task.goal
+            assert candidate['repository'] == str(repo)
     receipts = [json.loads(path.read_text())["receipts"] for path in paths if path.exists()]
     return observed, reviews, receipts
 

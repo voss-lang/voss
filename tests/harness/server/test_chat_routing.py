@@ -162,8 +162,9 @@ async def test_why_keeps_last_completed_plan_across_chat_and_failed_turns(server
         assert (await api.post(path, json={"name": "/budget", "args": ["5"]})).status_code == 200
         resumed = await api.post("/session", json={"cwd": str(cwd), "resume": s.id})
         assert resumed.status_code == 201
-        assert (await api.post(path, json={"name": "/budget"})).json()["stdout"] == "  budget: unbounded"
-        assert (await api.post(path, json={"name": "/why"})).json()["stderr"] == "no plan yet — run a turn first"
+        assert resumed.json()["id"] == s.id
+        assert (await api.post(path, json={"name": "/budget"})).json()["stdout"].startswith("  budget: $5.00")
+        assert "Use the updated grammar" in (await api.post(path, json={"name": "/why"})).json()["stdout"]
 
 
 @pytest.mark.parametrize("text,swarm", [("fix the test failure", False), ("hello", True)])
