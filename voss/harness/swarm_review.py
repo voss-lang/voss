@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 from pathlib import Path
 
-PENDING: set[asyncio.Task] = set()
+PENDING: set[asyncio.Future] = set()
 logger = logging.getLogger(__name__)
 
 
@@ -16,11 +17,11 @@ def schedule_candidate_review(
 
         if judgments.judgments_state(repo_root) != "enabled" or conventions._load_judgments_review(repo_root) != "shadow":
             return
-        task = asyncio.get_running_loop().create_task(
-            asyncio.to_thread(review_candidate, Path(repo_root), swarm_id, task_id, goal, head, bool(violations), attempt_id=attempt_id)
-        )
-        PENDING.add(task)
-        task.add_done_callback(PENDING.discard)
+        future = asyncio.get_running_loop().run_in_executor(None, functools.partial(
+            review_candidate, Path(repo_root), swarm_id, task_id, goal, head, bool(violations), attempt_id=attempt_id
+        ))
+        PENDING.add(future)
+        future.add_done_callback(PENDING.discard)
     except Exception as exc:
         logger.warning("swarm candidate review not scheduled for task %s: %s", task_id, type(exc).__name__)
 

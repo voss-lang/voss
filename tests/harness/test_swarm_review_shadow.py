@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 import json
 import logging
@@ -424,6 +425,28 @@ def test_review_in_flight_finishes_when_asyncio_run_shuts_down(tmp_path, monkeyp
     assert receipts[0]["status"] == "answered"
     assert "Task was destroyed but it is pending" not in caplog.text
     assert "Task was destroyed but it is pending" not in capsys.readouterr().err
+
+
+def test_review_queued_behind_busy_executor_still_runs_at_shutdown(tmp_path, monkeypatch):
+    install_jev(monkeypatch, _ok)
+    repo = _repo(tmp_path / "proj")
+    store, swarm_id, role, task, spawn = _member(repo, {"owned.py": "# changed\n"})
+    release = threading.Event()
+
+    class HoldExecutor(list):
+        def append(self, event):
+            super().append(event)
+            if event["type"] == "swarm.candidate_ready":
+                asyncio.get_running_loop().run_in_executor(None, release.wait, 5)
+                threading.Timer(0.3, release.set).start()
+
+    async def go():
+        asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=1))
+        return await run_cli_member(store, repo, swarm_id, role, task, spawn_fn=spawn, on_event=HoldExecutor().append)
+
+    asyncio.run(go())
+
+    assert _review(repo, swarm_id, task.id)["receipts"][0]["status"] == "answered"
 
 
 def _normalize(items: list[dict]) -> list[dict]:
