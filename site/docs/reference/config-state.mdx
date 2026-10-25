@@ -44,6 +44,23 @@ env-anthropic = "metered"       # default
 ollama = "unknown"
 ```
 
+### `[judgments]`
+
+Model and limits for opt-in Jev judgments. Defaults are 4 calls and $0.01 per turn.
+
+```toml
+[judgments]
+max_calls_per_turn = 4
+max_cost_usd = 0.01
+timeout_ms = 5000
+```
+
+Judgments are switched on per project in `.voss/config.yml`, not here. See [Config and auth](/harness/config-auth#jev-judgments).
+
+### MCP and skills
+
+Voss imports MCP servers from Claude and Codex config. `~/.config/voss/mcp.yml` and project `.voss/mcp.yml` override imported entries. Skills come from user and project `.claude/skills`, `.codex/skills`, and `.agents/skills` folders; Voss's user `skills` folder and project `.voss/skills` take precedence.
+
 ## Project state
 
 Durable project state is split between human-readable `VOSS.md` and machine-managed `.voss/` directories:
@@ -51,15 +68,20 @@ Durable project state is split between human-readable `VOSS.md` and machine-mana
 ```text
 VOSS.md
 .voss/
+  config.yml          # project opt-ins: judgments, retained memory backend
   constraints.yml
+  mcp.yml             # MCP server overrides
   permissions.yml
   validation.yml
   principles.yml      # project engineering principles (orchestration)
   team.voss           # declared role roster (orchestration)
+  skills/
   memory/
   plans/
   sessions/
   decisions/
+  swarm/              # swarm state and candidate review results
+  task-journal.sqlite3  # durable task events for voss serve clients
 ```
 
 `VOSS.md` is injected into harness context at session start. Machine fences inside it let Voss update architecture notes without overwriting surrounding human prose.
@@ -95,6 +117,7 @@ A team run also persists its [session tree](/orchestration/session-tree) here, o
   <root_id>/
     <node_id>.json                  # session-tree node (budget, scope, status)
     <node_id>.review.json           # Reviewer-A + Reviewer-B sidecar
+    judgments.json                  # advisory requirement assessments, when saved
 ```
 
 Node and review files are written with `0o600` permissions.

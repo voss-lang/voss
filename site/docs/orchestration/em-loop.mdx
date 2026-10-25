@@ -12,6 +12,10 @@ voss team run "Add password reset flow with tests"
 voss team run "<goal>" --cwd . --max-iterations 50
 ```
 
+<Note>
+The CLI currently drives `em_loop` with a scripted EM agent and placeholder reviewers, so a `voss team run` exercises the cage, board, session tree, and sign-off without a model making decisions. The loop, ops, and cage below are the engine the live path will use.
+</Note>
+
 ## The loop
 
 `voss team run` composes the team config, board, session tree, and the Reviewer-A/B pair, then drives `em_loop` to completion and persists a final record.

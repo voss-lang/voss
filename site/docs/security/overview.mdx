@@ -17,7 +17,9 @@ Voss is local-first and repo-scoped. The security model is built around explicit
 | Shell allowlist | Limit command execution |
 | Session redaction | Avoid storing provider credentials |
 | Project memory | Keep `VOSS.md` and `.voss/memory` local to the repo |
-| TUI modals | Route permission and scope decisions through explicit review screens |
+| Permission prompts | Route permission and scope decisions through explicit review screens in the Go client and `voss chat` |
+| Network default-deny | Keep web and MCP tools off unless `--allow-net` or `[tools] allow_net` enables them |
+| Loopback server | `voss serve` binds to `127.0.0.1` and requires a per-process bearer token |
 
 ## Scoped writes
 
@@ -27,9 +29,13 @@ Voss is local-first and repo-scoped. The security model is built around explicit
 
 Shell execution is mutating and potentially risky. It is denied in edit mode and remains subject to lower-level allowlist behavior in broader modes.
 
+## Managed execution
+
+When Voss ADE launches its engine, `voss serve` runs in OAuth-only mode: managed sessions and swarms accept subscription OAuth only, never API keys, and every role is checked before anything is persisted. Child Claude and Codex processes get isolated, temporary login files that are removed when they exit, and conflicting billing variables are stripped. No credential material appears in availability data or task events.
+
 ## Secrets
 
-Voss sessions must not store provider credentials or API keys.
+Voss sessions must not store provider credentials or API keys. The Jev key used for judgments is never exported to agent-run child processes, and judgment receipts store IDs, labels, probabilities, and digests, not your criteria, diffs, or code.
 
 <Warning>
 Do not paste secrets into prompts. Treat user-provided prompt text as session content.

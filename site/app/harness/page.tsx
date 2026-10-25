@@ -15,7 +15,7 @@ export const metadata = pageMetadata({
 });
 
 type PermissionRow = {
-  mode: "plan" | "edit" | "auto";
+  mode: "observe" | "plan" | "edit" | "auto";
   reads: string;
   writes: string;
   shell: string;
@@ -23,6 +23,7 @@ type PermissionRow = {
 };
 
 const PERMISSION_MATRIX: PermissionRow[] = [
+  { mode: "observe", reads: "auto", writes: "denied", shell: "denied", desc: "Read-only and never prompts. Network tools are denied too." },
   { mode: "plan", reads: "auto", writes: "denied", shell: "denied", desc: "Inspect a repo without touching it." },
   { mode: "edit", reads: "auto", writes: "scoped", shell: "denied", desc: "Default for voss edit. Scope expansions require approval." },
   { mode: "auto", reads: "auto", writes: "auto", shell: "auto", desc: "Allowlisted everything. Destructive patterns still prompt." },
@@ -31,7 +32,7 @@ const PERMISSION_MATRIX: PermissionRow[] = [
 const AUTH_PATHS = [
   {
     name: "Interactive login",
-    detail: "Use the Voss login wizard when you want provider credentials managed outside the shell environment.",
+    detail: "Sign in with Claude Code or Codex OAuth, or paste an API key that Voss stores in the OS keychain.",
     cmd: "voss login",
   },
   {
@@ -128,11 +129,12 @@ export default function HarnessPage() {
                 Plan, edit, run, <span className="em">verify</span>.
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                Each turn is a confidence-gated plan, permission-checked tool calls, and a
-                validation loop. In plan mode, mutating tools are denied before they run.
+                Each turn is a plan with its confidence on record, permission-checked tool calls,
+                and a validation loop. In plan and observe modes, mutating tools are denied before
+                they run.
               </p>
             </div>
-            <TerminalDemo title="~/voss-app - voss do" />
+            <TerminalDemo title="~/my-api - voss do" />
           </div>
         </section>
 
@@ -171,7 +173,7 @@ export default function HarnessPage() {
                 Permissions
               </p>
               <h2 className="display mt-3 text-4xl sm:text-5xl">
-                Three modes. <span className="em">Persistent decisions.</span>
+                Four modes. <span className="em">Persistent decisions.</span>
               </h2>
               <p className="mt-4 text-[var(--muted)]">
                 Every project gets its own permission record at{" "}
@@ -283,11 +285,13 @@ export default function HarnessPage() {
               </h2>
               <p className="mt-4 max-w-2xl text-[var(--muted)]">
                 Install the npm CLI, log into a provider or set an API key, and run{" "}
-                <code className="font-mono text-[var(--foreground)]">voss doctor</code> to verify.
+                <code className="font-mono text-[var(--foreground)]">voss doctor</code> to verify. Then
+                run <code className="font-mono text-[var(--foreground)]">voss</code> to open the TUI.
               </p>
               <pre className="mt-6 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-5 font-mono text-sm text-[var(--foreground)]">
 {`${site.install.primary}
-voss doctor`}
+voss doctor
+voss`}
               </pre>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link

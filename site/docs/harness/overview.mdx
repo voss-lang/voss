@@ -10,11 +10,13 @@ It is not a general chat box. Each turn goes through a small set of explicit sys
 ```text
 user task
   -> provider plan
-  -> confidence gate
+  -> confidence check (clarify below threshold)
   -> permission gate
   -> tool execution
   -> session record
 ```
+
+The confidence check reads the plan's own reported confidence. Below the threshold (0.60 by default), Voss asks you a clarifying question instead of executing. That number is the model's self-report and is recorded as such; it is not a measured probability.
 
 ## Why it exists
 
@@ -34,8 +36,8 @@ Voss makes those decisions explicit through commands, modes, tool classification
   <Card title="voss do" icon="terminal" href="/harness/commands">
     Run one natural-language task and exit.
   </Card>
-  <Card title="voss chat" icon="messages-square" href="/harness/commands">
-    Start an interactive harness REPL.
+  <Card title="voss" icon="messages-square" href="/harness/commands">
+    Open the full-screen Go terminal client, or `voss chat` for the plain REPL.
   </Card>
   <Card title="voss edit" icon="file-pen-line" href="/harness/scoped-editing">
     Open a scoped edit session around explicit targets.
@@ -43,8 +45,8 @@ Voss makes those decisions explicit through commands, modes, tool classification
   <Card title="voss sessions" icon="history" href="/harness/sessions">
     List and resume prior harness work.
   </Card>
-  <Card title="voss team run" icon="workflow" href="/orchestration/overview">
-    Run a goal as a whole team built from these loops.
+  <Card title="voss serve" icon="workflow" href="/reference/cli">
+    Expose the same loop over a local REST + SSE protocol for SDKs, swarms, and Voss ADE.
   </Card>
 </CardGroup>
 
@@ -52,4 +54,4 @@ Voss makes those decisions explicit through commands, modes, tool classification
 
 The harness is the substrate; the [orchestration layer](/orchestration/overview) is the product built on top of it. One harness loop is a single bounded agent. A team run dispatches many of them under an [Engineering Manager loop](/orchestration/em-loop), each owning a scoped, budgeted node in the [session tree](/orchestration/session-tree), gated by independent [review](/orchestration/reviewers).
 
-The Python harness is the canonical behavior source and the npm CLI vendors that implementation. The `.voss` language is the control layer at both levels — confidence, context budgets, routing, memory, tools, and fallbacks for one agent; [roles, principles, and gates](/language/core-constructs) for a team.
+The Python harness is the canonical behavior source and the npm CLI vendors that implementation. Clients sit on top of it: the Go terminal client and the Rust, TypeScript, and Go SDKs all talk to `voss serve`, and so does the separate Voss ADE desktop app. None of them reimplement harness behavior. The `.voss` language is the control layer at both levels — confidence, context budgets, routing, memory, tools, and fallbacks for one agent; [roles, principles, and gates](/language/core-constructs) for a team.
