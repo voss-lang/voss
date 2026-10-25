@@ -12,6 +12,7 @@ from .ast_nodes import (
     BoolLit,
     BudgetArg,
     Call,
+    ClassDecl,
     ConfidenceGate,
     CtxBlock,
     DictLit,
@@ -215,6 +216,7 @@ class Analyzer:
         self.signatures: dict[str, FunctionSignature] = {}
         self._return_type: VossType = UNKNOWN
         self._match_entries: list[dict[str, object]] = []
+        self._classes_without_confidence: set[str] = set()
 
     # -------- Scope helpers --------
 
@@ -424,6 +426,10 @@ class Analyzer:
                 self.signatures[stmt.name] = FunctionSignature(
                     params=params, return_type=ret_t
                 )
+            elif isinstance(stmt, ClassDecl) and all(
+                f.name != "confidence" for f in stmt.fields
+            ):
+                self._classes_without_confidence.add(stmt.name)
 
     # -------- Top-level walk --------
 
@@ -552,7 +558,13 @@ class Analyzer:
             and isinstance(stmt.value.callee, Identifier)
             and stmt.value.callee.name == "ask"
             and isinstance(annotated, ProbableType)
-            and isinstance(annotated.inner, (PrimitiveType, ListType, DictType))
+            and (
+                isinstance(annotated.inner, (PrimitiveType, ListType, DictType))
+                or (
+                    isinstance(annotated.inner, NamedType)
+                    and annotated.inner.name in self._classes_without_confidence
+                )
+            )
         ):
             self._scope.unmeasured.add(stmt.name)
         else:
@@ -632,6 +644,7 @@ class Analyzer:
         scope = self._child_scope()
         for p in params:
             scope.symbols[p.name] = self._type_from_type_expr(p.type_annot)
+            scope.unmeasured.discard(p.name)
         prev_return = self._return_type
         self._return_type = self._type_from_type_expr(return_type)
         self._push_scope(scope)

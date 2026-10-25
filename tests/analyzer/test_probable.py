@@ -6,6 +6,8 @@ from voss import analyze
 from voss.ast_nodes import (
     Arg,
     Call,
+    ClassDecl,
+    ClassField,
     ConfidenceGate,
     FnDecl,
     Identifier,
@@ -262,3 +264,38 @@ def test_nested_gate_still_warns():
         else_body=None,
     )
     assert len(_anly004(let("intent", t_probable_string(), ask_call()), outer)) == 1
+
+
+def _class(name: str, *fields: str) -> ClassDecl:
+    return ClassDecl(
+        span=span(),
+        name=name,
+        fields=tuple(ClassField(span=span(), name=f, type_annot=t("float")) for f in fields),
+    )
+
+
+def test_gate_on_ask_reply_of_class_without_confidence_warns():
+    assert len(_anly004(
+        _class("Intent", "label"),
+        let("intent", t("probable", t("Intent")), ask_call()),
+        _gate(),
+    )) == 1
+
+
+def test_gate_on_ask_reply_of_class_with_confidence_does_not_warn():
+    assert _anly004(
+        _class("Intent", "label", "confidence"),
+        let("intent", t("probable", t("Intent")), ask_call()),
+        _gate(),
+    ) == []
+
+
+def test_parameter_shadowing_an_unmeasured_name_does_not_warn():
+    fn = FnDecl(
+        span=span(line=2),
+        name="check",
+        params=(Param(span=span(line=2), name="intent", type_annot=t_probable_string()),),
+        return_type=t_string(),
+        body=(_gate(),),
+    )
+    assert _anly004(let("intent", t_probable_string(), ask_call()), fn) == []
