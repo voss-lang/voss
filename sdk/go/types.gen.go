@@ -10,6 +10,30 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for BriefingTier.
+const (
+	Apply      BriefingTier = "apply"
+	Autonomous BriefingTier = "autonomous"
+	Observe    BriefingTier = "observe"
+	Plan       BriefingTier = "plan"
+)
+
+// Valid indicates whether the value is a known member of the BriefingTier enum.
+func (e BriefingTier) Valid() bool {
+	switch e {
+	case Apply:
+		return true
+	case Autonomous:
+		return true
+	case Observe:
+		return true
+	case Plan:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BudgetUpdatedUnit.
 const (
 	Tokens BudgetUpdatedUnit = "tokens"
@@ -22,6 +46,60 @@ func (e BudgetUpdatedUnit) Valid() bool {
 	case Tokens:
 		return true
 	case Usd:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BundleStatus.
+const (
+	BundleStatusAvailable   BundleStatus = "available"
+	BundleStatusPartial     BundleStatus = "partial"
+	BundleStatusStale       BundleStatus = "stale"
+	BundleStatusUnavailable BundleStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the BundleStatus enum.
+func (e BundleStatus) Valid() bool {
+	switch e {
+	case BundleStatusAvailable:
+		return true
+	case BundleStatusPartial:
+		return true
+	case BundleStatusStale:
+		return true
+	case BundleStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CheckStatus.
+const (
+	CheckStatusFailed      CheckStatus = "failed"
+	CheckStatusNotRun      CheckStatus = "not_run"
+	CheckStatusPassed      CheckStatus = "passed"
+	CheckStatusSkipped     CheckStatus = "skipped"
+	CheckStatusStale       CheckStatus = "stale"
+	CheckStatusUnavailable CheckStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the CheckStatus enum.
+func (e CheckStatus) Valid() bool {
+	switch e {
+	case CheckStatusFailed:
+		return true
+	case CheckStatusNotRun:
+		return true
+	case CheckStatusPassed:
+		return true
+	case CheckStatusSkipped:
+		return true
+	case CheckStatusStale:
+		return true
+	case CheckStatusUnavailable:
 		return true
 	default:
 		return false
@@ -112,6 +190,90 @@ func (e ModelSelectionBodyAuth) Valid() bool {
 	}
 }
 
+// Defines values for RowReviewerOutcome.
+const (
+	RowReviewerOutcomeAbstained            RowReviewerOutcome = "abstained"
+	RowReviewerOutcomeContradicted         RowReviewerOutcome = "contradicted"
+	RowReviewerOutcomeInsufficientEvidence RowReviewerOutcome = "insufficient_evidence"
+	RowReviewerOutcomeNoAnswer             RowReviewerOutcome = "no_answer"
+	RowReviewerOutcomeStale                RowReviewerOutcome = "stale"
+	RowReviewerOutcomeSupported            RowReviewerOutcome = "supported"
+	RowReviewerOutcomeUnavailable          RowReviewerOutcome = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the RowReviewerOutcome enum.
+func (e RowReviewerOutcome) Valid() bool {
+	switch e {
+	case RowReviewerOutcomeAbstained:
+		return true
+	case RowReviewerOutcomeContradicted:
+		return true
+	case RowReviewerOutcomeInsufficientEvidence:
+		return true
+	case RowReviewerOutcomeNoAnswer:
+		return true
+	case RowReviewerOutcomeStale:
+		return true
+	case RowReviewerOutcomeSupported:
+		return true
+	case RowReviewerOutcomeUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RowTestOutcome.
+const (
+	RowTestOutcomeFailed      RowTestOutcome = "failed"
+	RowTestOutcomeNotRun      RowTestOutcome = "not_run"
+	RowTestOutcomePassed      RowTestOutcome = "passed"
+	RowTestOutcomeSkipped     RowTestOutcome = "skipped"
+	RowTestOutcomeStale       RowTestOutcome = "stale"
+	RowTestOutcomeUnavailable RowTestOutcome = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the RowTestOutcome enum.
+func (e RowTestOutcome) Valid() bool {
+	switch e {
+	case RowTestOutcomeFailed:
+		return true
+	case RowTestOutcomeNotRun:
+		return true
+	case RowTestOutcomePassed:
+		return true
+	case RowTestOutcomeSkipped:
+		return true
+	case RowTestOutcomeStale:
+		return true
+	case RowTestOutcomeUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SourceKind.
+const (
+	Issue     SourceKind = "issue"
+	Objective SourceKind = "objective"
+	Prd       SourceKind = "prd"
+)
+
+// Valid indicates whether the value is a known member of the SourceKind enum.
+func (e SourceKind) Valid() bool {
+	switch e {
+	case Issue:
+		return true
+	case Objective:
+		return true
+	case Prd:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for StatusEventPhase.
 const (
 	Ambient StatusEventPhase = "ambient"
@@ -130,10 +292,87 @@ func (e StatusEventPhase) Valid() bool {
 	}
 }
 
+// Defines values for TaskSnapshotPhase.
+const (
+	Active         TaskSnapshotPhase = "active"
+	Cancelled      TaskSnapshotPhase = "cancelled"
+	CandidateReady TaskSnapshotPhase = "candidate_ready"
+	Completed      TaskSnapshotPhase = "completed"
+	Failed         TaskSnapshotPhase = "failed"
+	Idle           TaskSnapshotPhase = "idle"
+	Interrupted    TaskSnapshotPhase = "interrupted"
+	Waiting        TaskSnapshotPhase = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the TaskSnapshotPhase enum.
+func (e TaskSnapshotPhase) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Cancelled:
+		return true
+	case CandidateReady:
+		return true
+	case Completed:
+		return true
+	case Failed:
+		return true
+	case Idle:
+		return true
+	case Interrupted:
+		return true
+	case Waiting:
+		return true
+	default:
+		return false
+	}
+}
+
 // Alternative defines model for Alternative.
 type Alternative struct {
 	Probability float32 `json:"probability"`
 	Text        string  `json:"text"`
+}
+
+// Attempt defines model for Attempt.
+type Attempt struct {
+	BaseRevision      *string   `json:"base_revision,omitempty"`
+	Blockers          *[]string `json:"blockers,omitempty"`
+	Branch            *string   `json:"branch,omitempty"`
+	CandidateRevision *string   `json:"candidate_revision,omitempty"`
+	EndedAt           *string   `json:"ended_at,omitempty"`
+	Harness           *string   `json:"harness,omitempty"`
+	Id                string    `json:"id"`
+	Model             *string   `json:"model,omitempty"`
+	OutputAfter       *int      `json:"output_after,omitempty"`
+	OutputThrough     *int      `json:"output_through,omitempty"`
+	PlanRevision      string    `json:"plan_revision"`
+	Provider          *string   `json:"provider,omitempty"`
+	Repository        *string   `json:"repository,omitempty"`
+	ReviewState       *string   `json:"review_state,omitempty"`
+	Role              *string   `json:"role,omitempty"`
+	RunId             *string   `json:"run_id,omitempty"`
+	SessionId         *string   `json:"session_id,omitempty"`
+	StartedAt         *string   `json:"started_at,omitempty"`
+	State             *string   `json:"state,omitempty"`
+	Worktree          *string   `json:"worktree,omitempty"`
+}
+
+// Availability defines model for Availability.
+type Availability struct {
+	AccountAlias     *string `json:"account_alias,omitempty"`
+	AccountSelection *bool   `json:"account_selection,omitempty"`
+	Available        *bool   `json:"available,omitempty"`
+	CheckScope       *string `json:"check_scope,omitempty"`
+	CheckedAt        string  `json:"checked_at"`
+	CliInstalled     *bool   `json:"cli_installed,omitempty"`
+	Code             string  `json:"code"`
+	Harness          string  `json:"harness"`
+	LoginCommand     *string `json:"login_command,omitempty"`
+	Message          string  `json:"message"`
+	Model            string  `json:"model"`
+	Provider         string  `json:"provider"`
+	V                *int    `json:"v,omitempty"`
 }
 
 // BannerEvent defines model for BannerEvent.
@@ -144,6 +383,21 @@ type BannerEvent struct {
 	Type  string `json:"type"`
 	V     *int   `json:"v,omitempty"`
 }
+
+// Briefing defines model for Briefing.
+type Briefing struct {
+	Context *[]Context              `json:"context,omitempty"`
+	Cwd     string                  `json:"cwd"`
+	Harness string                  `json:"harness"`
+	Model   string                  `json:"model"`
+	Scope   *Scope                  `json:"scope,omitempty"`
+	Source  Source                  `json:"source"`
+	Swarm   *map[string]interface{} `json:"swarm,omitempty"`
+	Tier    *BriefingTier           `json:"tier,omitempty"`
+}
+
+// BriefingTier defines model for Briefing.Tier.
+type BriefingTier string
 
 // BudgetUpdated defines model for BudgetUpdated.
 type BudgetUpdated struct {
@@ -158,6 +412,57 @@ type BudgetUpdated struct {
 
 // BudgetUpdatedUnit defines model for BudgetUpdated.Unit.
 type BudgetUpdatedUnit string
+
+// Bundle defines model for Bundle.
+type Bundle struct {
+	AttemptId         string        `json:"attempt_id"`
+	BaseRevision      *string       `json:"base_revision,omitempty"`
+	Branch            *string       `json:"branch,omitempty"`
+	CandidateRevision *string       `json:"candidate_revision,omitempty"`
+	CheckedAt         *string       `json:"checked_at,omitempty"`
+	Checks            *[]Check      `json:"checks,omitempty"`
+	Clean             *bool         `json:"clean,omitempty"`
+	CriteriaSource    *string       `json:"criteria_source,omitempty"`
+	CurrentHead       *string       `json:"current_head,omitempty"`
+	EvidenceRevision  *string       `json:"evidence_revision,omitempty"`
+	Message           *string       `json:"message,omitempty"`
+	PlanId            *string       `json:"plan_id,omitempty"`
+	PlanRevision      *string       `json:"plan_revision,omitempty"`
+	Rows              *[]Row        `json:"rows,omitempty"`
+	RunId             *string       `json:"run_id,omitempty"`
+	SessionId         string        `json:"session_id"`
+	Status            *BundleStatus `json:"status,omitempty"`
+	TaskId            string        `json:"task_id"`
+	Unresolved        *[]string     `json:"unresolved,omitempty"`
+	V                 *int          `json:"v,omitempty"`
+	Worktree          *string       `json:"worktree,omitempty"`
+}
+
+// BundleStatus defines model for Bundle.Status.
+type BundleStatus string
+
+// Capabilities defines model for Capabilities.
+type Capabilities struct {
+	Capabilities  []string `json:"capabilities"`
+	EngineVersion string   `json:"engine_version"`
+	V             *int     `json:"v,omitempty"`
+}
+
+// Catalog defines model for Catalog.
+type Catalog struct {
+	Harnesses       []Availability `json:"harnesses"`
+	SelectedHarness *string        `json:"selected_harness,omitempty"`
+	V               *int           `json:"v,omitempty"`
+}
+
+// Check defines model for Check.
+type Check struct {
+	Name   string      `json:"name"`
+	Status CheckStatus `json:"status"`
+}
+
+// CheckStatus defines model for Check.Status.
+type CheckStatus string
 
 // ClarifyEvent defines model for ClarifyEvent.
 type ClarifyEvent struct {
@@ -202,6 +507,15 @@ type CognitionOverflow struct {
 	V                  *int   `json:"v,omitempty"`
 }
 
+// CommandAck defines model for CommandAck.
+type CommandAck struct {
+	AttemptId    *string       `json:"attempt_id,omitempty"`
+	Availability *Availability `json:"availability,omitempty"`
+	RunId        *string       `json:"run_id,omitempty"`
+	Status       string        `json:"status"`
+	V            *int          `json:"v,omitempty"`
+}
+
 // CommandCatalog defines model for CommandCatalog.
 type CommandCatalog struct {
 	Commands []CommandInfo `json:"commands"`
@@ -236,6 +550,12 @@ type ConfidenceUpdated struct {
 	SessionId string  `json:"session_id"`
 	Type      string  `json:"type"`
 	V         *int    `json:"v,omitempty"`
+}
+
+// Context defines model for Context.
+type Context struct {
+	Id   string `json:"id"`
+	Text string `json:"text"`
 }
 
 // CreateSessionBody defines model for CreateSessionBody.
@@ -308,6 +628,14 @@ type EventEnvelope_Event struct {
 	union json.RawMessage
 }
 
+// Evidence defines model for Evidence.
+type Evidence struct {
+	Id        string `json:"id"`
+	Label     string `json:"label"`
+	Reference string `json:"reference"`
+	Summary   string `json:"summary"`
+}
+
 // FinalEvent defines model for FinalEvent.
 type FinalEvent struct {
 	Confidence *float32 `json:"confidence"`
@@ -324,6 +652,18 @@ type GateUpdated struct {
 	SessionId string `json:"session_id"`
 	Type      string `json:"type"`
 	V         *int   `json:"v,omitempty"`
+}
+
+// Graph defines model for Graph.
+type Graph struct {
+	Nodes          *[]Node `json:"nodes,omitempty"`
+	OwnerSessionId string  `json:"owner_session_id"`
+	PlanId         string  `json:"plan_id"`
+	Revision       string  `json:"revision"`
+	RunId          *string `json:"run_id,omitempty"`
+	Source         string  `json:"source"`
+	UpdatedAt      *string `json:"updated_at,omitempty"`
+	V              *int    `json:"v,omitempty"`
 }
 
 // HTTPValidationError defines model for HTTPValidationError.
@@ -357,8 +697,9 @@ type InstructionsOverflow struct {
 
 // MessageBody defines model for MessageBody.
 type MessageBody struct {
-	Mode  *string        `json:"mode,omitempty"`
-	Parts *[]MessagePart `json:"parts,omitempty"`
+	CommandId *string        `json:"command_id,omitempty"`
+	Mode      *string        `json:"mode,omitempty"`
+	Parts     *[]MessagePart `json:"parts,omitempty"`
 }
 
 // MessagePart defines model for MessagePart.
@@ -398,6 +739,22 @@ type ModelSelectionBody struct {
 // ModelSelectionBodyAuth defines model for ModelSelectionBody.Auth.
 type ModelSelectionBodyAuth string
 
+// Node defines model for Node.
+type Node struct {
+	Attempts  *[]Attempt `json:"attempts,omitempty"`
+	BlockedBy *[]string  `json:"blocked_by,omitempty"`
+	Blockers  *[]string  `json:"blockers,omitempty"`
+	Criteria  *[]string  `json:"criteria,omitempty"`
+	DependsOn *[]string  `json:"depends_on,omitempty"`
+	Files     *[]string  `json:"files,omitempty"`
+	Goal      string     `json:"goal"`
+	Harness   *string    `json:"harness,omitempty"`
+	Id        string     `json:"id"`
+	Model     *string    `json:"model,omitempty"`
+	Provider  *string    `json:"provider,omitempty"`
+	State     *string    `json:"state,omitempty"`
+}
+
 // ObserveEnrollmentPatch defines model for ObserveEnrollmentPatch.
 type ObserveEnrollmentPatch struct {
 	Analysis   *bool    `json:"analysis,omitempty"`
@@ -426,6 +783,16 @@ type ObserveEvidenceItem struct {
 type ObserveSettingsBody struct {
 	Enrollment   ObserveEnrollmentPatch `json:"enrollment"`
 	RepositoryId string                 `json:"repository_id"`
+}
+
+// Output defines model for Output.
+type Output struct {
+	Events     *[]map[string]interface{} `json:"events,omitempty"`
+	HasMore    *bool                     `json:"has_more,omitempty"`
+	Message    *string                   `json:"message,omitempty"`
+	NextCursor *int                      `json:"next_cursor,omitempty"`
+	Status     string                    `json:"status"`
+	V          *int                      `json:"v,omitempty"`
 }
 
 // PermissionReply defines model for PermissionReply.
@@ -461,6 +828,30 @@ type PlanStep struct {
 	Why  *string                 `json:"why,omitempty"`
 }
 
+// PreflightBody defines model for PreflightBody.
+type PreflightBody struct {
+	AccountAlias *string `json:"account_alias,omitempty"`
+	Harness      string  `json:"harness"`
+	Model        *string `json:"model,omitempty"`
+}
+
+// Preview defines model for Preview.
+type Preview struct {
+	AcceptedContext   []string                       `json:"accepted_context"`
+	BaseBranch        *string                        `json:"base_branch,omitempty"`
+	BaseRevision      string                         `json:"base_revision"`
+	Briefing          Briefing                       `json:"briefing"`
+	Execution         *string                        `json:"execution,omitempty"`
+	Id                string                         `json:"id"`
+	InputRevision     string                         `json:"input_revision"`
+	Policy            *string                        `json:"policy,omitempty"`
+	Provider          *string                        `json:"provider,omitempty"`
+	Revision          string                         `json:"revision"`
+	Tasks             []VossHarnessServerPreviewNode `json:"tasks"`
+	V                 *int                           `json:"v,omitempty"`
+	WorkspaceRevision string                         `json:"workspace_revision"`
+}
+
 // PrinciplesOverflow defines model for PrinciplesOverflow.
 type PrinciplesOverflow struct {
 	Budget           *int   `json:"budget,omitempty"`
@@ -478,6 +869,18 @@ type ProbableEvent struct {
 	V            *int           `json:"v,omitempty"`
 }
 
+// Result defines model for Result.
+type Result struct {
+	AttemptId    *string       `json:"attempt_id,omitempty"`
+	Availability *Availability `json:"availability,omitempty"`
+	Message      *string       `json:"message,omitempty"`
+	Preview      *Preview      `json:"preview,omitempty"`
+	RunId        *string       `json:"run_id,omitempty"`
+	SessionId    *string       `json:"session_id,omitempty"`
+	Status       string        `json:"status"`
+	V            *int          `json:"v,omitempty"`
+}
+
 // RoleSpec defines model for RoleSpec.
 type RoleSpec struct {
 	Agent    *string   `json:"agent,omitempty"`
@@ -486,6 +889,30 @@ type RoleSpec struct {
 	Command  *string   `json:"command,omitempty"`
 	Model    *string   `json:"model,omitempty"`
 	Name     string    `json:"name"`
+}
+
+// Row defines model for Row.
+type Row struct {
+	Evidence        *[]Evidence         `json:"evidence,omitempty"`
+	Id              string              `json:"id"`
+	ReviewerMode    *string             `json:"reviewer_mode,omitempty"`
+	ReviewerOutcome *RowReviewerOutcome `json:"reviewer_outcome,omitempty"`
+	TestOutcome     *RowTestOutcome     `json:"test_outcome,omitempty"`
+	TestScope       *string             `json:"test_scope,omitempty"`
+	Text            string              `json:"text"`
+	Unresolved      *[]string           `json:"unresolved,omitempty"`
+}
+
+// RowReviewerOutcome defines model for Row.ReviewerOutcome.
+type RowReviewerOutcome string
+
+// RowTestOutcome defines model for Row.TestOutcome.
+type RowTestOutcome string
+
+// Scope defines model for Scope.
+type Scope struct {
+	Allow *[]string `json:"allow,omitempty"`
+	Deny  *[]string `json:"deny,omitempty"`
 }
 
 // ServerConnected defines model for ServerConnected.
@@ -505,6 +932,23 @@ type SessionIdle struct {
 	SessionId string `json:"session_id"`
 	Type      string `json:"type"`
 	V         *int   `json:"v,omitempty"`
+}
+
+// Source defines model for Source.
+type Source struct {
+	Kind      *SourceKind `json:"kind,omitempty"`
+	Reference *string     `json:"reference,omitempty"`
+	Revision  *string     `json:"revision,omitempty"`
+	Text      string      `json:"text"`
+}
+
+// SourceKind defines model for Source.Kind.
+type SourceKind string
+
+// Start defines model for Start.
+type Start struct {
+	Briefing Briefing `json:"briefing"`
+	Revision string   `json:"revision"`
 }
 
 // StatusEvent defines model for StatusEvent.
@@ -633,6 +1077,35 @@ type SwarmWorkerDone struct {
 	V         *int    `json:"v,omitempty"`
 }
 
+// TaskEvent defines model for TaskEvent.
+type TaskEvent struct {
+	Cursor   int                    `json:"cursor"`
+	Event    map[string]interface{} `json:"event"`
+	Snapshot TaskSnapshot           `json:"snapshot"`
+	V        *int                   `json:"v,omitempty"`
+}
+
+// TaskSnapshot defines model for TaskSnapshot.
+type TaskSnapshot struct {
+	AttemptId      *string                   `json:"attempt_id,omitempty"`
+	ExecutionPlan  *map[string]interface{}   `json:"execution_plan,omitempty"`
+	Graph          *Graph                    `json:"graph,omitempty"`
+	NodeStates     *map[string]string        `json:"node_states,omitempty"`
+	Outcome        *string                   `json:"outcome,omitempty"`
+	PendingActions *[]map[string]interface{} `json:"pending_actions,omitempty"`
+	Phase          *TaskSnapshotPhase        `json:"phase,omitempty"`
+	RunId          *string                   `json:"run_id,omitempty"`
+	SessionId      string                    `json:"session_id"`
+	SwarmId        *string                   `json:"swarm_id,omitempty"`
+	SwarmTaskId    *string                   `json:"swarm_task_id,omitempty"`
+	TaskId         string                    `json:"task_id"`
+	V              *int                      `json:"v,omitempty"`
+	Watermark      *int                      `json:"watermark,omitempty"`
+}
+
+// TaskSnapshotPhase defines model for TaskSnapshot.Phase.
+type TaskSnapshotPhase string
+
 // ThinkingEvent defines model for ThinkingEvent.
 type ThinkingEvent struct {
 	Label string `json:"label"`
@@ -687,6 +1160,15 @@ type WarningEvent struct {
 	V       *int   `json:"v,omitempty"`
 }
 
+// VossHarnessServerPreviewNode defines model for voss__harness__server__preview__Node.
+type VossHarnessServerPreviewNode struct {
+	Criteria  []string  `json:"criteria"`
+	DependsOn *[]string `json:"depends_on,omitempty"`
+	Files     *[]string `json:"files,omitempty"`
+	Goal      string    `json:"goal"`
+	Id        string    `json:"id"`
+}
+
 // DoctorDoctorGetParams defines parameters for DoctorDoctorGet.
 type DoctorDoctorGetParams struct {
 	Auth *string `form:"auth,omitempty" json:"auth,omitempty"`
@@ -718,16 +1200,43 @@ type ObserveStreamObserveStreamGetParams struct {
 	Cursor       *int   `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// GraphOutputSessionSessionIdGraphOutputGetParams defines parameters for GraphOutputSessionSessionIdGraphOutputGet.
+type GraphOutputSessionSessionIdGraphOutputGetParams struct {
+	NodeId    string `form:"node_id" json:"node_id"`
+	AttemptId string `form:"attempt_id" json:"attempt_id"`
+	After     *int   `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ReviewBundleSessionSessionIdReviewGetParams defines parameters for ReviewBundleSessionSessionIdReviewGet.
+type ReviewBundleSessionSessionIdReviewGetParams struct {
+	NodeId    string `form:"node_id" json:"node_id"`
+	AttemptId string `form:"attempt_id" json:"attempt_id"`
+}
+
+// TaskEventsSessionSessionIdTaskEventsGetParams defines parameters for TaskEventsSessionSessionIdTaskEventsGet.
+type TaskEventsSessionSessionIdTaskEventsGetParams struct {
+	After *int `form:"after,omitempty" json:"after,omitempty"`
+}
+
 // ListSavedSessionsSessionsSavedGetParams defines parameters for ListSavedSessionsSessionsSavedGet.
 type ListSavedSessionsSessionsSavedGetParams struct {
 	Cwd *string `form:"cwd,omitempty" json:"cwd,omitempty"`
 }
+
+// HarnessPreflightHarnessPreflightPostJSONRequestBody defines body for HarnessPreflightHarnessPreflightPost for application/json ContentType.
+type HarnessPreflightHarnessPreflightPostJSONRequestBody = PreflightBody
 
 // PostObserveEventObserveEventsPostJSONRequestBody defines body for PostObserveEventObserveEventsPost for application/json ContentType.
 type PostObserveEventObserveEventsPostJSONRequestBody = ObserveEventBody
 
 // PatchObserveSettingsObserveSettingsPatchJSONRequestBody defines body for PatchObserveSettingsObserveSettingsPatch for application/json ContentType.
 type PatchObserveSettingsObserveSettingsPatchJSONRequestBody = ObserveSettingsBody
+
+// PreparePlanPlansPreviewPostJSONRequestBody defines body for PreparePlanPlansPreviewPost for application/json ContentType.
+type PreparePlanPlansPreviewPostJSONRequestBody = Briefing
+
+// StartPlanPlansPlanIdStartPostJSONRequestBody defines body for StartPlanPlansPlanIdStartPost for application/json ContentType.
+type StartPlanPlansPlanIdStartPostJSONRequestBody = Start
 
 // CreateSessionSessionPostJSONRequestBody defines body for CreateSessionSessionPost for application/json ContentType.
 type CreateSessionSessionPostJSONRequestBody = CreateSessionBody
