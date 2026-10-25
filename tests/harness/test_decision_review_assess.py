@@ -65,7 +65,7 @@ async def test_labels_follow_probabilities_and_the_threshold(monkeypatch, mode):
     assert receipt.detail["labels"] == {"AC-1": "supported", "AC-2": "contradicted", "AC-3": "abstained", "AC-4": "abstained"}
     assert list(receipt.answers) == receipt.detail["criterion_ids"] == ["AC-1", "AC-2", "AC-3", "AC-4"]
     assert receipt.purpose == "review.requirements"
-    assert receipt.rubric_version == "review.requirements.v1"
+    assert receipt.rubric_version == "review.requirements.v2"
     assert receipt.artifact_revision == packet.packet_id == receipt.detail["packet_id"]
     assert receipt.mode == mode
     assert receipt.status == "answered" and receipt.fallback_reason is None

@@ -1,0 +1,55 @@
+name: voss-proofs
+
+permissions:
+  contents: read
+
+on:
+  push:
+    paths: ["voss-proofs/**", "evals/review*/**", ".github/workflows/voss-proofs.yml"]
+  pull_request:
+    branches: [master]
+    paths: ["voss-proofs/**", "evals/review*/**", ".github/workflows/voss-proofs.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  deterministic:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: voss-proofs
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - uses: astral-sh/setup-uv@v6
+      - run: uv pip install --system -e ".[dev]" -e "..[server]"
+      - run: pip install "ruff==0.16.6" && ruff check voss_proofs tests
+      - name: Every scenario is solvable and non-trivial
+        run: |
+          proofs validate --bench benchmarks/regression
+          proofs validate --bench benchmarks/orchestration
+      - run: pytest -q
+      - name: Two offline experiments produce identical outcomes
+        run: |
+          proofs run --bench benchmarks/regression --config oracle,null,voss-serve-fake --out results/ci-a
+          proofs run --bench benchmarks/regression --config oracle,null,voss-serve-fake --out results/ci-b
+          proofs compare results/ci-a results/ci-b
+          cat results/ci-a/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Locked review set imports and matches its frozen hashes
+        run: |
+          proofs import-review ../evals/review-locked-2 --out results/review-locked-2
+          cat results/review-locked-2/review.md >> "$GITHUB_STEP_SUMMARY"

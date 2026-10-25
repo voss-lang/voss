@@ -11,8 +11,8 @@ type InstallTab = {
 
 const TABS: InstallTab[] = [
   { id: "npm", label: "npm", cmd: "npm i -g @vosslang/cli" },
-  { id: "pip", label: "pip", cmd: "pip install voss" },
-  { id: "search", label: "semantic memory", cmd: 'pip install "voss[search]"' },
+  { id: "pip", label: "pip", cmd: 'pip install "voss @ git+https://github.com/voss-lang/voss"' },
+  { id: "search", label: "semantic memory", cmd: 'pip install "voss[search] @ git+https://github.com/voss-lang/voss"' },
 ];
 
 export default function InstallTabs() {

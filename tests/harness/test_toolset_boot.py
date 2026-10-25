@@ -4,12 +4,24 @@ Boot-path regression for make_toolset (V19-03 fallout).
 """
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import pytest
 
 import voss.harness.code.service as code_service
 from voss.harness.tools import make_toolset
+
+
+def test_stub_toolset_does_not_spawn_index_workers(tmp_path, monkeypatch):
+    started = []
+    monkeypatch.setattr(threading.Thread, "start", lambda thread: started.append(thread))
+    (tmp_path / "example.py").write_text("def example():\n    return 1\n")
+
+    toolset = make_toolset(tmp_path)
+
+    assert "code_recall" in toolset
+    assert started == []
 
 
 def test_make_toolset_boot_does_not_build_code_index(

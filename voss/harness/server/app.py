@@ -1026,15 +1026,13 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
         mutating = body.name in {"/save-session", "/save", "/forget"} or (body.name == "/budget" and bool(body.args))
         if mutating and s.busy:
             raise HTTPException(409, "a turn, command, or model switch is already running")
-        if mutating:
-            s.commanding = True
         try:
+            if mutating:
+                s.command_task = asyncio.create_task(commands.execute(s, body))
+                return await asyncio.shield(s.command_task)
             return await commands.execute(s, body)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
-        finally:
-            if mutating:
-                s.commanding = False
 
     @app.get("/models", response_model=model_selection.ModelCatalog)
     def list_models():

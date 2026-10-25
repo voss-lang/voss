@@ -1,0 +1,35 @@
+prompt = """
+word_count in src/lib.rs miscounts: it returns 1 for an empty string and counts the empty
+fragments between repeated spaces. It must count words separated by any whitespace
+(spaces, tabs, newlines). Keep the public signature.
+"""
+mode = "auto"
+rubric = """
+PASS if word_count counts whitespace-separated words, returns 0 for empty or blank input, and the signature is unchanged.
+FAIL otherwise.
+"""
+requires = ["cargo"]
+
+[meta]
+category = "code"
+synthetic = true
+origin = "hand-written for VossProofs regression set, 2026-10"
+language = "rust"
+
+[acceptance]
+criteria = [
+  "AC-1: empty or whitespace-only input returns 0",
+  "AC-2: repeated spaces, tabs and newlines separate words without counting empty fragments",
+  "AC-3: pub fn word_count(s: &str) -> usize signature unchanged",
+]
+allowed_paths = ["src/*", "tests/*", "Cargo.lock"]
+
+[[checks]]
+type = "cmd"
+run = "cargo test -q --offline"
+timeout = 300
+
+[[hidden_checks]]
+type = "cmd"
+run = "mkdir -p tests && cp hidden/hidden_test.rs tests/ && cargo test -q --offline"
+timeout = 300

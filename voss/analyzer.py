@@ -189,6 +189,7 @@ class Scope:
     symbols: dict[str, VossType] = field(default_factory=dict)
     estimates: dict[str, int] = field(default_factory=dict)
     gated: set[str] = field(default_factory=set)
+    unmeasured: set[str] = field(default_factory=set)
 
 
 class Analyzer:
@@ -242,6 +243,7 @@ class Analyzer:
             symbols=dict(parent.symbols),
             estimates=dict(parent.estimates),
             gated=set(parent.gated),
+            unmeasured=set(parent.unmeasured),
         )
 
     # -------- Type normalization --------
@@ -545,6 +547,16 @@ class Analyzer:
 
     def _visit_let(self, stmt: LetStmt) -> None:
         annotated = self._type_from_type_expr(stmt.type_annot)
+        if (
+            isinstance(stmt.value, Call)
+            and isinstance(stmt.value.callee, Identifier)
+            and stmt.value.callee.name == "ask"
+            and isinstance(annotated, ProbableType)
+            and isinstance(annotated.inner, (PrimitiveType, ListType, DictType))
+        ):
+            self._scope.unmeasured.add(stmt.name)
+        else:
+            self._scope.unmeasured.discard(stmt.name)
         if stmt.value is None:
             self._bind(stmt.name, annotated)
             return
@@ -571,6 +583,19 @@ class Analyzer:
         gated_name: str | None = None
         if isinstance(condition, ConfidenceGate):
             gated_name = self._root_identifier(condition.target)
+            if gated_name is not None and gated_name in self._scope.unmeasured:
+                self.diagnostics.append(
+                    Diagnostic(
+                        severity="warning",
+                        code="ANLY004",
+                        message=(
+                            f"confidence gate on '{gated_name}' can never pass: "
+                            "ask() does not measure confidence"
+                        ),
+                        span=condition.span,
+                        hint="Use judge(...).to_probable() for a measured probability, or drop the gate.",
+                    )
+                )
         else:
             if isinstance(condition, Expr):
                 self._infer_expr(condition)

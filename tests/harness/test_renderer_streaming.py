@@ -18,6 +18,7 @@ from voss.harness.render import (
     PlainRenderer,
     Renderer,
     TtyRenderer,
+    format_confidence,
     make_renderer,
 )
 
@@ -156,7 +157,7 @@ class TestCompactRenderer:
 
     def test_make_renderer_compact_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("VOSS_RENDERER", "compact")
-        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        renderer = make_renderer(json_mode=False, plain=False)
         assert isinstance(renderer, CompactRenderer)
 
     def test_make_renderer_embedded_env_does_not_force_compact(
@@ -164,73 +165,20 @@ class TestCompactRenderer:
     ) -> None:
         monkeypatch.setenv("VOSS_EMBEDDED", "1")
         monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        renderer = make_renderer(json_mode=False, plain=False)
         assert isinstance(renderer, PlainRenderer)
 
     def test_make_renderer_plain_wins_over_compact(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("VOSS_RENDERER", "compact")
-        renderer = make_renderer(json_mode=False, plain=True, force_tui=False)
+        renderer = make_renderer(json_mode=False, plain=True)
         assert isinstance(renderer, PlainRenderer)
-
-    def test_force_tui_env_wins_over_compact(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """VOSS_FORCE_TUI=1 overrides VOSS_RENDERER=compact (embedded pane fix)."""
-        monkeypatch.setenv("VOSS_RENDERER", "compact")
-        monkeypatch.setenv("VOSS_FORCE_TUI", "1")
-        from voss.harness.tui.renderer import TextualRenderer
-
-        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
-        assert isinstance(renderer, TextualRenderer)
-
-
-class TestTextualRendererDelegates:
-    def test_stream_delta_forwards_to_turn_view(self, monkeypatch) -> None:
-        from voss.harness.tui.renderer import TextualRenderer
-
-        recorded: list[tuple[str, tuple, dict]] = []
-
-        class RecordingRenderer(TextualRenderer):
-            def __init__(self) -> None:  # bypass app dependency
-                pass
-
-            def _safe(self, widget_fn, attr, *args, **kwargs):
-                recorded.append((attr, args, kwargs))
-
-        r = RecordingRenderer()
-        r.stream_delta("hello")
-        r.finalize_stream(
-            role="assistant",
-            confidence=0.92,
-            cost_usd=0.012,
-            timestamp="2026-05-15T00:00:00+00:00",
-        )
-
-        assert recorded[0][0] == "stream_delta"
-        assert recorded[0][1] == ("hello",)
-
-        # R2 rebaseline (tui-redesign-spec §3.6/§6.3): stream_delta also
-        # ticks the working-indicator token estimate via a coalesced
-        # update_working post, so it lands between the two original calls.
-        assert recorded[1][0] == "update_working"
-
-        assert recorded[-1][0] == "finalize_stream"
-        assert recorded[-1][2] == {
-            "role": "assistant",
-            "confidence": 0.92,
-            "cost_usd": 0.012,
-            "timestamp": "2026-05-15T00:00:00+00:00",
-            "accumulated_text": None,
-        }
 
 
 class TestProtocolMembership:
     def test_concrete_impls_satisfy_protocol(self) -> None:
-        # Renderer is runtime_checkable. All three concrete impls (TextualRenderer
-        # tested separately above) must now satisfy isinstance check after the
-        # new method addition.
+        # Renderer is runtime_checkable; every concrete impl must satisfy it.
         assert isinstance(TtyRenderer(console=Console(file=io.StringIO())), Renderer)
         assert isinstance(CompactRenderer(console=Console(file=io.StringIO())), Renderer)
         assert isinstance(PlainRenderer(), Renderer)
@@ -250,3 +198,36 @@ class TestNoteTurnPassthrough:
         assert meta.get("exit_reason") == "done"
         assert meta.get("cost_usd") == pytest.approx(0.1)
         assert meta.get("outcome") == "complete"
+
+
+class TestUnknownConfidence:
+    def test_format_confidence(self) -> None:
+        assert format_confidence(None) == "unknown"
+        assert format_confidence(0.9) == "0.90"
+        assert format_confidence(1) == "1.00"
+
+    def _console(self) -> tuple[io.StringIO, Console]:
+        buf = io.StringIO()
+        return buf, Console(file=buf, width=80, force_terminal=False)
+
+    def test_tty_footer_says_unknown(self) -> None:
+        buf, console = self._console()
+        TtyRenderer(console=console).show_final("hi", confidence=None, cost_usd=0.001)
+        assert "confidence unknown" in buf.getvalue()
+        assert "$0.0010" in buf.getvalue()
+
+    def test_tty_footer_keeps_numbers(self) -> None:
+        buf, console = self._console()
+        TtyRenderer(console=console).show_final("hi", confidence=0.9, cost_usd=0.001)
+        assert "confidence 0.90" in buf.getvalue()
+
+    def test_compact_footer_says_unknown(self) -> None:
+        buf, console = self._console()
+        CompactRenderer(console=console).show_final("hi", confidence=None, cost_usd=0.001)
+        assert "conf unknown" in buf.getvalue()
+
+    def test_json_final_sends_null(self, capsys) -> None:
+        JsonRenderer().show_final("hi", confidence=None, cost_usd=0.001)
+        ev = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert ev["type"] == "final"
+        assert ev["confidence"] is None

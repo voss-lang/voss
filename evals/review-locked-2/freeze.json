@@ -1,0 +1,51 @@
+{
+  "frozen_at": "2026-10-17",
+  "commit": "c1a27046aef3096e460b1c24b59d8066e5c2f792",
+  "rubric_version": "review.requirements.v2",
+  "seed": 20261010,
+  "split_algorithm": "every fixture is test",
+  "splits": {
+    "dev": {
+      "fixtures": 0,
+      "pairs": 0,
+      "gold": {},
+      "negatives": 0,
+      "ambiguous": 0
+    },
+    "test": {
+      "fixtures": 21,
+      "pairs": 50,
+      "gold": {
+        "contradicted": 13,
+        "insufficient_evidence": 20,
+        "supported": 17
+      },
+      "negatives": 33,
+      "ambiguous": 0
+    }
+  },
+  "metrics": {
+    "false_supported": "pairs shown supported whose gold is contradicted or insufficient_evidence, over all non-supported gold pairs; Wilson 95% interval",
+    "contradicted_recall": "pairs shown contradicted over gold contradicted pairs; Wilson 95% interval",
+    "abstention_rate": "pairs shown abstained or no_answer, or whose call failed, over all scored pairs",
+    "coverage": "1 - abstention_rate",
+    "ambiguity": "pairs flagged ambiguous; excluded from every rate and listed separately",
+    "brier": "mean (P(supported) - [gold == supported])^2 over scored pairs with probabilities",
+    "latency": "p50 and p95 latency_ms over answered receipts",
+    "cost": "total and mean observed cost_usd over receipts"
+  },
+  "threshold_policy": {
+    "start": 0.8,
+    "tuning": "dev split only",
+    "locked": "decision_review.THRESHOLD at the locked run, recorded in reports/review-test.json"
+  },
+  "release_bar": {
+    "false_supported_max": 0.05,
+    "basis": "point estimate on the locked split",
+    "interval": "Wilson 95%, reported, not gating"
+  },
+  "files": {
+    "corpus.json": "34f3673887c7541bfb271b45101b9768fc13a9d085048875a1f2b92043df5b18",
+    "fixtures/batch-01.jsonl": "e34d6f5401f08adf5e7492ec786514d96fae6366f9b60a7390a1a241ade0541c"
+  }
+}

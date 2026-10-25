@@ -5,7 +5,7 @@ library** (`voss_runtime`) and the **harness library** (`voss.harness`).
 Together they are the SDK.
 
 There is no separate "SDK package" — the same wheel you install with
-`pip install voss` (or `npm i -g voss` in M6) exposes both surfaces.
+`pip install "voss @ git+https://github.com/voss-lang/voss"` (or `npm i -g @vosslang/cli`) exposes both surfaces.
 
 ---
 
@@ -58,7 +58,7 @@ release before removal. Pre-1.0 this is best-effort, not a hard guarantee.
 
 ## `voss_runtime` — runtime + embedding
 
-Install: `pip install voss` (the wheel ships both `voss` and `voss_runtime`).
+Install: `pip install "voss @ git+https://github.com/voss-lang/voss"` (the package ships both `voss` and `voss_runtime`).
 
 ### Quick start
 
@@ -66,7 +66,6 @@ Install: `pip install voss` (the wheel ships both `voss` and `voss_runtime`).
 import asyncio
 from voss_runtime import (
     ContextScope,
-    ProbableValue,
     StubProvider,
     configure,
     RuntimeConfig,
@@ -77,20 +76,19 @@ async def main():
     configure(RuntimeConfig(default_model="__stub__"))
 
     async with ContextScope(token_budget=4_000) as ctx:
-        result: ProbableValue[str] = await ctx.ask("Pick a color: red or blue")
-        if result.confidence >= 0.7:
-            print(result.value)
-        else:
-            print("unsure")
+        answer = await ctx.ask("Pick a color: red or blue")
+        print(answer)
 
 asyncio.run(main())
 ```
+
+`ctx.ask(..., return_type=ProbableValue)` returns a `ProbableValue` with `confidence=None` and `source="unknown"`, because `ask()` does not measure confidence. Unknown confidence fails every gate, and checking such a gate raises a `RuntimeWarning`. For a measured probability, use `judge(...)` and `to_probable()` (see [Explicit judgments](#explicit-judgments)).
 
 ### Public surface
 
 | Name | Purpose |
 |---|---|
-| `ProbableValue` | A value paired with a confidence score; the `probable<T>` runtime representation |
+| `ProbableValue` | A value with a confidence and a `source` (`jev`, `self_report`, `given` or `unknown`); the `probable<T>` runtime representation. Confidence is None when the source is unknown, and unknown never passes a gate. |
 | `ContextScope` | Token-bounded scope (the `ctx(budget: N) { ... }` runtime) |
 | `BudgetScope`, `current_budget`, `run_with_budget` | Lower-level budget primitives |
 | `RuntimeConfig`, `configure`, `get_config`, `reset_config` | Runtime configuration |
@@ -191,7 +189,7 @@ compiled `.voss` program (`triage.voss`).
 
 ## `voss.harness` — agent loop + CLI embedding
 
-Install: same `pip install voss`. Imports under `voss.harness`.
+Install: same as above. Imports under `voss.harness`.
 
 ### Quick start — drive a turn programmatically
 
@@ -251,7 +249,7 @@ and session writes.
 |---|---|
 | `run_turn` | Run one agent turn. Returns `TurnResult`. |
 | `Plan`, `ToolCall` | Pydantic schema the planner returns. Stable. |
-| `TurnResult` | Dataclass returned from `run_turn` (plan, confidence, final, tool_results, cost_usd). |
+| `TurnResult` | Dataclass returned from `run_turn` (plan, confidence, final, tool_results, cost_usd). Confidence is None when the provider returned no parsed plan. |
 | `RunSemantics` | Closing-turn semantics from the privileged record_run call. |
 | `PermissionGate` | Tier-mapped gate for tool calls (`plan`, `edit`, `auto`). |
 | `ToolEntry` | Single entry in the tool registry. |

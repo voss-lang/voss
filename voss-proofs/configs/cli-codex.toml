@@ -1,0 +1,5 @@
+name = "cli-codex"
+adapter = "cli-agent"
+agent = "codex"
+description = "Baseline A: codex exec in the workspace-write sandbox with user config.toml off. ~/.codex/AGENTS.md still loads."
+live = true

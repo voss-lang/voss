@@ -15,8 +15,20 @@ from voss_runtime import ToolDescriptor, tool
 
 from .net import NetSession
 from .sandbox import jail_path, scrubbed_env, shell_allowed, split_command, SandboxError
-from .tui.widgets.diff_modal import Hunk
 from .memory_store import MemoryStore
+
+
+@dataclass(frozen=True)
+class Hunk:
+    file: str
+    start: int
+    lines: list[str]
+
+
+@dataclass(frozen=True)
+class DiffDecision:
+    file: str
+    decision: str  # 'accept' | 'reject' | 'skip'
 
 
 SHELL_OUTPUT_CAP_BYTES = 30720

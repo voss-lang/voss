@@ -6,9 +6,11 @@ import hashlib
 import json
 import math
 import re
+import shutil
 import statistics
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -32,7 +34,7 @@ from voss.eval.retrieval import (
 )
 from voss.harness import config, decision_review, judgments
 from voss.harness.board.reviewer_b import ReviewerB, build_repo_context
-from voss.harness.decision_review import NO_CHECKS, build_packet, load_checks, parse_criteria
+from voss.harness.decision_review import NO_CHECKS, build_packet, load_checks, parse_criteria, touched_paths
 from voss_runtime.judgments import KILLED_MESSAGE, MISSING_KEY_MESSAGE, JudgmentError, JudgmentLedger, is_killed
 
 DATASET_ROOT = Path("evals/review")
@@ -202,9 +204,13 @@ def freeze(args: argparse.Namespace) -> int:
     if kinds != expected:
         print(f"fixtures per kind {dict(kinds)}, expected {dict(expected)}; nothing frozen", file=sys.stderr)
         return 1
-    split_of = _assign_splits({row["id"]: [row] for row in rows}, args.seed)
+    locked_only = corpus.get("locked_only", False)
+    if locked_only:
+        split_of = dict.fromkeys((row["id"] for row in rows), "test")
+    else:
+        split_of = _assign_splits({row["id"]: [row] for row in rows}, args.seed)
     counts = {split: _split_counts([row for row in rows if split_of[row["id"]] == split]) for split in SPLITS}
-    if counts["dev"]["pairs"] != counts["test"]["pairs"]:
+    if not locked_only and counts["dev"]["pairs"] != counts["test"]["pairs"]:
         print(f"dev has {counts['dev']['pairs']} pairs, test {counts['test']['pairs']}; nothing frozen", file=sys.stderr)
         return 1
     if counts["test"]["negatives"] < corpus["min_locked_negatives"]:
@@ -220,7 +226,7 @@ def freeze(args: argparse.Namespace) -> int:
         "commit": corpus["commit"],
         "rubric_version": corpus["rubric_version"],
         "seed": args.seed,
-        "split_algorithm": (
+        "split_algorithm": "every fixture is test" if locked_only else (
             "each fixture is one group, so all of its criteria share a split; for each kind in sorted order, "
             "sort fixture ids and shuffle with one random.Random(seed); concatenate; assign alternately dev, test "
             "starting with dev"
@@ -333,6 +339,18 @@ def _frozen(root: Path) -> dict:
     return frozen
 
 
+def _code_context(tree: Path, diff: str) -> str:
+    with tempfile.TemporaryDirectory() as tmp:
+        for path in touched_paths(diff):
+            source = Path(tree) / path
+            if source.is_file():
+                target = Path(tmp) / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+        subprocess.run(["git", "apply", "-"], cwd=tmp, input=diff, text=True, capture_output=True, check=True)
+        return build_repo_context(Path(tmp), diff)
+
+
 async def _assess_fixtures(fixtures: list[dict], tree: Path) -> tuple[list[dict], list[dict]]:
     cfg = config.get_judgments_config()
     rows: list[dict] = []
@@ -341,7 +359,7 @@ async def _assess_fixtures(fixtures: list[dict], tree: Path) -> tuple[list[dict]
         packet = build_packet(
             fixture["criteria"],
             diff=fixture["diff"],
-            code=build_repo_context(tree, fixture["diff"]),
+            code=_code_context(tree, fixture["diff"]),
             checks=load_checks(fixture["checks"]),
             candidate={"kind": "fixture", "head": fixture["id"]},
             verification_note=fixture["verification_note"],
@@ -491,7 +509,7 @@ def _card(fixture: dict, tree: Path) -> SimpleNamespace:
         artifact_text="\n".join(f"{check.name}: {check.status}" for check in checks) or NO_CHECKS,
         file_diff=fixture["diff"],
         a_verification_summary=fixture["verification_note"],
-        repo_context=build_repo_context(tree, fixture["diff"]),
+        repo_context=_code_context(tree, fixture["diff"]),
     )
 
 

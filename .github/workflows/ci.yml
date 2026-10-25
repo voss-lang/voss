@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       run_nightly_stubs:
-        description: Run the full nightly stub suite, including slow and end-to-end tests
+        description: Run the full stub suite, including slow and end-to-end tests
         required: false
         default: false
         type: boolean
@@ -32,19 +32,15 @@ on:
         required: false
         default: false
         type: boolean
-  schedule:
-    - cron: '0 6 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # `slow` tests (the code_recall embedding-index pair) used to run on every
-  # push to master and nowhere else, and cost ~12m of a ~29m job. They now run
-  # on the nightly schedule instead; push and PR share one marker set.
+  # Slow tests run on request; push and PR share one marker set.
   stub:
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule' || inputs.run_nightly_stubs
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || inputs.run_nightly_stubs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -54,16 +50,16 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           # Retrieval evals materialize a pinned historical commit.
-          fetch-depth: ${{ (github.event_name == 'schedule' || inputs.run_nightly_stubs) && '0' || '1' }}
+          fetch-depth: ${{ inputs.run_nightly_stubs && '0' || '1' }}
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
       - name: Cache the chroma ONNX embedding model
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/chroma
           key: chroma-onnx-${{ runner.os }}-v1
@@ -80,9 +76,6 @@ jobs:
             echo "::error::_substitute_placeholders re-introduced — forbidden by T1 ITER-02"
             exit 1
           fi
-      - name: snap11 isolation probe (temporary)
-        continue-on-error: true
-        run: pytest -q tests/harness/tui/test_paste_image.py --snapshot-report=snapshot_report_probe.html
       # -n 2, not `auto`: the runner has 4 vCPU and many tests spawn their own
       # `voss` subprocess, so `auto` put ~8 heavy processes on 4 cores and the
       # run got SLOWER (18m vs 15m). Coverage runs only on the leg that uploads
@@ -91,26 +84,18 @@ jobs:
       # tests/e2e is off the PR and push path. Each of its ~82 tests spawns a
       # real `voss` subprocess, which is ~40% of the suite's runtime and the
       # only part that fails under worker contention — three runs timed out on
-      # three different e2e tests. It runs on the nightly and on release, where
+      # three different e2e tests. It runs on request and on release, where
       # nothing is waiting on it.
       - run: pytest -q -m "$PYTEST_MARKERS" -n 2 $IGNORES $COV
         env:
-          PYTEST_MARKERS: ${{ (github.event_name == 'schedule' || inputs.run_nightly_stubs) && 'not live' || 'not live and not slow' }}
-          IGNORES: ${{ (github.event_name != 'schedule' && github.event_name != 'release' && !inputs.run_nightly_stubs) && '--ignore=tests/e2e' || '' }}
+          PYTEST_MARKERS: ${{ inputs.run_nightly_stubs && 'not live' || 'not live and not slow' }}
+          IGNORES: ${{ (github.event_name != 'release' && !inputs.run_nightly_stubs) && '--ignore=tests/e2e' || '' }}
           COV: ${{ matrix.python-version == '3.12' && '--cov=voss_runtime --cov-report=term-missing --cov-report=xml' || '' }}
           PYTHONFAULTHANDLER: "1"
           VOSS_EXIT_DIAG: "1"
           # litellm fetches its model-cost map over the network on import;
           # force the bundled local map so tests never wait on that request.
           LITELLM_LOCAL_MODEL_COST_MAP: "true"
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: snapshot-report-${{ matrix.python-version }}
-          path: |
-            snapshot_report.html
-            snapshot_report_probe.html
-          if-no-files-found: ignore
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() && matrix.python-version == '3.12' }}
         with:
@@ -136,7 +121,7 @@ jobs:
         id: baseline-ref
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Run baseline coverage tests
-        run: pytest -q -m "$PYTEST_MARKERS" --cov=voss_runtime --cov-report=term-missing --cov-report=xml --snapshot-report=/dev/null
+        run: pytest -q -m "$PYTEST_MARKERS" --cov=voss_runtime --cov-report=term-missing --cov-report=xml
         env:
           PYTEST_MARKERS: not live and not slow
       - name: Upload baseline coverage
@@ -170,9 +155,7 @@ jobs:
       - run: python -m pytest tests/harness/test_m14_watch.py -q -m "not live"
 
   dep-audit:
-    # CVE surveillance on Python deps. Runs on every PR + push + the daily
-    # schedule cron so a newly-disclosed CVE in a pinned transitive trips the
-    # next CI run, not the next release.
+    # CVE surveillance on Python deps runs on PRs, pushes, and releases.
     #
     # We DO NOT install the project to run pip-audit. The full dep tree
     # (torch + sentence-transformers + chromadb + scipy ~1.1 GB site-packages)
@@ -181,9 +164,8 @@ jobs:
     # parsing; we feed it the pyproject.toml-resolved set.
     #
     # `--strict` would fail on any vuln; we run non-strict on PRs/pushes
-    # (report-only) and strict on scheduled, release, and manually-dispatched
-    # runs so a fresh CVE alerts maintainers without blocking in-flight PRs.
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'release'
+    # (report-only) and strict on releases.
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -228,14 +210,14 @@ jobs:
             echo "::warning::dep resolution produced no file; skipping pip-audit"
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "release" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "release" ]; then
             pip-audit --strict --progress-spinner off -r /tmp/requirements-resolved.txt
           else
             pip-audit --progress-spinner off -r /tmp/requirements-resolved.txt || echo "::warning::pip-audit reported advisories; see job log"
           fi
 
   live:
-    if: (github.event_name == 'workflow_dispatch' && !inputs.upload_coverage_baseline && !inputs.run_nightly_stubs) || github.event_name == 'schedule' || github.event_name == 'release'
+    if: (github.event_name == 'workflow_dispatch' && !inputs.upload_coverage_baseline && !inputs.run_nightly_stubs) || github.event_name == 'release'
     runs-on: ubuntu-latest
     services:
       ollama:
@@ -267,7 +249,7 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: "20"
       - name: Verify pyproject.toml and npm/package.json versions match

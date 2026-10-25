@@ -1,0 +1,35 @@
+prompt = """
+parseAmount in src/money.ts returns NaN for amounts like "$1,234.50".
+It must parse "$1,234.50", "1234", "-$5.00" and "  $0.99 " (surrounding whitespace allowed) into numbers,
+and throw an Error for anything that is not a valid amount, such as "abc", "" or "$".
+A valid amount has at most two decimal places ("12.345" is invalid), and thousands separators
+must group exactly three digits ("1,23" is invalid).
+Run tests with: node --no-warnings --experimental-strip-types --test test/money.test.ts
+"""
+mode = "auto"
+rubric = """
+PASS if valid amounts with optional sign, dollar sign, thousands separators and up to two decimals parse correctly, and invalid input throws.
+FAIL otherwise.
+"""
+requires = ["node"]
+
+[meta]
+category = "code"
+synthetic = true
+origin = "hand-written for VossProofs regression set, 2026-10"
+language = "typescript"
+
+[acceptance]
+criteria = [
+  "AC-1: '$1,234.50' -> 1234.5, '1234' -> 1234, '-$5.00' -> -5, '  $0.99 ' -> 0.99",
+  "AC-2: invalid input ('abc', '', '$', '1,23', '12.345') throws an Error",
+]
+allowed_paths = ["src/*", "test/*"]
+
+[[checks]]
+type = "cmd"
+run = "node --no-warnings --experimental-strip-types --test test/money.test.ts"
+
+[[hidden_checks]]
+type = "cmd"
+run = "node --no-warnings --experimental-strip-types --test hidden/money.hidden.test.ts"

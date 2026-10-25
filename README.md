@@ -26,7 +26,7 @@ Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a
 
 First-class primitives:
 
-- Probable values + confidence gates: `let intent: probable<string> = ask(...)` with `if intent @ p >= 0.80 { ... }`
+- Probable values + confidence gates: each probable value records where its number came from. A plain `ask()` reply is unmeasured, so a gate on it never passes. `judge(...).to_probable()` gives a real probability for `if p @ p >= 0.80 { ... }` (see `examples/judgments/triage.voss`).
 - Context budgets: `ctx(budget: 4000 tokens) { include ... yield ask(...) }` and `within budget(tokens: N, latency: Ts) { ... } fallback { ... }`
 - Semantic routing: `match userMessage { case similar("angry customer") => ... case _ => ... }`
 - Agents, spawn, gather: `spawn Researcher(topic)` + `gather(researchers, timeout: 60s)`
@@ -47,16 +47,16 @@ Brings the Voss CLI with a vendored Python 3.12 + the v0.1 voss wheel + all depe
 
 ### Alternative: pip
 
-If you already manage Python 3.11+ yourself, install from PyPI:
+If you already manage Python 3.11+ yourself, install from GitHub. Voss is not published to PyPI, and the `voss` package there is an unrelated project.
 
 ```bash
-pip install voss
+pip install "voss @ git+https://github.com/voss-lang/voss"
 ```
 
 Semantic memory (`memory.semantic`, `match similar(...)`) is an optional extra — it pulls torch + sentence-transformers + chromadb:
 
 ```bash
-pip install 'voss[search]'
+pip install "voss[search] @ git+https://github.com/voss-lang/voss"
 ```
 
 ### Container image
@@ -115,7 +115,7 @@ Editable Python installs and `npm link` automatically use this local build.
 `VOSS_TUI_BIN` can select a different binary explicitly.
 
 The npm platform packages include `voss-tui`. Use `VOSS_USE_TUI=0 voss` for
-Textual; it also remains the fallback when the Go binary is missing. `voss ui`
+the plain line-by-line chat; it is also the fallback when the Go binary is missing. `voss ui`
 launches Go explicitly. `/resume` opens a saved-session picker; `/resume <id-or-name>`
 and `voss ui resume <id-or-name>` resume directly. Earlier conversation context
 is restored on the server, and saved messages appear in the transcript. The picker
@@ -146,7 +146,7 @@ Decision numbers start at zero. `/vdiff <file.voss>` shows source and generated
 Python without executing it or changing workspace files. These read-only panels
 use the same scrolling and close keys as code results, and retain their output in
 the transcript. Queued work resumes after the panel closes.
-The remaining slash commands are available through Textual.
+The remaining slash commands are available in the plain chat.
 
 ## Local MCP servers and skills
 
@@ -170,7 +170,7 @@ voss skills
 voss chat --allow-net
 ```
 
-In Textual, use `/skill <name> <task>` or `$name <task>`. In either TUI, ask
+In the plain chat, use `/skill <name> <task>` or `$name <task>`. In either, ask
 to use a skill by name. MCP calls retain Voss's network and permission checks;
 set `[tools] allow_net = true` in Voss's `config.toml` for network tools in Go.
 Requests about open PRs, GitHub, MCP, or skills enter the tool-enabled run.
@@ -182,7 +182,7 @@ environment variables. Legacy SSE endpoints require a Streamable HTTP endpoint.
 ## First run · `voss login`
 
 Run `voss login` to configure credentials before opening the Go client.
-Textual also opens the sign-in wizard automatically when credentials are
+The plain chat also opens the sign-in wizard automatically when credentials are
 missing, and supports `/login` inside its REPL.
 
 ```text
@@ -220,21 +220,19 @@ or pre-populate the keychain for scripted use.
 
 The runtime exposes `ProbableValue`, `ContextScope`, `BudgetScope`, `SemanticMatcher`, `VossAgent`, `gather`, `@tool`, and the three memory primitives. See:
 
-- [`examples/raw_python/classify.py`](examples/raw_python/classify.py) — PRD §7.1, confidence-gated classification
+- [`examples/raw_python/classify.py`](examples/raw_python/classify.py) — PRD §7.1, classification with an empty-reply fallback
 - [`examples/raw_python/support.py`](examples/raw_python/support.py) — PRD §7.2, semantic routing + ContextScope fallback
 - [`examples/raw_python/research.py`](examples/raw_python/research.py) — PRD §7.3, agent swarm with `gather` + `run_with_budget` fallback
 
 ```python
 import asyncio
-from voss_runtime import ContextScope, ProbableValue
+from voss_runtime import ContextScope
 
 async def classify(text: str) -> str:
     async with ContextScope(token_budget=1000) as ctx:
         await ctx.add(f"Classify: {text}")
-        intent: ProbableValue = await ctx.ask(
-            "Return only the intent label.", return_type=ProbableValue
-        )
-        return intent.value if intent @ 0.80 else "unknown"
+        intent = await ctx.ask("Return only the intent label.")
+        return intent or "unknown"
 
 print(asyncio.run(classify("I want to cancel my subscription")))
 ```
@@ -259,7 +257,9 @@ Live mode (real Anthropic / OpenAI / Ollama — requires API keys + Ollama servi
 pytest -q -m live
 ```
 
-Live mode runs nightly in CI; stub mode runs on every PR.
+Stub mode runs on every PR. Live mode runs on releases and default manual CI runs.
+Manual runs with `run_nightly_stubs=true` or `upload_coverage_baseline=true` skip live tests.
+Use `run_nightly_stubs=true` to include slow and end-to-end stub tests.
 
 ## Project Docs
 

@@ -1,0 +1,33 @@
+prompt = """
+Reverse in strutil.go corrupts non-ASCII text such as "héllo" or "日本語" because it reverses bytes.
+Make it reverse by Unicode code point. Keep the signature func Reverse(s string) string.
+"""
+mode = "auto"
+rubric = """
+PASS if Reverse reverses by rune, ASCII behavior is unchanged, and the signature is unchanged.
+FAIL otherwise.
+"""
+requires = ["go"]
+
+[meta]
+category = "code"
+synthetic = true
+origin = "hand-written for VossProofs regression set, 2026-10"
+language = "go"
+
+[acceptance]
+criteria = [
+  "AC-1: multi-byte strings reverse by code point and stay valid UTF-8",
+  "AC-2: ASCII and empty strings behave as before",
+]
+allowed_paths = ["*.go"]
+
+[[checks]]
+type = "cmd"
+run = "go test ."
+timeout = 300
+
+[[hidden_checks]]
+type = "cmd"
+run = "cp hidden/hidden_test.go . && go test ."
+timeout = 300

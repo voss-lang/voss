@@ -285,6 +285,18 @@ def test_freeze_writes_rules_counts_and_hashes(tmp_path, tree, capsys):
     assert "test: 7 fixtures, 14 pairs, 8 negatives" in out
 
 
+def test_locked_only_corpus_freezes_every_fixture_into_test(tmp_path, tree):
+    root = write_dataset(tmp_path / "data", locked_only=True)
+
+    assert run("freeze", root, tree) == 0
+
+    assert {row["split"] for row in read_rows(root)} == {"test"}
+    frozen = json.loads((root / "freeze.json").read_text())
+    assert frozen["splits"]["dev"]["fixtures"] == 0
+    assert frozen["splits"]["test"]["fixtures"] == 14
+    assert frozen["split_algorithm"] == "every fixture is test"
+
+
 def test_ambiguous_pairs_do_not_count_as_locked_negatives(tmp_path, tree):
     rows = default_fixtures()
     for row in rows:

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel
 
-from ..tui.widgets.diff_modal import DiffDecision, Hunk
+from ..tools import DiffDecision, Hunk
 from . import events as E
 from .renderer import EventBusRenderer
 

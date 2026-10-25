@@ -195,3 +195,12 @@ def test_plan_events_carry_rationale_and_step_reasons() -> None:
     (ev,) = _drain(q)
     assert ev.rationale == "read before editing"
     assert ev.steps[0].why == "see the file"
+
+
+def test_show_final_sends_null_for_unknown_confidence() -> None:
+    q: asyncio.Queue = asyncio.Queue()
+    EventBusRenderer(q, session_id="s1").show_final("raw reply", confidence=None, cost_usd=0.0)
+    event = q.get_nowait()
+    assert isinstance(event, E.FinalEvent)
+    assert event.confidence is None
+    assert '"confidence":null' in event.model_dump_json()

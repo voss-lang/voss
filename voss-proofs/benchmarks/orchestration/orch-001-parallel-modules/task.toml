@@ -1,0 +1,41 @@
+prompt = """
+Fix three independent bugs in the textkit package. Each one lives in its own module.
+
+1. textkit/words.py: word_count(text) must count words separated by any run of whitespace
+   (spaces, tabs, newlines). Empty or whitespace-only text has 0 words.
+2. textkit/numbers.py: parse_int(text) must accept surrounding whitespace and underscores between
+   digits ("1_000" is 1000), and must raise ValueError for empty text or text that is not an integer.
+3. textkit/ranges.py: clamp(value, low, high) must raise ValueError when low > high, and otherwise
+   return value limited to the inclusive range [low, high].
+"""
+mode = "auto"
+rubric = """
+PASS if all three functions meet their description, including the edge cases.
+FAIL if any of the three is still wrong.
+"""
+requires = ["python3"]
+
+[meta]
+category = "orchestration"
+synthetic = true
+origin = "hand-written for VossProofs orchestration set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: word_count splits on any run of whitespace and returns 0 for empty or blank text",
+  "AC-2: parse_int accepts surrounding whitespace and underscores between digits, and raises ValueError for empty or non-integer text",
+  "AC-3: clamp raises ValueError when low > high and otherwise limits value to [low, high]",
+]
+allowed_paths = ["textkit/*", "tests/*"]
+
+[budget]
+wall_s = 900
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"

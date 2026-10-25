@@ -73,7 +73,7 @@ class ServerSession:
     memory_store: Any = None
     auth: str = ""
     switching: bool = False
-    commanding: bool = False
+    command_task: asyncio.Task | None = None
     budget_usd: float | None = None
     last_plan: Plan | None = None
     execution_plan: dict | None = None
@@ -81,7 +81,7 @@ class ServerSession:
 
     @property
     def busy(self) -> bool:
-        return self.switching or self.commanding or (self.task is not None and not self.task.done())
+        return self.switching or any(task is not None and not task.done() for task in (self.task, self.command_task))
 
 
 class SessionManager:

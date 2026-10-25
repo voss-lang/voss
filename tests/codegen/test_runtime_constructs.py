@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import asyncio
+
+import pytest
 
 from voss.ast_nodes import (
     Arg,
     BudgetArg,
     Call,
+    ConfidenceGate,
     CtxBlock,
     FnDecl,
     Identifier,
+    IfStmt,
     IncludeStmt,
     LetStmt,
     Param,
@@ -21,7 +26,9 @@ from voss.ast_nodes import (
     YieldStmt,
 )
 from voss.codegen import generate_python
+from voss_runtime import ProbableValue
 
+from tests.codegen.helpers import load_module_from_path, write_generated_module
 from tests.codegen.conftest import (
     assert_no_compiler_imports,
     assert_python_parses,
@@ -134,7 +141,8 @@ def test_probable_ask_binding_inside_ctx_wraps_value():
     source = result.source
 
     assert "_intent_value = await ctx.ask('Classify', return_type=str)" in source
-    assert "intent: ProbableValue = ProbableValue(" in source
+    assert "intent: ProbableValue = ProbableValue.from_reply(_intent_value)" in source
+    assert "0.9" not in source
     assert_python_parses(source)
     assert_no_compiler_imports(source)
 
@@ -283,3 +291,61 @@ def test_memory_declarations_instantiate_runtime_classes():
     assert "WorkingMemory" in source
     assert_python_parses(source)
     assert_no_compiler_imports(source)
+
+
+def _gated_classify(op: str) -> FnDecl:
+    let = LetStmt(
+        span=span(),
+        name="intent",
+        type_annot=_type("probable", generics=(_type("string"),)),
+        value=Call(
+            span=span(),
+            callee=_ident("ask"),
+            args=(Arg(span=span(), name=None, value=StringLit(span=span(), value="Classify")),),
+        ),
+    )
+    gate = IfStmt(
+        span=span(),
+        condition=ConfidenceGate(span=span(), target=_ident("intent"), op=op, threshold=0.8),
+        then_body=(ReturnStmt(span=span(), value=StringLit(span=span(), value="yes")),),
+        else_body=(ReturnStmt(span=span(), value=StringLit(span=span(), value="no")),),
+    )
+    ctx = CtxBlock(
+        span=span(),
+        budget=_budget("budget", "tokens", 3000, "3000 tokens"),
+        body=(let, gate),
+    )
+    return FnDecl(span=span(), name="classify", params=(), return_type=_type("string"), body=(ctx,))
+
+
+@pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">", ">="])
+def test_confidence_gate_goes_through_meets(op):
+    source = generate_python(program(_gated_classify(op))).source
+    assert f"if intent.meets({op!r}, 0.8):" in source
+    assert ".confidence " not in source
+    assert_python_parses(source)
+
+
+def test_gate_on_ask_reply_takes_else_branch(tmp_path):
+    import voss_runtime
+    from voss_runtime import configure, reset_config
+    from voss_runtime.providers.stub import StubProvider
+
+    source = generate_python(program(_gated_classify(">="))).source
+    module = load_module_from_path(write_generated_module(tmp_path, "gated", source), "generated_gated")
+    voss_runtime.providers.register("__stub__", StubProvider(default_response="refund"))
+    configure(default_model="__stub__")
+    try:
+        with pytest.warns(RuntimeWarning, match="ask\\(\\) does not measure confidence"):
+            assert asyncio.run(module.classify()) == "no"
+    finally:
+        reset_config()
+
+
+def test_from_reply_keeps_a_self_reported_number():
+    class Reply:
+        confidence = 0.9
+
+    pv = ProbableValue.from_reply(Reply())
+    assert pv.source == "self_report"
+    assert pv.meets(">=", 0.8) is True

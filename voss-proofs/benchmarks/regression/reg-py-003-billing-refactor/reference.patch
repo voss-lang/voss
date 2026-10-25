@@ -1,0 +1,24 @@
+diff --git a/billing.py b/billing.py
+index 8b63f8b..d690111 100644
+--- a/billing.py
++++ b/billing.py
+@@ -1,12 +1,12 @@
+-def invoice_line(description: str, cents: int) -> str:
++def format_money(cents: int) -> str:
+     sign = "-" if cents < 0 else ""
+     cents = abs(cents)
+-    amount = f"{sign}${cents // 100:,}.{cents % 100:02d}"
+-    return f"{description:<30}{amount:>12}"
++    return f"{sign}${cents // 100:,}.{cents % 100:02d}"
++
++
++def invoice_line(description: str, cents: int) -> str:
++    return f"{description:<30}{format_money(cents):>12}"
+ 
+ 
+ def receipt_line(description: str, cents: int) -> str:
+-    sign = "-" if cents < 0 else ""
+-    cents = abs(cents)
+-    amount = f"{sign}${cents // 100:,}.{cents % 100:02d}"
+-    return f"{description}: {amount}"
++    return f"{description}: {format_money(cents)}"

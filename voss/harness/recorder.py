@@ -561,10 +561,8 @@ def write_decisions_md(cwd: Path, run, session_id: str) -> list[Path]:
     for d in run.decisions:
         title = d.get("title") or "untitled"
         body = d.get("body", "")
-        try:
-            conf = float(d.get("confidence", 0.0))
-        except (TypeError, ValueError):
-            conf = 0.0
+        raw = d.get("confidence")
+        conf = f"{float(raw):.2f}" if isinstance(raw, (int, float)) and not isinstance(raw, bool) else "unknown"
         path = reserve_filename(decisions_dir, slug(title))
         id_str = path.stem
         created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -574,7 +572,7 @@ def write_decisions_md(cwd: Path, run, session_id: str) -> list[Path]:
             {
                 "id": id_str,
                 "session_id": session_id,
-                "confidence": f"{conf:.2f}",
+                "confidence": conf,
                 "created_at": created_at,
                 "title": title,
                 "body": body,

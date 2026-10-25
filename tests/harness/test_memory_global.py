@@ -411,7 +411,6 @@ def test_do_cmd_wires_global_store(tmp_path: Path) -> None:
         stack.enter_context(mock.patch.object(cli, "_render_project_index_text", return_value=""))
         stack.enter_context(mock.patch.object(cli.PermissionStore, "load", return_value=object()))
         stack.enter_context(mock.patch.object(cli, "PermissionGate", return_value=object()))
-        stack.enter_context(mock.patch.object(cli, "_wire_tui_permissions_if_textual"))
         stack.enter_context(mock.patch.object(cli, "attach_subagent_tool"))
         stack.enter_context(mock.patch.object(cli, "default_subagent_registry", return_value=object()))
         stack.enter_context(mock.patch.object(cli.session_store.SessionRecord, "new", return_value=record))

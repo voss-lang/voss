@@ -1043,7 +1043,14 @@ pub struct EventEnvelope {
 #[doc = "  \"properties\": {"]
 #[doc = "    \"confidence\": {"]
 #[doc = "      \"title\": \"Confidence\","]
-#[doc = "      \"type\": \"number\""]
+#[doc = "      \"anyOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"number\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    },"]
 #[doc = "    \"cost_usd\": {"]
 #[doc = "      \"title\": \"Cost Usd\","]
@@ -1070,7 +1077,7 @@ pub struct EventEnvelope {
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct FinalEvent {
-    pub confidence: f64,
+    pub confidence: ::std::option::Option<f64>,
     pub cost_usd: f64,
     pub text: ::std::string::String,
     #[serde(default = "defaults::default_u64::<i64, 1>")]

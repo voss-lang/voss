@@ -16,6 +16,7 @@ from voss.harness.board.reviewer_b import ReviewerB, _ReviewerBOutput
 from voss_runtime.providers.base import ProviderResponse
 
 LOCATION = "test-loc"
+LOCKED_2 = DATASET.parent / "review-locked-2"
 INSUFFICIENT = {"supported": 0.05, "contradicted": 0.05, "insufficient_evidence": 0.9}
 LEANING = {"supported": 0.7, "contradicted": 0.2, "insufficient_evidence": 0.1}
 ROW_KEYS = {"fixture", "criterion", "kind", "gold", "flag", "label", "probabilities"}
@@ -69,7 +70,7 @@ def test_dev_run_writes_report_rows_receipts_and_markdown(monkeypatch, root, tre
     for request in seen:
         body = json.loads(request.content)
         assert set(body["questions"]) == {"AC-1", "AC-2"}
-        assert body["state"]["code"] == "### pkg.py\na = 1"
+        assert body["state"]["code"] == "### pkg.py\na = 2"
     reports = root / "reports"
     report = json.loads((reports / "review-dev.json").read_text())
     rows = read_jsonl(reports / "review-dev" / "rows.jsonl")
@@ -219,8 +220,8 @@ def test_tune_refuses_a_test_report(tmp_path, capsys):
     assert "dev report" in capsys.readouterr().err
 
 
-def test_corpus_rubric_matches_the_evaluator():
-    assert json.loads((DATASET / "corpus.json").read_text())["rubric_version"] == dr.RUBRIC_VERSION
+def test_locked_corpus_rubric_matches_the_evaluator():
+    assert json.loads((LOCKED_2 / "corpus.json").read_text())["rubric_version"] == dr.RUBRIC_VERSION
 
 
 class FakeProvider:
@@ -282,7 +283,7 @@ def test_baseline_b_records_the_real_reviewer_per_fixture(root, tree, reviewer):
         fixture = next(row for row in dev.values() if row["title"] == card.original_idea)
         assert card.acceptance_criteria == "\n".join(fixture["criteria"])
         assert card.file_diff == DIFF
-        assert card.repo_context == "### pkg.py\na = 1"
+        assert card.repo_context == "### pkg.py\na = 2"
         expected = {"failed_check": "tests: failed", "skipped_check": "tests: skipped", "no_checks": dr.NO_CHECKS}
         assert card.artifact_text == expected.get(fixture["kind"], "tests: passed")
 

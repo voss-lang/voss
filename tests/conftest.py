@@ -12,6 +12,21 @@ _LEAK_PRONE_KEYS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TYPESAFE_API_KEY")
 
 
 @pytest.fixture(autouse=True)
+def _stub_background_indexing(request, monkeypatch) -> None:
+    """Retrieval suites override this fixture to exercise real index workers."""
+    if request.node.get_closest_marker("live") is not None:
+        return
+    monkeypatch.setattr(
+        "voss.harness.code.semantic_index.CodeIndexService.ensure_background_build",
+        lambda self: None,
+    )
+    monkeypatch.setattr(
+        "voss.harness.recall.external_index.ExternalRecallService.ensure_background_build",
+        lambda self: None,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolated_env(request, monkeypatch, tmp_path) -> None:
     saved = {k: os.environ.get(k) for k in _LEAK_PRONE_KEYS}
     if request.node.get_closest_marker("live") is None:
@@ -44,7 +59,7 @@ _ABORT_PRONE_NATIVE = frozenset({
 })
 _EXIT_DIAG_NATIVE = _ABORT_PRONE_NATIVE | frozenset({
     "grpc", "chromadb", "hnswlib", "transformers", "posthog",
-    "opentelemetry", "watchdog", "textual", "litellm",
+    "opentelemetry", "watchdog", "litellm",
 })
 
 

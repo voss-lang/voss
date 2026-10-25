@@ -1,0 +1,133 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "adapter": {
+      "enum": [
+        "oracle",
+        "null",
+        "voss-serve",
+        "cli-agent",
+        "voss-swarm"
+      ],
+      "title": "Adapter",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "live": {
+      "default": false,
+      "title": "Live",
+      "type": "boolean"
+    },
+    "mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "plan",
+            "edit",
+            "auto"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mode"
+    },
+    "auth": {
+      "default": "auto",
+      "title": "Auth",
+      "type": "string"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "permission_choice": {
+      "anyOf": [
+        {
+          "enum": [
+            "a",
+            "A",
+            "d"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Permission Choice"
+    },
+    "voss_bin": {
+      "default": "voss",
+      "title": "Voss Bin",
+      "type": "string"
+    },
+    "env": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Env",
+      "type": "object"
+    },
+    "agent": {
+      "anyOf": [
+        {
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent"
+    },
+    "builders": {
+      "default": 2,
+      "title": "Builders",
+      "type": "integer"
+    },
+    "judge": {
+      "anyOf": [
+        {
+          "const": "jev",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Judge"
+    }
+  },
+  "required": [
+    "name",
+    "adapter"
+  ],
+  "title": "Config",
+  "type": "object"
+}

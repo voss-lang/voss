@@ -1,0 +1,33 @@
+prompt = """
+Refactor billing.py: invoice_line and receipt_line duplicate the money formatting.
+Extract it into one public function format_money(cents: int) -> str and call it from both.
+Behavior must not change for any input.
+"""
+mode = "auto"
+rubric = """
+PASS if format_money exists, both functions use it, and every output is byte-identical to before.
+FAIL if behavior changes or the duplication remains.
+"""
+requires = ["python3"]
+
+[meta]
+category = "code"
+synthetic = true
+origin = "hand-written for VossProofs regression set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: billing.format_money(cents) returns the formatted amount",
+  "AC-2: invoice_line and receipt_line both call format_money and no longer format money inline",
+  "AC-3: outputs are unchanged for positive, negative, zero and large amounts",
+]
+allowed_paths = ["billing.py", "tests/*"]
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"

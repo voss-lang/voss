@@ -13,6 +13,11 @@ import pytest
 SOURCE_NAME = "docs"
 
 
+@pytest.fixture(autouse=True)
+def _stub_background_indexing() -> None:
+    """Keep real background builds enabled in the external retrieval suite."""
+
+
 @pytest.fixture
 def fake_embed_fn(monkeypatch):
     """Patch SemanticMemory onto Chroma's bundled DefaultEmbeddingFunction.

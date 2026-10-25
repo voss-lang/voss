@@ -1,0 +1,40 @@
+prompt = """
+Add an /items resource to the router in api.py.
+
+Acceptance criteria:
+AC-1: POST /items with body {"name": <non-empty string>} returns (201, {"id": <int>, "name": <name>}). Ids start at 1 and increase by 1 per created item.
+AC-2: POST /items with a missing, empty or non-string name returns (400, {"error": "name required"}).
+AC-3: GET /items returns (200, {"items": [...]}) listing created items in creation order.
+AC-4: A method that a known path does not support returns (405, {"error": "method not allowed"}). Unknown paths still return 404.
+AC-5: api.reset() clears all stored items. GET /health is unchanged.
+"""
+mode = "auto"
+rubric = """
+PASS if every acceptance criterion AC-1..AC-5 holds and existing behavior is unchanged.
+FAIL if any criterion is unmet or GET /health changed.
+"""
+requires = ["python3"]
+
+[meta]
+category = "code"
+synthetic = true
+origin = "hand-written for VossProofs regression set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: POST /items creates an item with sequential ids starting at 1 and returns 201",
+  "AC-2: missing/empty/non-string name returns 400 name required",
+  "AC-3: GET /items lists items in creation order",
+  "AC-4: unsupported method on a known path returns 405; unknown path 404",
+  "AC-5: reset() clears items; GET /health unchanged",
+]
+allowed_paths = ["api.py", "tests/*"]
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"
