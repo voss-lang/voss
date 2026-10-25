@@ -19,7 +19,7 @@ The `.voss` pipeline emits readable Python.
 | Stage | Purpose |
 | --- | --- |
 | Parser | Turn `.voss` syntax into AST dataclasses |
-| Analyzer | Check language semantics such as confidence gates and budgets |
+| Analyzer | Check language semantics such as confidence gates and budgets, including warnings for gates that can never pass |
 | Codegen | Emit readable Python |
 | Runtime | Provide primitives used by generated Python |
 
@@ -29,6 +29,12 @@ The `.voss` pipeline emits readable Python.
 voss check samples/support.voss
 voss compile samples/support.voss
 voss run samples/support.voss
+```
+
+Inspect generated Python without running it or touching workspace files:
+
+```bash
+voss vdiff samples/support.voss
 ```
 
 ## Generated Python

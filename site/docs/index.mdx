@@ -3,13 +3,13 @@ title: "Voss documentation"
 description: "Start here for the Voss coding harness and .voss workflow-control language."
 ---
 
-Voss is an agent engineering organization layer: it runs AI coding agents like an engineering team — declared roles, hard budgets, scoped tools, independent review, and a replayable trail of every action.
+Voss is a local control plane for coding agents: scoped tools, permission modes, reusable project memory, independent review, and a replayable trail of every action.
 
-It has two surfaces. The **harness** is the bounded agent loop for a single repo task — plan, execute, inspect, resume. The **orchestration layer** runs a whole team from one goal, with a board, a session tree, and independent reviewers gating completion. Both are declared and controlled through the `.voss` language.
+The **harness** is the bounded agent loop for a single repo task: plan, execute, inspect, resume. You drive it from the Go terminal client (bare `voss`), the plain `voss chat` REPL, or one-shot `voss do`. The **orchestration layer** adds teams, a board, a session tree, swarms, and reviewers on top of that loop. `voss serve` exposes the same engine over a local REST + SSE protocol for SDKs and the separate Voss ADE desktop app. The `.voss` language declares and controls all of it.
 
 <CardGroup cols={2}>
-  <Card title="Run a team" icon="workflow" href="/orchestration/overview">
-    Use `voss team run` to execute a goal as a reviewed team run.
+  <Card title="Orchestrate a team" icon="workflow" href="/orchestration/overview">
+    Declare roles and gates, then inspect runs on the board and in the audit.
   </Card>
   <Card title="Run your first task" icon="terminal" href="/get-started/first-task">
     Use `voss do` for a bounded one-shot repo task.
@@ -30,8 +30,13 @@ A team is declared once in `.voss`, then a single goal runs as scoped, budgeted,
 voss team check
 voss team run "Add password reset flow with tests"
 voss board
-voss review latest
+voss review
+voss audit
 ```
+
+<Note>
+`voss team run` currently drives the team cage with a scripted EM and placeholder reviewers, so it proves roster, scope, budget, gate, and audit behavior rather than doing real work. Live multi-agent work runs as a swarm through `voss serve`. See the [orchestration overview](/orchestration/overview).
+</Note>
 
 ## What Voss is for
 
@@ -45,9 +50,11 @@ Voss is for developers who already use AI coding tools and want stronger boundar
 - Conservative context packing with an explicit `--no-pack` escape hatch
 - Workflow rules that can move from prompts into `.voss` code
 - Multi-agent runs that stay scoped, budgeted, and independently reviewed
+- Your existing Claude and Codex logins, MCP servers, and skills, reused instead of reconfigured
+- Opt-in, advisory Jev judgments that record real probabilities instead of made-up confidence
 
 <Note>
-Voss v0.1 is harness-led and ships through npm as `@vosslang/cli`. Rust, Homebrew, editor marketplace work, hosted teams, and broad launch polish remain deferred.
+Voss v0.1 is harness-led and ships through npm as `@vosslang/cli`, which bundles the Go terminal client. Voss ADE is a separate desktop product that talks to Voss only through the `voss serve` protocol. Homebrew, editor marketplace work, hosted teams, and broad launch polish remain deferred.
 </Note>
 
 ## What to read first
