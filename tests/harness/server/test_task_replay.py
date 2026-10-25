@@ -11,7 +11,7 @@ import httpx
 import pytest
 import uvicorn
 
-from voss.harness.server import app as appmod, events as E
+from voss.harness.server import app as appmod
 from voss.harness.server.renderer import EventBusRenderer
 from voss.harness.server.task_journal import TaskJournal
 
@@ -169,8 +169,13 @@ def test_crash_recovery_and_exclusive_journal_ownership(tmp_path):
     ack = journal.begin("synthetic", "one", {"text": "fixture"})
     journal.emit("synthetic", {"type": "permission.updated", "id": "pending"})
     other = TaskJournal(path)
-    with pytest.raises(Exception):
-        other.snapshot("synthetic")
+    assert other.snapshot("synthetic") is None
+    other.register("second-server")
+    other.begin("second-server", "one", {"text": "fixture"})
+    assert other.snapshot("second-server").phase == "active"
+    assert journal.snapshot("synthetic").phase == "waiting"
+    assert journal.snapshot("second-server") is None
+    other.close()
     journal.close()  # simulates process exit without lifecycle cleanup
     recovered = TaskJournal(path)
     snapshot = recovered.snapshot("synthetic")

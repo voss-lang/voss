@@ -101,7 +101,7 @@ def preflight(body: PreflightBody) -> Availability:
             return result
         if harness == "claude":
             try:
-                from claude_agent_sdk import query
+                from claude_agent_sdk import query  # noqa: F401
             except ImportError:
                 result.code, result.message = "adapter_unavailable", "Install the engine's Claude Agent SDK integration, then recheck."
                 return result

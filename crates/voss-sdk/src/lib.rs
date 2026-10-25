@@ -4,14 +4,14 @@ pub mod auth;
 pub mod capabilities;
 pub mod client;
 pub mod error;
-pub mod projection;
+pub mod graph;
 pub mod oauth;
 pub mod plans;
-pub mod graph;
+pub mod projection;
 pub mod review;
 pub mod stream;
-pub mod tasks;
 pub mod supervisor;
+pub mod tasks;
 pub mod types;
 
 pub use auth::Handshake;

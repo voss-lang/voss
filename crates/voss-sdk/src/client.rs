@@ -43,51 +43,122 @@ impl VossClient {
         &self.token
     }
 
-    pub async fn preview_plan(&self, briefing: &crate::plans::Briefing) -> Result<crate::plans::Result, VossError> {
-        self.plan_command("plans/preview", serde_json::to_value(briefing).map_err(|e| VossError::Decode(e.to_string()))?).await
+    pub async fn preview_plan(
+        &self,
+        briefing: &crate::plans::Briefing,
+    ) -> Result<crate::plans::Result, VossError> {
+        self.plan_command(
+            "plans/preview",
+            serde_json::to_value(briefing).map_err(|e| VossError::Decode(e.to_string()))?,
+        )
+        .await
     }
 
     pub async fn plan_status(&self, id: &str) -> Result<crate::plans::Result, VossError> {
-        let response = self.auth(self.inner.get(format!("{}/plans/{id}", self.base))).timeout(REST_TIMEOUT).send().await?;
+        let response = self
+            .auth(self.inner.get(format!("{}/plans/{id}", self.base)))
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
         let result: crate::plans::Result = ok_or_detail(response).await?.json().await?;
-        if result.v != 1 || result.preview.as_ref().is_some_and(|p| p.v != 1 || p.id != id) {
+        if result.v != 1
+            || result
+                .preview
+                .as_ref()
+                .is_some_and(|p| p.v != 1 || p.id != id)
+        {
             return Err(VossError::Decode("incompatible plan status".into()));
         }
         Ok(result)
     }
 
-    pub async fn start_plan(&self, id: &str, revision: &str, briefing: &crate::plans::Briefing) -> Result<crate::plans::Result, VossError> {
-        self.plan_command(&format!("plans/{id}/start"), serde_json::json!({"revision":revision,"briefing":briefing})).await
+    pub async fn start_plan(
+        &self,
+        id: &str,
+        revision: &str,
+        briefing: &crate::plans::Briefing,
+    ) -> Result<crate::plans::Result, VossError> {
+        self.plan_command(
+            &format!("plans/{id}/start"),
+            serde_json::json!({"revision":revision,"briefing":briefing}),
+        )
+        .await
     }
 
-    async fn plan_command(&self, route: &str, body: serde_json::Value) -> Result<crate::plans::Result, VossError> {
-        let response = self.auth(self.inner.post(format!("{}/{route}", self.base)))
-            .timeout(Duration::from_secs(180)).json(&body).send().await?;
+    async fn plan_command(
+        &self,
+        route: &str,
+        body: serde_json::Value,
+    ) -> Result<crate::plans::Result, VossError> {
+        let response = self
+            .auth(self.inner.post(format!("{}/{route}", self.base)))
+            .timeout(Duration::from_secs(180))
+            .json(&body)
+            .send()
+            .await?;
         let result: crate::plans::Result = ok_or_detail(response).await?.json().await?;
-        if result.v != 1 || result.preview.as_ref().is_some_and(|p| p.v != 1)
+        if result.v != 1
+            || result.preview.as_ref().is_some_and(|p| p.v != 1)
             || result.availability.as_ref().is_some_and(|a| a.v != 1)
             || (result.status == "prepared" && result.preview.is_none())
-            || (result.status == "accepted" && (result.session_id.is_none() || result.run_id.is_none() || result.preview.is_none())) {
+            || (result.status == "accepted"
+                && (result.session_id.is_none()
+                    || result.run_id.is_none()
+                    || result.preview.is_none()))
+        {
             return Err(VossError::Decode("incompatible plan response".into()));
         }
         Ok(result)
     }
 
-    pub async fn graph_output(&self, sid: &str, node_id: &str, attempt_id: &str, after: u64) -> Result<crate::graph::Output, VossError> {
-        let response = self.auth(self.inner.get(format!("{}/session/{sid}/graph-output", self.base)))
-            .query(&[("node_id", node_id), ("attempt_id", attempt_id), ("after", &after.to_string())])
-            .timeout(REST_TIMEOUT).send().await?;
+    pub async fn graph_output(
+        &self,
+        sid: &str,
+        node_id: &str,
+        attempt_id: &str,
+        after: u64,
+    ) -> Result<crate::graph::Output, VossError> {
+        let response = self
+            .auth(
+                self.inner
+                    .get(format!("{}/session/{sid}/graph-output", self.base)),
+            )
+            .query(&[
+                ("node_id", node_id),
+                ("attempt_id", attempt_id),
+                ("after", &after.to_string()),
+            ])
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
         let output: crate::graph::Output = ok_or_detail(response).await?.json().await?;
-        if output.v != 1 { return Err(VossError::Decode("incompatible graph output".into())); }
+        if output.v != 1 {
+            return Err(VossError::Decode("incompatible graph output".into()));
+        }
         Ok(output)
     }
 
-    pub async fn task_review(&self, sid: &str, node_id: &str, attempt_id: &str) -> Result<crate::review::Bundle, VossError> {
-        let response = self.auth(self.inner.get(format!("{}/session/{sid}/review", self.base)))
+    pub async fn task_review(
+        &self,
+        sid: &str,
+        node_id: &str,
+        attempt_id: &str,
+    ) -> Result<crate::review::Bundle, VossError> {
+        let response = self
+            .auth(
+                self.inner
+                    .get(format!("{}/session/{sid}/review", self.base)),
+            )
             .query(&[("node_id", node_id), ("attempt_id", attempt_id)])
-            .timeout(REST_TIMEOUT).send().await?;
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
         let bundle: crate::review::Bundle = ok_or_detail(response).await?.json().await?;
-        if bundle.v != 1 || bundle.session_id != sid || bundle.task_id != node_id || bundle.attempt_id != attempt_id {
+        if bundle.v != 1
+            || bundle.session_id != sid
+            || bundle.task_id != node_id
+            || bundle.attempt_id != attempt_id
+        {
             return Err(VossError::Decode("incompatible task review".into()));
         }
         Ok(bundle)
@@ -100,60 +171,127 @@ impl VossClient {
             .timeout(REST_TIMEOUT)
             .send()
             .await?;
-        ok_or_detail(resp).await?.json().await.map_err(VossError::Http)
+        ok_or_detail(resp)
+            .await?
+            .json()
+            .await
+            .map_err(VossError::Http)
     }
 
     pub async fn task_snapshot(&self, sid: &str) -> Result<crate::tasks::TaskSnapshot, VossError> {
-        let resp = self.auth(self.inner.get(format!("{}/session/{sid}/task", self.base)))
-            .timeout(REST_TIMEOUT).send().await?;
+        let resp = self
+            .auth(self.inner.get(format!("{}/session/{sid}/task", self.base)))
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
         let snapshot: crate::tasks::TaskSnapshot = ok_or_detail(resp).await?.json().await?;
-        if snapshot.v != 1 || snapshot.session_id != sid || snapshot.graph.as_ref().is_some_and(|graph| graph.v != 1) {
+        if snapshot.v != 1
+            || snapshot.session_id != sid
+            || snapshot.graph.as_ref().is_some_and(|graph| graph.v != 1)
+        {
             return Err(VossError::Decode("incompatible task snapshot".into()));
         }
         Ok(snapshot)
     }
 
-    pub async fn submit_message(&self, sid: &str, text: &str, mode: &str, command_id: &str) -> Result<crate::tasks::CommandAck, VossError> {
-        self.task_command(sid, "message", serde_json::json!({
-            "parts": [{"type": "text", "text": text}], "mode": mode, "command_id": command_id,
-        })).await
+    pub async fn submit_message(
+        &self,
+        sid: &str,
+        text: &str,
+        mode: &str,
+        command_id: &str,
+    ) -> Result<crate::tasks::CommandAck, VossError> {
+        self.task_command(
+            sid,
+            "message",
+            serde_json::json!({
+                "parts": [{"type": "text", "text": text}], "mode": mode, "command_id": command_id,
+            }),
+        )
+        .await
     }
 
     pub async fn abort_task(&self, sid: &str) -> Result<crate::tasks::CommandAck, VossError> {
         self.task_command(sid, "abort", serde_json::json!({})).await
     }
 
-    pub async fn reply_permission(&self, sid: &str, id: &str, choice: &str) -> Result<crate::tasks::CommandAck, VossError> {
-        self.task_command(sid, "permission", serde_json::json!({"id": id, "choice": choice})).await
+    pub async fn reply_permission(
+        &self,
+        sid: &str,
+        id: &str,
+        choice: &str,
+    ) -> Result<crate::tasks::CommandAck, VossError> {
+        self.task_command(
+            sid,
+            "permission",
+            serde_json::json!({"id": id, "choice": choice}),
+        )
+        .await
     }
 
-    pub async fn reply_diff(&self, sid: &str, id: &str, decisions: &[String]) -> Result<crate::tasks::CommandAck, VossError> {
-        self.task_command(sid, "diff", serde_json::json!({"id": id, "decisions": decisions})).await
+    pub async fn reply_diff(
+        &self,
+        sid: &str,
+        id: &str,
+        decisions: &[String],
+    ) -> Result<crate::tasks::CommandAck, VossError> {
+        self.task_command(
+            sid,
+            "diff",
+            serde_json::json!({"id": id, "decisions": decisions}),
+        )
+        .await
     }
 
-    async fn task_command(&self, sid: &str, command: &str, body: serde_json::Value) -> Result<crate::tasks::CommandAck, VossError> {
-        let resp = self.auth(self.inner.post(format!("{}/session/{sid}/{command}", self.base)))
-            .timeout(REST_TIMEOUT).json(&body).send().await?;
+    async fn task_command(
+        &self,
+        sid: &str,
+        command: &str,
+        body: serde_json::Value,
+    ) -> Result<crate::tasks::CommandAck, VossError> {
+        let resp = self
+            .auth(
+                self.inner
+                    .post(format!("{}/session/{sid}/{command}", self.base)),
+            )
+            .timeout(REST_TIMEOUT)
+            .json(&body)
+            .send()
+            .await?;
         let ack: crate::tasks::CommandAck = ok_or_detail(resp).await?.json().await?;
         if ack.v != 1 || ack.availability.as_ref().is_some_and(|row| row.v != 1) {
-            return Err(VossError::Decode("incompatible command acknowledgement".into()));
+            return Err(VossError::Decode(
+                "incompatible command acknowledgement".into(),
+            ));
         }
         Ok(ack)
     }
 
     pub async fn harness_catalog(&self) -> Result<crate::oauth::Catalog, VossError> {
-        let resp = self.auth(self.inner.get(format!("{}/harnesses", self.base)))
-            .timeout(REST_TIMEOUT).send().await?;
+        let resp = self
+            .auth(self.inner.get(format!("{}/harnesses", self.base)))
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
         let catalog: crate::oauth::Catalog = ok_or_detail(resp).await?.json().await?;
         if catalog.v != 1 || catalog.harnesses.iter().any(|row| row.v != 1) {
-            return Err(VossError::Decode("incompatible OAuth availability report".into()));
+            return Err(VossError::Decode(
+                "incompatible OAuth availability report".into(),
+            ));
         }
         Ok(catalog)
     }
 
-    pub async fn harness_preflight(&self, request: &crate::oauth::Preflight) -> Result<crate::oauth::Availability, VossError> {
-        let resp = self.auth(self.inner.post(format!("{}/harness/preflight", self.base)))
-            .timeout(REST_TIMEOUT).json(request).send().await?;
+    pub async fn harness_preflight(
+        &self,
+        request: &crate::oauth::Preflight,
+    ) -> Result<crate::oauth::Availability, VossError> {
+        let resp = self
+            .auth(self.inner.post(format!("{}/harness/preflight", self.base)))
+            .timeout(REST_TIMEOUT)
+            .json(request)
+            .send()
+            .await?;
         let report: crate::oauth::Availability = ok_or_detail(resp).await?.json().await?;
         if report.v != 1 || report.harness != request.harness {
             return Err(VossError::Decode("incompatible OAuth preflight".into()));
@@ -161,20 +299,52 @@ impl VossClient {
         Ok(report)
     }
 
-    pub async fn create_oauth_session(&self, cwd: &str, harness: &str, model: &str) -> Result<crate::oauth::Launch, VossError> {
-        self.oauth_launch("session", serde_json::json!({"cwd": cwd, "auth": harness, "model": model})).await
+    pub async fn create_oauth_session(
+        &self,
+        cwd: &str,
+        harness: &str,
+        model: &str,
+    ) -> Result<crate::oauth::Launch, VossError> {
+        self.oauth_launch(
+            "session",
+            serde_json::json!({"cwd": cwd, "auth": harness, "model": model}),
+        )
+        .await
     }
 
-    pub async fn create_oauth_swarm(&self, goal: &str, cwd: &str, builders: u32, roster: &[RoleSpec]) -> Result<crate::oauth::Launch, VossError> {
-        self.oauth_launch("swarm", serde_json::json!({"goal": goal, "cwd": cwd, "builders": builders, "roster": roster})).await
+    pub async fn create_oauth_swarm(
+        &self,
+        goal: &str,
+        cwd: &str,
+        builders: u32,
+        roster: &[RoleSpec],
+    ) -> Result<crate::oauth::Launch, VossError> {
+        self.oauth_launch(
+            "swarm",
+            serde_json::json!({"goal": goal, "cwd": cwd, "builders": builders, "roster": roster}),
+        )
+        .await
     }
 
-    async fn oauth_launch(&self, route: &str, body: serde_json::Value) -> Result<crate::oauth::Launch, VossError> {
-        let resp = self.auth(self.inner.post(format!("{}/{route}", self.base)))
-            .timeout(REST_TIMEOUT).json(&body).send().await?;
+    async fn oauth_launch(
+        &self,
+        route: &str,
+        body: serde_json::Value,
+    ) -> Result<crate::oauth::Launch, VossError> {
+        let resp = self
+            .auth(self.inner.post(format!("{}/{route}", self.base)))
+            .timeout(REST_TIMEOUT)
+            .json(&body)
+            .send()
+            .await?;
         let launch: crate::oauth::Launch = ok_or_detail(resp).await?.json().await?;
-        if launch.v != 1 || (launch.id.is_some() == launch.availability.is_some())
-            || launch.availability.as_ref().is_some_and(|row| row.v != 1 || row.available) {
+        if launch.v != 1
+            || (launch.id.is_some() == launch.availability.is_some())
+            || launch
+                .availability
+                .as_ref()
+                .is_some_and(|row| row.v != 1 || row.available)
+        {
             return Err(VossError::Decode("invalid OAuth launch response".into()));
         }
         Ok(launch)
@@ -275,7 +445,10 @@ impl VossClient {
     ) -> Result<(), VossError> {
         let ack = self.reply_permission(sid, id, choice).await?;
         if ack.status != "ok" {
-            return Err(VossError::Decode(format!("permission reply: {}", ack.status)));
+            return Err(VossError::Decode(format!(
+                "permission reply: {}",
+                ack.status
+            )));
         }
         Ok(())
     }
@@ -386,11 +559,19 @@ impl VossClient {
     }
 
     pub async fn start_swarm(&self, swarm_id: &str) -> Result<crate::tasks::CommandAck, VossError> {
-        let resp = self.auth(self.inner.post(format!("{}/swarm/{swarm_id}/run", self.base)))
-            .timeout(REST_TIMEOUT).send().await?;
+        let resp = self
+            .auth(
+                self.inner
+                    .post(format!("{}/swarm/{swarm_id}/run", self.base)),
+            )
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
         let ack: crate::tasks::CommandAck = ok_or_detail(resp).await?.json().await?;
         if ack.v != 1 || ack.availability.as_ref().is_some_and(|row| row.v != 1) {
-            return Err(VossError::Decode("incompatible swarm acknowledgement".into()));
+            return Err(VossError::Decode(
+                "incompatible swarm acknowledgement".into(),
+            ));
         }
         Ok(ack)
     }

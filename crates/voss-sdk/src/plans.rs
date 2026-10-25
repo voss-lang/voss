@@ -9,10 +9,16 @@ pub struct Source {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Context { pub id: String, pub text: String }
+pub struct Context {
+    pub id: String,
+    pub text: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Scope { pub allow: Vec<String>, pub deny: Vec<String> }
+pub struct Scope {
+    pub allow: Vec<String>,
+    pub deny: Vec<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Briefing {

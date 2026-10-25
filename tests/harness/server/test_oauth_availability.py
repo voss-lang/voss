@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import time
@@ -13,7 +12,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from voss.harness import auth, oauth
-from voss.harness.claude_agent_provider import ClaudeAgentProvider
 from voss.harness.providers import OpenAIOAuthProvider
 from voss.harness.server import app as appmod
 

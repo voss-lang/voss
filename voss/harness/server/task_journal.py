@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import uuid
@@ -62,9 +63,15 @@ class TaskJournal:
         if self._db is not None:
             return self._db
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._owner = portalocker.Lock(str(self.path) + ".lock", timeout=0)
-        self._owner.acquire()
-        db = sqlite3.connect(self.path, check_same_thread=False)
+        owner = portalocker.Lock(str(self.path) + ".lock", timeout=0)
+        try:
+            owner.acquire()
+            self._owner, target = owner, self.path
+        except portalocker.AlreadyLocked:
+            logging.getLogger(__name__).warning(
+                "%s is owned by another voss serve; this server keeps tasks in memory only", self.path)
+            target = ":memory:"
+        db = sqlite3.connect(target, check_same_thread=False)
         db.execute("PRAGMA journal_mode=WAL")
         db.executescript("""
             CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL);

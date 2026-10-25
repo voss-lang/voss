@@ -4,7 +4,14 @@ use serde_json::Value;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskPhase {
-    Idle, Active, Waiting, CandidateReady, Completed, Failed, Cancelled, Interrupted,
+    Idle,
+    Active,
+    Waiting,
+    CandidateReady,
+    Completed,
+    Failed,
+    Cancelled,
+    Interrupted,
     #[serde(other)]
     Unknown,
 }

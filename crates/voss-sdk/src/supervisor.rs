@@ -152,7 +152,10 @@ impl Supervisor {
     /// Close the ownership heartbeat, allow cleanup, then reap the child.
     pub async fn shutdown(mut self) {
         drop(self.child.stdin.take());
-        if tokio::time::timeout(Duration::from_secs(10), self.child.wait()).await.is_err() {
+        if tokio::time::timeout(Duration::from_secs(10), self.child.wait())
+            .await
+            .is_err()
+        {
             let _ = self.child.start_kill();
             let _ = self.child.wait().await;
         }

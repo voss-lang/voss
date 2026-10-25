@@ -84,7 +84,9 @@ history. Duplicate envelopes are harmless. Deleted/replaced journals must not
 silently reset a client's cursor or relaunch work.
 
 The journal lives at `.voss/task-journal.sqlite3` under the server launch directory.
-An exclusive file lock permits one server owner per journal. Reopening that
+An exclusive file lock permits one server owner per journal. A second server
+started in the same directory logs a warning and keeps its tasks in memory: they
+work, but do not survive its restart. Reopening that
 journal marks unfinished work interrupted and clears pending actions; it does not
 load provider credentials, adopt conversations or spawn workers. Terminal history
 survives. Graceful cancellation waits for owned CLI processes to terminate and
@@ -297,7 +299,9 @@ a turn or model switch runs returns `409`. Spending includes model and judgment
 costs, matching `GET /session/:id/cost`, which also returns nullable `budget_usd`.
 Go `/cost` shows the budget and percentage used when set. This matches Textual's
 advisory behavior: it does not stop turns or replace per-run budget enforcement.
-The setting is not persisted and starts unbounded when a session is resumed.
+The setting is not persisted and starts unbounded when a saved session is resumed.
+Resuming a session that is still open in the same server returns that session
+unchanged, with its budget and last plan.
 
 `/why` returns the last completed agent plan's rationale, confidence, step reasons,
 open question and final-when-done text in `stdout`. No completed plan returns
@@ -420,14 +424,15 @@ and leaves the proposal pending; expired or already answered IDs return
 `status: "stale"`. Proposals belong to their session.
 
 The server emits `diff.resolved` on reply, timeout (300 seconds), or cancellation.
-This closes the review; tool results report whether an edit was applied. Timeout,
-turn abort, or stream disconnect cancels pending edits. A file changed during
+This closes the review; tool results report whether an edit was applied. Timeout
+or turn abort cancels pending edits. A stream disconnect leaves them pending so a
+reconnecting client can answer. A file changed during
 review requires a new preview. Previews over 256 KiB of encoded event data are
 denied with a warning rather than truncated.
 
 ## 8. Abort
 
-`POST /session/:id/abort` → server `loop.call_soon_threadsafe(task.cancel)` on the turn task. Reuses the existing handler (`agent.py:1052`): emits `stream.delta("\n[interrupted]\n")` + `stream.finalize(role="system")` then `session.idle`, and records `exit_reason="interrupt"`. SSE client disconnect triggers the identical cancel.
+`POST /session/:id/abort` → server `loop.call_soon_threadsafe(task.cancel)` on the turn task. Reuses the existing handler (`agent.py:1052`): emits `stream.delta("\n[interrupted]\n")` + `stream.finalize(role="system")` then `session.idle`, and records `exit_reason="interrupt"`. An SSE client disconnect does not cancel the turn; clients reconnect and replay from their cursor.
 
 ## 9. Error model
 
