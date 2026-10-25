@@ -113,7 +113,7 @@ type Props = {
 
 // Server component: tokenizes at build time, ships zero JS.
 export default function TerminalDemo({
-  title = "~/voss-app - voss do",
+  title = "~/my-api - voss do",
   className = "",
 }: Props) {
   const lines = SAMPLE_SESSION.split("\n");

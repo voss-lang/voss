@@ -132,7 +132,7 @@ export default function HarnessPage() {
                 validation loop. In plan mode, mutating tools are denied before they run.
               </p>
             </div>
-            <TerminalDemo title="~/voss-app - voss do" />
+            <TerminalDemo title="~/my-api - voss do" />
           </div>
         </section>
 

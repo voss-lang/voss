@@ -1,7 +1,7 @@
 # Agent Coordination
 
 Advisory coordination primitives for external CLI agents (Claude Code,
-Codex, OpenCode, or any shell) running in voss-app panes or alongside Voss.
+Codex, OpenCode, or any shell) running alongside Voss.
 Claims are a serverless pre-edit conflict guard; the bus is mid-flight
 agent↔agent messaging over the Voss server plane. Both are **advisory** —
 they complement, never replace, the OS-level scope sandboxing that managed
@@ -12,11 +12,11 @@ no enforcement; these verbs are their coordination story.
 
 | Variable | Set by | Purpose |
 |----------|--------|---------|
-| `VOSS_AGENT_ID` | voss-app at pane spawn (every pane — agents get `claude-1`-style slugs, plain shells `pane-3`) | Identity for `voss claims` and `voss bus`. All verbs exit `2` when unset. |
-| `VOSS_SERVER_PORT` | voss-app when a server is attached (V15 sidecar) | Bus verb server discovery. |
-| `VOSS_SERVER_TOKEN` | voss-app when a server is attached (V15 sidecar) | Bearer token for the bus endpoints. |
+| `VOSS_AGENT_ID` | You, or the host that launches the agent | Identity for `voss claims` and `voss bus`. All verbs exit `2` when unset. |
+| `VOSS_SERVER_PORT` | You, from the `voss serve` handshake | Bus verb server discovery. |
+| `VOSS_SERVER_TOKEN` | You, from the `voss serve` handshake | Bearer token for the bus endpoints. |
 
-Outside a voss-managed pane, set identity manually:
+Set identity manually:
 
 ```sh
 export VOSS_AGENT_ID=claude-1

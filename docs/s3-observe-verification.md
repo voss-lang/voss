@@ -89,7 +89,7 @@ Focused Python command, run from repository root:
 Browser checks used a dedicated Vite server, because port 5173 was occupied:
 
 ```sh
-# From archive/voss-ade/apps/voss-app (frozen), separate terminals:
+# From apps/voss-app at commit 794b9f13, separate terminals:
 pnpm exec vite --host 127.0.0.1 --port 5189
 VOSS_APP_URL=http://127.0.0.1:5189 pnpm exec playwright test
 ```
