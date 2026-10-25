@@ -126,8 +126,9 @@ export default function AuditPage() {
                 Fifteen sections, <span className="em">one trail</span>.
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                Every audit is deterministic from persisted run data and exports to Markdown and
-                JSON. In the ADE it renders as a navigable session tree.
+                Every audit is deterministic from persisted run data and renders as text, Markdown,
+                or JSON. When a run records Jev judgments, a sixteenth section lists their receipts
+                and requirement assessments.
               </p>
             </div>
             <Stagger className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -175,6 +176,7 @@ export default function AuditPage() {
                 </div>
                 <ul className="grid gap-3 font-mono text-sm">
                   {[
+                    { cmd: "voss audit <run_id>", desc: "The full report, including judgments" },
                     { cmd: "voss review <run_id>", desc: "Reviewer-A + Reviewer-B per card" },
                     { cmd: "voss board <root_id>", desc: "Card state from persisted nodes" },
                     { cmd: "voss session tree <root_id>", desc: "Per-agent budget, scope, status" },

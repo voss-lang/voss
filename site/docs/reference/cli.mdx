@@ -7,22 +7,51 @@ description: "Reference for Voss harness and compiler commands."
 
 ```bash
 voss
-voss chat
-voss do "<task>" [--no-pack]
+voss ui [resume <id-or-name>] [--auth claude|codex|api]
+voss chat [--plain] [--allow-net]
+voss do "<task>" [--mode plan|edit|auto|observe] [--no-pack] [--yes]
 voss edit <path>
 voss doctor
 voss tools
 voss config
 voss sessions
 voss resume <session-id>
+voss login
+voss logout anthropic|openai
 ```
+
+## Integrations
+
+```bash
+voss mcp list [--configured]
+voss mcp call <server> <tool>
+voss skills
+voss instructions show
+voss instructions check
+voss shell-init --shell zsh|bash|fish
+```
+
+`voss mcp` and `voss skills` show what Voss discovered from Claude, Codex, and Voss config. `voss shell-init` prints an OSC 133 snippet that lets a terminal host such as Voss ADE see command boundaries, exit codes, and the working directory.
+
+## Judgments and evaluation
+
+```bash
+voss judge run [request.json | --demo]
+voss judge review --criterion "<text>" [--ref <commit>] [--checks checks.json] [--run <root_id>]
+voss judge review --swarm <swarm-id> --task <task-id> [--saved]
+voss judge activate code_recall
+
+voss eval [--suite golden] [--stub | --live] [-k N] [--ab FIELD=A,B]
+```
+
+Jev judgments are opt-in and advisory. `voss judge review` prints a requirement assessment per criterion (supported, contradicted, unclear, or no answer); it never approves, blocks, or moves work. `voss eval --ab` runs the suite twice with one task setting changed and compares the results.
 
 ## Project context and recall
 
 ```bash
 voss recall <query> [--top N] [--json] [--refresh]
 voss sync [--check] [--dry-run] [--force]
-voss serve
+voss serve [--port 0] [--token <token>]
 
 voss memory size
 voss memory vacuum
@@ -54,6 +83,7 @@ voss team run "<goal>" [--cwd .] [--max-iterations 50]
 
 voss board [root_id] [--cwd .]      # read-only board from persisted nodes
 voss review [run_id]                # Reviewer-A + Reviewer-B per card (latest if omitted)
+voss audit [run_id] [--format text|json|markdown] [--approve]
 voss session tree <root_id> [--cwd .] [--json]
 
 voss capabilities list [--cwd .] [--json]
@@ -67,12 +97,14 @@ voss principles show [--cwd .] [--json]
 | Need | Use |
 | --- | --- |
 | Natural-language repo task | `voss do` |
-| Interactive agent session | `voss chat` or bare `voss` |
+| Interactive agent session | bare `voss` (Go client) or `voss chat` (plain REPL) |
 | Scoped file edit | `voss edit <path>` |
 | Search code and project memory | `voss recall <query>` |
 | Sync generated project instructions | `voss sync` |
 | Check managed docs in CI | `voss sync --check` |
 | Start the local protocol server | `voss serve` |
+| Check work against acceptance criteria | `voss judge review` |
+| Read the full record of a run | `voss audit` |
 | Run a goal as a team | `voss team run "<goal>"` |
 | Validate the team cage | `voss team check` |
 | Inspect a team run | `voss board`, `voss review`, `voss session tree` |
@@ -95,11 +127,12 @@ legacy full-context path.
 
 ## Renderer environment
 
-Embedded hosts that run Voss inside another terminal pane can request the dense renderer with:
+Bare `voss` opens the Go terminal client. These variables change that and the line renderer:
 
 ```bash
+VOSS_USE_TUI=0 voss
+VOSS_TUI_BIN=/path/to/voss-tui voss
 VOSS_RENDERER=compact voss chat
-VOSS_EMBEDDED=1 voss do "summarize this repo"
 ```
 
-`VOSS_RENDERER=compact` selects the compact renderer directly. `VOSS_EMBEDDED=1` is an embedded-host signal only; it does not force compact mode. Embedded hosts that want the full composer can pair it with `VOSS_FORCE_TUI=1`.
+`VOSS_USE_TUI=0` uses the plain line-by-line chat instead of the Go client; the plain chat is also the fallback when the `voss-tui` binary is missing. `VOSS_TUI_BIN` selects a specific Go client binary. `VOSS_RENDERER=compact` selects the dense line renderer for hosts that run Voss inside another terminal pane.
