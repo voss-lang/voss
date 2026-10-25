@@ -19,6 +19,10 @@ voss --help
 
 If you manage Python yourself, `pip install "voss @ git+https://github.com/voss-lang/voss"` installs the Python package directly from GitHub. For Voss development, use `pip install -e ".[dev]"` from a source checkout.
 
+## Bare `voss` opens the plain chat instead of the Go client
+
+The Go client binary was not found, so Voss fell back to the plain chat. The npm package includes it. From a source checkout, build it with `(cd tui && go build -o voss-tui .)`, or point `VOSS_TUI_BIN` at a binary. Check that `VOSS_USE_TUI` is not set to `0`.
+
 ## Provider or model setup fails
 
 Run diagnostics:
@@ -32,6 +36,12 @@ Then inspect config:
 ```bash
 voss config --show
 ```
+
+If no credentials are found, run `voss login`. In CI or other non-interactive shells the wizard is skipped, so set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` instead.
+
+## MCP tools or web tools are missing
+
+Network tools, including MCP, are off by default. Start with `voss chat --allow-net`, or set `[tools] allow_net = true` in `config.toml` (the Go client reads this setting). Use `voss mcp list --configured` to see which servers Voss discovered without connecting to them. Discovery does not carry over remote MCP OAuth sessions, and legacy SSE endpoints need a Streamable HTTP endpoint.
 
 ## The agent will not edit a file
 

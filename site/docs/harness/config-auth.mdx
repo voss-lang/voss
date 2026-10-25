@@ -35,29 +35,54 @@ Context packing can also be disabled globally, or per run with `voss do --no-pac
 enabled = false
 ```
 
-## Switch model in a session
+## Switch model and auth in a session
 
-Inside the REPL:
+Inside the Go terminal client:
 
 ```text
 /model
 /model <model-id>
+/auth
+/auth claude
 ```
 
-The selected model can be persisted to config.
+`/model` (or `/models`) searches available models and `/auth` chooses Claude, Codex, or API authentication. Subscription choices reuse your local Claude or Codex login; API choices need a configured key. Successful switches persist across launches and saved-session resumes. `voss ui --auth codex` overrides auth for one launch.
 
 ## Login flow
 
-Use provider CLIs first, then tell Voss which auth source to prefer when needed:
+Run the sign-in wizard, or use the provider CLIs directly and tell Voss which auth source to prefer:
 
 ```bash
+voss login
 claude login
 codex login
 voss do --auth=claude "summarize this repo"
 voss do --auth=api "summarize this repo"
 ```
 
-Inside the REPL, `/login` shows local auth status and refreshes existing credentials when possible.
+Under `--auth=auto`, Voss checks keychain keys stored by `voss login`, then `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`, then Claude Code OAuth, then Codex auth. Inside `voss chat`, `/login` shows local auth status and refreshes existing credentials when possible.
+
+## Network tools
+
+Network tools (`web_fetch`, `web_search`, and MCP) are off unless you pass `--allow-net` or set:
+
+```toml
+[tools]
+allow_net = true
+```
+
+## Jev judgments
+
+Jev judgments are off by default and opt-in per project in `.voss/config.yml`:
+
+```yaml
+judgments:
+  enabled: true
+  review: shadow        # off | shadow: advisory requirement assessments for swarm candidates
+  code_recall: shadow   # off | shadow | active: rerank pre-turn code recall
+```
+
+A Jev key is read from `TYPESAFE_API_KEY` or the keychain. `VOSS_JUDGMENTS=off` stops every Jev call. `voss judge activate code_recall` switches recall reranking to `active` after checking the published evaluation gates. Model, timeout, and per-turn call and dollar limits live under `[judgments]` in `config.toml`.
 
 ## Provider safety
 
