@@ -15,4 +15,3 @@ ignore:
   - "site/**"
   - ".planning/**"
   - "voss-demos/**"
-  - "archive/**"

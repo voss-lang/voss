@@ -1,7 +1,8 @@
 # ADR 0004: Voss and Voss ADE are separate products
 
 **Status:** Accepted, 2026-09-12
-**Supersedes:** the in-repo desktop application, now frozen under `archive/voss-ade/`
+**Supersedes:** the in-repo desktop application, last built at `794b9f13`
+**Amended:** 2026-10-25, archive removed (see below)
 
 ## Context
 
@@ -68,5 +69,24 @@ Two distinctions the boundary rests on:
 - The engine's CI and dependency graph no longer carry the desktop app or its
   Tauri and frontend toolchain.
 - A future ADE integration depends only on the released Voss executable, a
-  compatible SDK, and the protocol. What moved out and where is listed in
-  `archive/voss-ade/README.md`.
+  compatible SDK, and the protocol.
+
+## Amendment, 2026-10-25: archive removed
+
+The frozen copy under `archive/voss-ade/` was deleted once the separate Voss ADE
+repository had replaced it. To read or build the old app, check out `794b9f13`
+or earlier: `apps/voss-app/` was the Tauri + Solid app and
+`crates/voss-app-core/` its Rust core (PTY reader, persistence, sidecar
+launch). The server no longer accepts the Tauri webview origins; Voss ADE
+calls `voss serve` from its Rust backend through `voss-sdk`.
+
+What an external desktop client needs from Voss:
+
+- **Launch.** Set `VOSS_BIN` or pass an explicit executable to the SDK. It runs
+  `<voss> serve --port 0`, reads the one-line `{"v":1,"port":...,"token":...}`
+  handshake from stdout, and holds stdin open as a heartbeat.
+- **Protocol.** `docs/protocol.md`, wire version `v = 1`, with
+  `contracts/openapi.json` and `contracts/events.schema.json`.
+- **SDKs.** Rust `voss-sdk`, TypeScript `@vosslang/sdk`, Go `sdk/go`.
+- **Not provided by Voss.** PTYs, canvas, layouts, themes, keymaps and the
+  app's local database.
