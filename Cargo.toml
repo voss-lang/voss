@@ -1,6 +1,5 @@
 [workspace]
 resolver = "2"
-exclude = ["archive"]
 members = [
     "crates/voss-cli",
     "crates/voss-agent",

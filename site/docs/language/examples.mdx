@@ -3,17 +3,27 @@ title: "Examples"
 description: "Canonical .voss examples for classification, support routing, and research agents."
 ---
 
-The language layer has three canonical example families.
+The language layer has three canonical example families, plus a judgment example for measured confidence.
 
-## Confidence-gated classification
+## Classification
 
 Demonstrates:
 
-- `probable<T>`
-- Confidence gates
-- `ctx`
+- Implicit `ctx`
+- `ask()`
+- Empty-reply fallback
 
-The workflow classifies a message, then returns the label only when confidence clears the gate.
+The workflow classifies a message and falls back to `"unknown"` when the reply is empty. It does not gate on confidence, because a plain `ask()` reply has no measured confidence.
+
+## Confidence-gated triage
+
+Demonstrates:
+
+- `judge(...)` with a choice question
+- `to_probable()`
+- A real probability gate
+
+`examples/judgments/triage.voss` asks Jev which support queue should handle a request and returns the queue only when its probability is at least 0.80. Running it needs a Jev key.
 
 ## Semantic support routing
 

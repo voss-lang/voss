@@ -28,7 +28,7 @@ export const metadata = pageMetadata({
 const PRINCIPLES: { title: string; body: string; icon: LucideIcon }[] = [
   {
     title: "Permission modes are explicit",
-    body: "`plan`, `edit`, and `auto` make the agent's authority visible. The default path favors inspection before mutation.",
+    body: "`observe`, `plan`, `edit`, and `auto` make the agent's authority visible. The default path favors inspection before mutation.",
     icon: SlidersHorizontal,
   },
   {
@@ -43,19 +43,19 @@ const PRINCIPLES: { title: string; body: string; icon: LucideIcon }[] = [
   },
   {
     title: "Auth stays local",
-    body: "Claude Code, Codex, and provider API keys are read from local auth stores or environment variables. Voss does not add a hosted credential service.",
+    body: "Claude Code, Codex, and provider API keys are read from local auth stores, the OS keychain, or environment variables. Managed runs can require subscription OAuth only, with an isolated login per CLI process. Voss does not add a hosted credential service.",
     icon: KeyRound,
   },
 ];
 
 const SURFACES = [
   "cwd jail for file tools",
-  "read-only planning mode",
+  "read-only plan and observe modes",
   "scoped edit mode",
   "prompted shell commands",
   "project-local session files",
   "VOSS.md and .voss/memory",
-  "TUI permission modals",
+  "TUI permission prompts",
   "redaction-aware transcripts",
 ] as const;
 

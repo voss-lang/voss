@@ -19,3 +19,8 @@ description: "Shared vocabulary for the Voss agent engineering organization laye
 | **audit** | The replayable [record of a run](/orchestration/audit): RunFinal records, review sidecars, and session-tree nodes. |
 | **principle** | A first-class [engineering-culture statement](/orchestration/principles) injected into every agent context. |
 | **ceiling** | The global budget + scope envelope a team declares; no role may exceed it. |
+| **swarm** | A live multi-agent run through `voss serve`: a coordinator splits the goal into tasks with owned files, builders (native, Claude Code, or Codex) work in separate worktrees, and a reviewer checks candidates. |
+| **candidate** | A swarm task's retained work, ready for review. Candidate-ready means review pending, not merged or accepted. |
+| **judgment** | An explicit, opt-in Jev request that returns a probability distribution and a content-free receipt. |
+| **requirement assessment** | Jev's advisory per-criterion answer (supported, contradicted, unclear, no answer). It never approves, blocks, or moves work. |
+| **task journal** | The SQLite record of task state and events that `voss serve` clients replay by cursor. |

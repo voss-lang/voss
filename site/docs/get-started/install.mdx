@@ -3,7 +3,7 @@ title: "Install Voss"
 description: "Install the Voss CLI with npm, pip, or an editable source checkout."
 ---
 
-The recommended install path is the npm CLI package. It vendors Python 3.12 and the Voss wheel, so you do not need to manage a Python environment just to run the harness.
+The recommended install path is the npm CLI package. It vendors Python 3.12, the Voss wheel, and the Go terminal client (`voss-tui`), so you do not need to manage a Python environment just to run the harness.
 
 ## Prerequisites
 
@@ -17,6 +17,8 @@ The recommended install path is the npm CLI package. It vendors Python 3.12 and 
 ```bash
 npm i -g @vosslang/cli
 ```
+
+npm platform packages are published for macOS (Apple silicon), Linux (x64 and arm64), and Windows (x64).
 
 ## Alternative: pip
 
@@ -32,6 +34,15 @@ Semantic memory/search dependencies are optional because they pull heavier vecto
 pip install "voss[search] @ git+https://github.com/voss-lang/voss"
 ```
 
+## Container image
+
+A CLI image is published to GitHub Container Registry. Mount a repo into `/workspace` for project-scoped commands:
+
+```bash
+docker pull ghcr.io/voss-lang/voss:latest
+docker run --rm -v "$PWD:/workspace" ghcr.io/voss-lang/voss:latest doctor
+```
+
 ## Source checkout
 
 Use an editable checkout for Voss development:
@@ -42,6 +53,12 @@ cd voss
 pip install -e ".[dev]"
 ```
 
+To use the Go terminal client from a checkout, build it once. Editable installs pick up the local build automatically:
+
+```bash
+(cd tui && go build -o voss-tui .)
+```
+
 ## Verify the CLI
 
 ```bash
@@ -50,6 +67,14 @@ voss doctor
 ```
 
 `voss doctor` checks local harness prerequisites such as config directories, provider setup, compiler availability, and tool readiness.
+
+## Sign in
+
+```bash
+voss login
+```
+
+The sign-in wizard offers Claude Code OAuth, Codex / ChatGPT OAuth, or a pasted Anthropic or OpenAI key stored in the OS keychain. Remove a stored key with `voss logout anthropic` or `voss logout openai`. In CI, set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` instead; the wizard is skipped when stdin is not a terminal.
 
 <Tip>
 Use `npm i -g @vosslang/cli` for normal CLI use. Use `pip install -e ".[dev]"` when you are changing Voss itself.

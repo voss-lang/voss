@@ -32,7 +32,7 @@ const CONSTRUCTS = [
     name: "probable<T>",
     icon: Code2,
     title: "Confidence belongs in the type system",
-    body: "Model calls return values with confidence attached. Gates like `intent @ 0.80` make trust explicit instead of burying it in app code.",
+    body: "Probable values record where their confidence came from. A plain `ask()` reply is unmeasured, so a gate on it never passes; `judge(...).to_probable()` gives a measured probability to gate on.",
   },
   {
     name: "ctx",
@@ -89,19 +89,19 @@ const COORDINATION = [
 
 const LANGUAGE_PROGRESS = [
   {
-    title: "Failure paths are explicit",
-    body: "Retries, fail-fast gathers, budget fallbacks, and bounded review loops are becoming part of the workflow model instead of hidden control flow.",
-    icon: RefreshCcw,
-  },
-  {
-    title: "Editor help is arriving",
-    body: "Formatting, completions, hover text, and go-to-definition make .voss files easier to read and maintain in normal editor workflows.",
+    title: "No made-up confidence",
+    body: "Every probable value says whether its number came from Jev, the model's own report, or your code. Unknown never passes a gate, and the compiler warns (ANLY004) when a gate can never pass.",
     icon: FileCheck2,
   },
   {
-    title: "Context stays budgeted",
-    body: "The roadmap treats long-running context as a budgeted resource: recent work stays detailed, older work is summarized, and savings must be measurable.",
+    title: "Judgments are a runtime call",
+    body: "`judge()` asks Jev a bounded question and returns answers you can turn into probable values. Each call's spend and receipt are recorded on the run and shown in `voss audit`.",
     icon: CircleDollarSign,
+  },
+  {
+    title: "Failure paths are explicit",
+    body: "Retries, fail-fast gathers, budget fallbacks, and bounded review loops are part of the workflow model instead of hidden control flow.",
+    icon: RefreshCcw,
   },
 ] as const;
 
@@ -117,16 +117,22 @@ memory {
   semantic:  ".voss-cache/semantic"
 }`;
 
-const SAMPLE = `agent Classifier {
-  ctx(token_budget: 1000) {
-    intent = ask "Classify this request" probable<string>
+const SAMPLE = `use voss_runtime::judge
 
-    if intent @ 0.80 {
-      return intent.value
+fn triage(text: string) -> string {
+    let route = {
+        "type": "choice",
+        "instructions": "Which queue handles this?",
+        "criteria": {"billing": "Payment or refund.", "other": "Anything else."}
     }
+    let res = judge(text, {"route": route})
+    let p: probable<string> = res.answers["route"].to_probable()
 
-    fallback "unknown"
-  }
+    if p @ p >= 0.80 {
+        return p.value
+    } else {
+        return "unknown"
+    }
 }`;
 
 export default async function LanguagePage() {
@@ -186,7 +192,8 @@ export default async function LanguagePage() {
               </h2>
               <p className="mt-4 text-[var(--muted)]">
                 The language track is tightening the parts of agent work that usually leak into
-                prompts: failure behavior, editor ergonomics, and context budgets.
+                prompts: where confidence comes from, what a judgment costs, and how failure
+                behaves.
               </p>
             </div>
             <div className="grid gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] md:grid-cols-3">

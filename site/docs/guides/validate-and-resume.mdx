@@ -36,6 +36,16 @@ Ask Voss to summarize what changed and what remains:
 voss do "summarize the current diff, validation run, risks, and follow-ups"
 ```
 
+## Check acceptance criteria
+
+With a Jev key configured, get an advisory read on whether your uncommitted changes meet their criteria:
+
+```bash
+voss judge review --criterion "expired sessions are rejected" --criterion "focused tests cover the new branch"
+```
+
+The answer is advisory and never replaces your own checks.
+
 ## Resume work
 
 ```bash
@@ -44,5 +54,5 @@ voss resume <session-id>
 ```
 
 <Tip>
-When project cognition is enabled, prefer recording decisions and validation under `.voss/` rather than relying only on chat history.
+Prefer recording decisions and validation in project memory (`/save <note>`) rather than relying only on chat history.
 </Tip>

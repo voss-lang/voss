@@ -1,0 +1,75 @@
+---
+title: "October 25, 2026"
+description: "Go terminal client, honest confidence, opt-in Jev judgments, swarms, and a durable protocol for Voss ADE."
+---
+
+A lot shipped since June. The terminal client was rebuilt in Go, confidence numbers now say where
+they came from, and `voss serve` became the product contract that SDKs and the separate Voss ADE
+desktop app build on.
+
+## Go terminal client
+
+Bare `voss` now opens a full-screen Go client that runs the harness through `voss serve`. It has
+the slash and `@` file palettes, permission prompts, session resume with a searchable picker,
+`/model` and `/auth` pickers that persist, memory and recall commands, code lookup with
+`/symbol`, `/refs`, and `/refresh`, and read-only `/probable`, `/btrace`, and `/vdiff` panels.
+
+The Python Textual app has been removed. `voss chat` and `VOSS_USE_TUI=0 voss` give the plain
+line-by-line chat, which is also the fallback when the Go binary is missing. The npm package
+bundles the Go client.
+
+## Confidence you can trust
+
+A plain `ask()` reply used to get a made-up confidence of 0.9, so gates on it always passed. Every
+`ProbableValue` now records its source: a Jev judgment, the model's self-report, a value you
+supplied, or unknown. Unknown never passes a gate, the compiler warns (ANLY004) on gates over
+`ask()` values, and footers and inspectors print `unknown` instead of a number. For a real
+probability, use `judge(...).to_probable()`.
+
+## Jev judgments
+
+Judgments are opt-in per project and always advisory:
+
+- `voss judge review` checks work against acceptance criteria and labels each one supported,
+  contradicted, unclear, or no answer.
+- With `judgments.review: shadow`, swarm candidates get the same check in the background.
+- With `judgments.code_recall`, pre-turn code recall can be reranked. The locked evaluation
+  passed every release gate, and `voss judge activate code_recall` turns it on.
+- Receipts appear in `voss audit`. `VOSS_JUDGMENTS=off` stops every call.
+
+`voss eval --ab` runs the task suite twice with one setting changed and compares the results.
+
+## Swarms
+
+A swarm runs a coordinator, builders, and a reviewer through `voss serve`. Builders can be native
+agents or headless Claude Code and Codex sessions, each in its own worktree with owned files.
+Finished tasks become candidates for review.
+
+## Protocol and SDKs
+
+The `voss serve` REST + SSE protocol is now the product contract, checked against committed
+OpenAPI and event schemas in CI. The Rust, TypeScript, and Go SDKs launch `voss serve` by
+executable and need no source checkout. New in the protocol:
+
+- Capability discovery at `GET /capabilities`.
+- A durable task journal with cursor replay and idempotent command IDs.
+- Managed OAuth-only execution, with per-harness availability and preflight.
+- Execution previews: plan a task graph, accept its exact revision, then run it in dependency
+  order.
+- Recorded task graphs with per-attempt output, and acceptance evidence for review.
+
+## Voss ADE is its own product
+
+The desktop app moved to its own repository. It integrates with Voss only through the released
+executable, a compatible SDK, and the protocol.
+
+## Also new
+
+- MCP servers and skills are discovered from your Claude and Codex config (`voss mcp list`,
+  `voss skills`).
+- `AGENTS.md` and `CLAUDE.md` are injected into every native run within a budget
+  (`voss instructions show`).
+- `voss audit` renders one complete read-only report per run.
+- `voss shell-init` prints shell integration for terminal hosts.
+- Retained memory can use a Laravel memory service instead of the local store.
+- Install with pip from GitHub. The `voss` package on PyPI is an unrelated project.

@@ -34,18 +34,18 @@ export const site = {
   docsUrl: "https://docs.tryvoss.dev",
   install: {
     primary: "npm i -g @vosslang/cli",
-    primaryNote: "Bundles the Voss Python harness with vendored Python 3.12.",
+    primaryNote: "Bundles the Voss Python harness, vendored Python 3.12, and the Go terminal client.",
   },
 } as const;
 
 export const harness = {
   tagline: "A coding harness for bounded repo work.",
   description:
-    "The Voss harness is an agent loop that lives in your terminal. Drop into any repo, give it a goal, and keep reads, edits, shell commands, memory, and resumes inside explicit boundaries.",
+    "The Voss harness is an agent loop that lives in your terminal. Run `voss` in any repo, give it a goal, and keep reads, edits, shell commands, memory, and resumes inside explicit boundaries.",
   pitch: [
-    "Install through npm without managing Python yourself, or use pip when you want the Python package directly.",
-    "Modes are explicit: plan for read-only work, edit for scoped changes, auto for higher-trust local automation.",
-    "Project memory and code recall keep useful repo context available beyond one chat.",
+    "Install through npm without managing Python yourself, or pip install from GitHub when you manage Python 3.11+ yourself.",
+    "Modes are explicit: observe and plan for read-only work, edit for scoped changes, auto for higher-trust local automation.",
+    "Project memory, code recall, and your AGENTS.md and CLAUDE.md instructions carry repo context across sessions.",
   ],
 } as const;
 
@@ -53,49 +53,59 @@ export const harnessFeatures: readonly HarnessFeature[] = [
   {
     title: "Bring your own subscription",
     body:
-      "Use Claude Code or Codex CLI auth when available, or fall back to ANTHROPIC_API_KEY / OPENAI_API_KEY for CI and reliable provider access.",
+      "Sign in with Claude Code or Codex OAuth, or use ANTHROPIC_API_KEY / OPENAI_API_KEY for CI. `/model` and `/auth` switch model and provider mid-session, and the choice persists.",
   },
   {
     title: "Permission modes that match how you work",
     body:
-      "plan is read-only, edit supports scoped writes, and auto allows broader local automation through the lower-level safeguards.",
+      "observe and plan are read-only, edit supports scoped writes, and auto allows broader local automation. Project rules in `.voss/permissions.yml` can deny tools outright.",
   },
   {
     title: "Real tools, not toys",
     body:
-      "fs_read, fs_glob, fs_grep, fs_write, fs_edit, shell_run with an allowlist, git_status, git_diff, and voss_check. Core file tools stay project-scoped and mutating actions pass through explicit permission metadata.",
+      "File, code search, symbol lookup, git, shell, and web tools. Core file tools stay project-scoped, shell runs from an allowlist, and network tools need `--allow-net`.",
   },
   {
-    title: "Confidence-gated planning",
+    title: "Plans that admit doubt",
     body:
-      "Each turn produces a `ProbableValue<Plan>`. Low-confidence plans get rerolled, not executed. It is the same primitive Voss programs use.",
+      "Each turn plans before it acts. The plan's confidence is recorded as the model's own report, and a plan below 0.60 stops to ask you instead of running.",
   },
   {
     title: "Sessions you can resume",
     body:
-      "Sessions are stored per project under .voss/sessions. List them, resume by id, and keep prior runs tied to the repo.",
+      "Sessions are stored per project under .voss/sessions. Resume by id or name with `voss resume` or `/resume`, and the saved transcript replays in the TUI.",
   },
   {
     title: "Code-aware recall",
     body:
-      "`voss recall` and the `code_recall` tool search code and project memory together, with labeled sources and lexical fallback when vector search is unavailable.",
+      "`voss recall` and the `code_recall` tool search code and project memory together, with labeled sources and lexical fallback. Jev reranking is opt-in.",
+  },
+  {
+    title: "Your MCP servers and skills",
+    body:
+      "Voss picks up the MCP servers and skills you already configured for Claude Code and Codex. MCP calls still pass Voss's network and permission checks.",
+  },
+  {
+    title: "Instructions you can inspect",
+    body:
+      "AGENTS.md and CLAUDE.md load into every run within a token budget. `voss instructions show` lists each file, its token count, and its hash.",
   },
   {
     title: "Headless or interactive",
     body:
-      "`voss do \"ship the login flow\"` for one-shots. `voss chat` for the REPL. Same agent loop either way, whether scripted or supervised locally.",
+      "`voss do \"ship the login flow\"` for one-shots, bare `voss` for the full-screen Go TUI, and `voss serve` for clients. Same agent loop each way.",
   },
 ];
 
 export const harnessCommands: readonly CliCommand[] = [
+  { cmd: "voss", desc: "Full-screen Go terminal client" },
   { cmd: 'voss do "find the auth flow and name the risky files"', desc: "Read-only repo task" },
-  { cmd: "voss chat", desc: "Interactive REPL with persistent session" },
   { cmd: "voss sessions", desc: "List saved project sessions" },
   { cmd: "voss resume <id>", desc: "Pick up where you left off" },
   { cmd: 'voss recall "where is retry backoff handled?"', desc: "Search code and memory together" },
-  { cmd: "voss sync --check", desc: "Check managed project docs for drift" },
+  { cmd: "voss mcp list", desc: "Show discovered MCP servers and tools" },
+  { cmd: "voss instructions show", desc: "See the instructions the agent gets" },
   { cmd: "voss tools", desc: "Inspect available harness tools" },
-  { cmd: "voss config --show", desc: "Inspect local harness config" },
   { cmd: "voss doctor", desc: "Verify credentials, tools, sandbox" },
 ];
 
@@ -104,11 +114,13 @@ export const cliCommands: readonly CliCommand[] = [
   { cmd: 'voss team run "add password reset"', desc: "Run the goal as an engineering team" },
   { cmd: "voss board", desc: "Watch cards move across the board" },
   { cmd: "voss review <run_id>", desc: "Inspect independent reviewer verdicts" },
+  { cmd: "voss audit <run_id>", desc: "Render the full replayable audit" },
+  { cmd: 'voss judge review --criterion "..."', desc: "Advisory check against acceptance criteria" },
   { cmd: "voss session tree <root_id>", desc: "Per-agent budget, scope, status" },
-  { cmd: "voss capabilities list", desc: "Inspect the agent toolbelt" },
   { cmd: 'voss recall "permission gate"', desc: "Search code and project memory" },
   { cmd: 'voss do "summarize this PR"', desc: "Single bounded agent task" },
-  { cmd: "voss chat", desc: "Interactive REPL with live subagents" },
+  { cmd: "voss", desc: "Full-screen Go terminal client" },
+  { cmd: "voss serve", desc: "Local REST + SSE API for clients and SDKs" },
   { cmd: "voss doctor", desc: "Diagnose your environment" },
 ];
 
@@ -124,7 +136,7 @@ export const primitives: readonly Primitive[] = [
   {
     name: "Capabilities",
     label: "Toolbelt",
-    body: "Every tool is a typed, permissioned, auditable capability. Network and shell are default-deny unless a role is granted them.",
+    body: "Every tool, including MCP tools Voss discovers, is a typed, permissioned, auditable capability. Network and shell are default-deny unless a role is granted them.",
     tone: "#FF5B1F",
   },
   {
@@ -148,13 +160,13 @@ export const primitives: readonly Primitive[] = [
   {
     name: "Memory",
     label: "Knowledge",
-    body: "VOSS.md, project memory, session trees, and decisions keep institutional context inspectable across runs.",
+    body: "VOSS.md, AGENTS.md, project memory, session trees, and decisions keep institutional context inspectable across runs.",
     tone: "#8A5CF6",
   },
   {
     name: "Verification",
     label: "Review loop",
-    body: "Independent Reviewer-A and Reviewer-B gate completion. Agents cannot mark their own work done.",
+    body: "Independent Reviewer-A and Reviewer-B gate completion. Agents cannot mark their own work done, and Jev assessments add advisory evidence per criterion.",
     tone: "#D6457A",
   },
 ];
