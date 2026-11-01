@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 
+from . import sealed
 from .spec import BenchmarkSpec, Config, Usage, VossInfo
 from .store import Store
 from .workspace import Workspace
@@ -31,6 +32,7 @@ class AdapterResult:
     voss: VossInfo | None = None
     artifacts: dict[str, str] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    session_id: str | None = None
 
 
 def _no_model() -> Usage:
@@ -38,13 +40,14 @@ def _no_model() -> Usage:
 
 
 def oracle(spec, task_dir, ws, env, config, store) -> AdapterResult:
-    patch = task_dir / "reference.patch"
-    if not patch.is_file():
-        return AdapterResult(exit_reason="error", errors=["no reference.patch"])
-    p = subprocess.run(
-        ["git", "apply", "--whitespace=nowarn", str(patch)],
-        cwd=ws.repo, capture_output=True, text=True,
-    )
+    with sealed.answers(task_dir) as src:
+        patch = src / "reference.patch"
+        if not patch.is_file():
+            return AdapterResult(exit_reason="error", errors=["no reference.patch"])
+        p = subprocess.run(
+            ["git", "apply", "--whitespace=nowarn", str(patch)],
+            cwd=ws.repo, capture_output=True, text=True,
+        )
     if p.returncode != 0:
         return AdapterResult(exit_reason="error", errors=[f"git apply: {p.stderr.strip()[:300]}"])
     return AdapterResult(exit_reason="done", claimed_complete=True, usage=_no_model())
@@ -166,7 +169,7 @@ def _stop_serve(proc: subprocess.Popen) -> None:
 
 
 def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
-               config: Config, store: Store) -> AdapterResult:
+               config: Config, store: Store, resume: str | None = None) -> AdapterResult:
     """Drive one turn through `voss serve` REST+SSE, the public headless surface."""
     res = AdapterResult(provider=config.auth)
     res.voss = VossInfo(version=_voss_version(config.voss_bin))
@@ -189,10 +192,12 @@ def voss_serve(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
             session = {"cwd": str(ws.repo), "auth": config.auth}
             if config.model:
                 session["model"] = config.model
+            if resume:
+                session["resume"] = resume
             r = c.post("/session", json=session)
             r.raise_for_status()
             created = r.json()
-            sid = created["id"]
+            sid = res.session_id = created["id"]
             res.provider = created.get("auth") or config.auth
             res.model = c.get(f"/session/{sid}").json().get("model")
             message = {
@@ -347,22 +352,24 @@ def voss_swarm(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str
 CLAUDE_SANDBOX = json.dumps({"sandbox": {"enabled": True, "autoAllowBashIfSandboxed": True}})
 
 
-def _claude_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config) -> list[str]:
-    cmd = ["claude", "-p", spec.prompt, "--output-format", "json", "--permission-mode", "acceptEdits",
-           "--settings", CLAUDE_SANDBOX, "--setting-sources", "project,local", "--strict-mcp-config",
-           "--no-session-persistence"]
+def _claude_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config, resume: str | None) -> list[str]:
+    cmd = ["claude", "-p", spec.prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
+           "--settings", CLAUDE_SANDBOX, "--setting-sources", "project,local", "--strict-mcp-config"]
+    cmd += ["--resume", resume] if resume else []
+    cmd += [] if config.memory == "resume" else ["--no-session-persistence"]
     return cmd + (["--model", config.model] if config.model else [])
 
 
-def _codex_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config) -> list[str]:
+def _codex_cmd(spec: BenchmarkSpec, ws: Workspace, config: Config, resume: str | None) -> list[str]:
     cmd = ["codex", "exec", "--json", "--ephemeral", "-s", "workspace-write", "--ignore-user-config",
            "-C", str(ws.repo)]
     return cmd + (["-m", config.model] if config.model else []) + [spec.prompt]
 
 
 def _claude_result(out: str, res: AdapterResult) -> None:
-    data = json.loads(out)
+    data = [e for e in map(json.loads, filter(None, out.splitlines())) if e.get("type") == "result"][-1]
     res.final = data.get("result") or ""
+    res.session_id = data.get("session_id")
     res.claimed_complete = data.get("subtype") == "success" and not data.get("is_error")
     res.exit_reason = "done" if res.claimed_complete else "error"
     usage = data.get("usage") or {}
@@ -400,11 +407,11 @@ CLI_AGENTS = {"claude": (_claude_cmd, _claude_result), "codex": (_codex_cmd, _co
 
 
 def cli_agent(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str, str],
-              config: Config, store: Store) -> AdapterResult:
+              config: Config, store: Store, resume: str | None = None) -> AdapterResult:
     """Baseline A: one external coding agent, run non-interactively and sandboxed in the workspace."""
     build, parse = CLI_AGENTS[config.agent]
     res = AdapterResult(provider=f"{config.agent}-cli", model=config.model)
-    p = subprocess.Popen(build(spec, ws, config), cwd=ws.repo, env={**env, **config.env}, text=True,
+    p = subprocess.Popen(build(spec, ws, config, resume), cwd=ws.repo, env={**env, **config.env}, text=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                          start_new_session=True)
     try:
@@ -420,7 +427,7 @@ def cli_agent(spec: BenchmarkSpec, task_dir: Path, ws: Workspace, env: dict[str,
         return res
     try:
         parse(out, res)
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+    except (json.JSONDecodeError, KeyError, TypeError, IndexError) as exc:
         res.exit_reason, res.claimed_complete = "error", None
         res.errors.append(f"{config.agent} output: {type(exc).__name__}: {(err or out)[-300:]}")
     if p.returncode and res.exit_reason == "done":

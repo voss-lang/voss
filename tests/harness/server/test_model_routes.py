@@ -20,6 +20,7 @@ TOKEN = "model-route-test"
 
 @pytest.fixture
 def client(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
     creds = auth.CodexCreds(None, "synthetic-access", "synthetic-refresh", "test", "ChatGPT")
     resolutions = {
         "claude": auth.Resolution("claude-agent", "test", cli_path=Path("/test/claude")),
@@ -85,6 +86,7 @@ def test_model_switch_changes_provider_and_restores_default_on_restart(client, t
     assert isinstance(client.session.provider, OpenAIOAuthProvider)
     assert other.model == "other"
     assert config.load_harness_config() == {"preferred_model": "gpt-6.1-sol", "auth": "codex"}
+    client.app.state.sessions.journal.close()
     restarted = TestClient(appmod.create_app(TOKEN), headers=client.headers)
     created = restarted.post("/session", json={"cwd": str(tmp_path)})
     assert created.status_code == 201, created.text
@@ -169,6 +171,7 @@ def test_explicit_api_route_restores_endpoint_and_model(client, monkeypatch, tmp
     assert response.json()["model"] == "openai/vendor/model"
     assert response.json()["provider"] == "OpenRouter"
     assert config.load_harness_config()["preferred_provider"] == "openrouter"
+    client.app.state.sessions.journal.close()
     restarted = TestClient(appmod.create_app(TOKEN), headers=client.headers)
     created = restarted.post("/session", json={"cwd": str(tmp_path)})
     restored = restarted.app.state.sessions.get(created.json()["id"])
@@ -188,6 +191,7 @@ def test_resume_restores_session_route_after_default_changes(client, monkeypatch
     appmod.session_store.save(client.session.record, client.session.history)
     previous_model = client.session.model
     config.set_preferred_selection("claude-opus-5-5", "claude", None)
+    client.app.state.sessions.journal.close()
     restarted = TestClient(appmod.create_app(TOKEN), headers=client.headers)
     response = restarted.post("/session", json={"cwd": str(tmp_path), "resume": client.sid})
     assert response.status_code == 201, response.text

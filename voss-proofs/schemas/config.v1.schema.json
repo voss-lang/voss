@@ -122,6 +122,15 @@
       ],
       "default": null,
       "title": "Judge"
+    },
+    "memory": {
+      "default": "fresh",
+      "enum": [
+        "fresh",
+        "resume"
+      ],
+      "title": "Memory",
+      "type": "string"
     }
   },
   "required": [

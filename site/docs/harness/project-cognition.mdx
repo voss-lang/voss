@@ -72,11 +72,39 @@ From the CLI:
 ```bash
 voss recall "where is retry backoff handled?"
 voss recall "permission gate" --json
+voss memory list
+voss memory pin <locator>
+voss memory promote <locator>
 voss memory size
 voss memory vacuum
 voss memory adopt --id <fence-id>
 ```
 
+Pinned memories are always injected into agent context. `voss memory promote` copies a project memory into the global store, tagged with the project it came from, so it can be used across repositories.
+
 Recall results are labeled by source, such as `[code]` and `[memory]`. Vector search is an
 optional acceleration path; Voss can still return lexical results when that backend is
-unavailable.
+unavailable. Projects that opt into Jev judgments can rerank pre-turn code recall; see
+[Config and auth](/harness/config-auth#jev-judgments).
+
+## Instructions files
+
+Voss also reads `AGENTS.md` and `CLAUDE.md` from the project root down to the working
+directory and injects them into every native run within a token budget. Inspect the bundle
+with `voss instructions show`, and fail CI on import cycles or budget overflow with
+`voss instructions check`. See [`[instructions]`](/reference/config-state#instructions).
+
+## Retained memory backend
+
+By default retained memory lives in `.voss/memory/`. A project can opt into a Laravel
+memory service instead:
+
+```yaml
+memory:
+  retained_backend: laravel
+  service_project: <project-id>
+```
+
+The service is reached through `VOSS_MEMORY_API_URL` and `VOSS_MEMORY_API_TOKEN`. Session
+history stays in the local store. With this backend, `/forget` needs an exact
+`memory:<project>:<id>` locator.

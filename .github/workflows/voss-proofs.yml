@@ -5,10 +5,10 @@ permissions:
 
 on:
   push:
-    paths: ["voss-proofs/**", "evals/review*/**", ".github/workflows/voss-proofs.yml"]
+    paths: ["voss-proofs/**", "evals/review*/**", "evals/retrieval/**", ".github/workflows/voss-proofs.yml"]
   pull_request:
     branches: [master]
-    paths: ["voss-proofs/**", "evals/review*/**", ".github/workflows/voss-proofs.yml"]
+    paths: ["voss-proofs/**", "evals/review*/**", "evals/retrieval/**", ".github/workflows/voss-proofs.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -31,17 +31,18 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
           cache: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv pip install --system -e ".[dev]" -e "..[server]"
       - run: pip install "ruff==0.16.6" && ruff check voss_proofs tests
       - name: Every scenario is solvable and non-trivial
         run: |
           proofs validate --bench benchmarks/regression
           proofs validate --bench benchmarks/orchestration
+          proofs validate --bench benchmarks/memory
       - run: pytest -q
       - name: Two offline experiments produce identical outcomes
         run: |
@@ -53,3 +54,7 @@ jobs:
         run: |
           proofs import-review ../evals/review-locked-2 --out results/review-locked-2
           cat results/review-locked-2/review.md >> "$GITHUB_STEP_SUMMARY"
+      - name: J3 retrieval set imports and matches its frozen hashes
+        run: |
+          proofs import-retrieval ../evals/retrieval --out results/retrieval
+          cat results/retrieval/retrieval.md >> "$GITHUB_STEP_SUMMARY"

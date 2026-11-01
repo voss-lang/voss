@@ -1,0 +1,39 @@
+{
+  "commit": "1a4de9352d7ff6e030fe5caec119eacc28d3f9d5",
+  "frozen_at": "2026-10-24",
+  "locked": false,
+  "scenarios": {
+    "reg-go-001-reverse-unicode": {
+      "sha256": "eac4b99d3c467e57e58b2f4dfe147696bc8beba557e5d59d1ee2d973186ca490",
+      "version": 1
+    },
+    "reg-py-001-items-endpoint": {
+      "sha256": "dc06857644b7a98bc30631a46642fbe16fdbe93b2473affa908888ec7d5fa62a",
+      "version": 1
+    },
+    "reg-py-002-slugify-regression": {
+      "sha256": "d3e89c0f72c46c7c9268b8a08824639d275e8518945b8256e58ecafc0d23985d",
+      "version": 1
+    },
+    "reg-py-003-billing-refactor": {
+      "sha256": "5cda093f62dacf5efb2decdc700dd5d87ee253ba13f61fa3216e46bbd4249087",
+      "version": 1
+    },
+    "reg-py-004-pagination-scope": {
+      "sha256": "a6f4a334760a7e4882a482b814245b2262f054fc1e1bbf72131626133ae09670",
+      "version": 1
+    },
+    "reg-py-005-leap-year-trap": {
+      "sha256": "9efaae4ebd91a0fd564ed6f88494cb6eb5aa37d62985643df3ff709f19616da9",
+      "version": 1
+    },
+    "reg-rs-001-word-count": {
+      "sha256": "0184b0beb1bcbf391462e8572e59f24443baeb4b7a76d452a318a38d7c88fdeb",
+      "version": 1
+    },
+    "reg-ts-001-parse-amount": {
+      "sha256": "6383b1f6041dc23561c55fcf0427db6d532ca40216da4bd711b0cb848c79d163",
+      "version": 1
+    }
+  }
+}

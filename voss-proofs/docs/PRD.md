@@ -141,6 +141,19 @@ Board/EM stays "not evaluable" until VossProofs has an adapter for `voss team ru
 
 **Gate.** A versioned corpus, automated grading, documented contamination controls and repeated-run comparisons.
 
+Delivered so far:
+- `proofs freeze` and freeze checks on every run. `regression`, `orchestration` and `memory` are frozen as dev sets. A locked set needs `--locked-final` and runs once per config.
+- Paired bootstrap comparisons between configs in every report.
+- **Memory suite:**
+  - `proofs import-retrieval` wraps the J3 code-recall set.
+  - Multi-step scenarios with a `memory` setting of `fresh` or `resume`.
+  - Two sequence scenarios.
+  - Configs for a no-memory control, Claude Code auto-memory, Claude resume, a fresh Voss session and a resumed Voss session.
+- Workspace cleanup removes the Claude Code project folder of its own workspace, so live runs cannot read answers left by earlier runs.
+- Sealed answers for locked sets (`proofs seal`), and a contamination scan of every run's output for the benchmark source path.
+
+Still to do: the k ≥ 3 repeated-run study over the frozen sets, the safety and runtime suites, a locked set, and growth toward 80–120 scenarios.
+
 ### Phase 5: First formal study
 
 1. Pre-register the hypotheses and analysis plan in `docs/studies/` before any locked run. Record its hash in the experiment manifest.

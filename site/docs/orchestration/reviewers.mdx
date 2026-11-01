@@ -14,6 +14,10 @@ voss review <run_id>   # a specific run
 
 `voss review` is read-only — it reads persisted `.review.json` sidecars and constructs no live providers.
 
+<Note>
+Live `voss team run` runs use placeholder reviewers that always pass while the board's worker pipeline is built. The contract below is what the board enforces and what the reviewer slots implement.
+</Note>
+
 ## Reviewer-A — authors the bar
 
 Reviewer-A derives the verification bar from the **original human idea** — not the EM's acceptance criteria, tickets, or any prior review. It runs with a fresh memory per card so there is no cross-card bleed.
@@ -56,3 +60,17 @@ Each card writes a `<node_id>.review.json` sidecar (mode `0o600`) next to its se
 ```
 
 These sidecars are the evidence the [board](/orchestration/board) gates Done on, and the input to [`voss review`](/orchestration/reviewers).
+
+## Requirement assessments
+
+Projects that opt into Jev judgments can add an advisory check beside Reviewer-B. Jev reads the diff, the changed code, and check results, and answers once per acceptance criterion: **supported**, **contradicted**, **unclear (abstained)**, or **no answer**. A label needs a probability of 0.80 or more; anything below that is unclear.
+
+The results never approve, block, retry, or move a card, and never change Reviewer-B's verdict. Today they run automatically for swarm candidates when `.voss/config.yml` sets `judgments.review: shadow`, and on demand:
+
+```bash
+voss judge review --criterion "adds a --dry-run flag" --criterion "logs each skipped file"
+voss judge review --ref 1a2b3c4 --criteria-file criteria.md
+voss judge review --swarm <swarm-id> --task <task-id> --saved
+```
+
+`voss audit` shows saved results under "Requirement assessments (advisory)". On the second locked evaluation set, Jev called an unmet requirement met once in 33 and left about a third of requirements unclear.

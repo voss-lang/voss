@@ -13,17 +13,24 @@ Voss uses one binary with three command families:
 
 | Command | Purpose | Default mode |
 | --- | --- | --- |
-| `voss` | Start the interactive harness REPL | `plan` |
-| `voss chat` | Explicit REPL command | `plan` |
+| `voss` | Open the Go terminal client; falls back to `voss chat` when the binary is missing | `plan` |
+| `voss ui` | Launch the Go terminal client explicitly (`voss ui resume <id>`, `voss ui --auth codex`) | `plan` |
+| `voss chat` | Plain line-by-line REPL | `plan` |
 | `voss do "<task>"` | Run one task and exit | `plan` |
 | `voss edit <path>` | Start a scoped edit session | `edit` |
 | `voss recall <query>` | Search code and project memory together | n/a |
 | `voss sync` | Generate or update project workflow docs and managed instruction sections | n/a |
 | `voss doctor` | Diagnose provider, config, compiler, and tool setup | n/a |
+| `voss login` / `voss logout` | Sign in with Claude, Codex, or an API key; remove a stored key | n/a |
+| `voss mcp list` | List MCP servers discovered from Claude, Codex, and Voss config | n/a |
+| `voss skills` | List skills discovered from Claude, Codex, and Voss skill folders | n/a |
+| `voss instructions show` | Show the `AGENTS.md` / `CLAUDE.md` bundle injected into runs | n/a |
 | `voss tools` | List tool registry entries and mutability | n/a |
 | `voss config` | Open or show harness configuration | n/a |
 | `voss sessions` | List saved sessions | n/a |
 | `voss resume <id>` | Resume a prior session by id prefix or name | session mode |
+| `voss judge review` | Check work against acceptance criteria with Jev (advisory, opt-in) | n/a |
+| `voss serve` | Run the local REST + SSE server used by the Go client and SDKs | n/a |
 
 ## Compiler commands
 
@@ -49,14 +56,35 @@ For multi-agent team runs — full detail in [Orchestration](/orchestration/over
 | `voss team run "<goal>"` | Run a goal as a reviewed team |
 | `voss board` | Render the board read-only from persisted nodes |
 | `voss review` | Show per-card Reviewer-A + Reviewer-B verdicts |
+| `voss audit` | Render the full read-only audit for a run |
 | `voss session tree <root_id>` | Inspect per-agent budget, scope, and status |
 | `voss capabilities list` | List the capability registry |
 | `voss principles show` | Show the active engineering principles |
+
+## Go terminal client
+
+Bare `voss` opens a full-screen terminal client that runs the harness through `voss serve`. Set `VOSS_USE_TUI=0` to get the plain chat instead. Slash commands it handles directly:
+
+| Command | Purpose |
+| --- | --- |
+| `/resume [id-or-name]` | Pick or resume a saved session |
+| `/save-session [name]` | Save or rename the conversation |
+| `/clear` | Drop active conversation memory; the transcript stays visible |
+| `/memory`, `/recall <query>` | Summarize or search project memory |
+| `/save <note>`, `/forget <pattern> --yes` | Retain or forget memory notes |
+| `/model`, `/auth` | Pick a model or switch between Claude, Codex, and API auth |
+| `/tools`, `/skills`, `/agents` | List tools (including MCP), skills, and subagents |
+| `/symbol <name>`, `/refs <name>`, `/refresh` | Look up definitions and references; rebuild the code index |
+| `/probable`, `/btrace` | Inspect recorded decisions and per-iteration token cost |
+| `/vdiff <file.voss>` | Show `.voss` source next to generated Python |
+
+Model and auth choices persist across launches. Commands the Go client does not handle are available in `voss chat`.
 
 ## Common flows
 
 ```bash
 voss doctor
+voss
 voss do "summarize this repo"
 voss recall "where is retry backoff handled?"
 voss sync --check

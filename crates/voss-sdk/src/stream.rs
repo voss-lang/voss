@@ -65,15 +65,57 @@ async fn next_event(
 ) -> Option<(Result<AgentEvent, VossError>, EventStreamState)> {
     match events.next().await {
         Some(Ok(event)) => {
-            let done = matches!(event, AgentEvent::SessionIdle(_));
-            let next_state = if done {
-                EventStreamState::Done
-            } else {
-                EventStreamState::Streaming(std::mem::replace(events, stream::empty().boxed()))
-            };
+            let next_state =
+                EventStreamState::Streaming(std::mem::replace(events, stream::empty().boxed()));
             Some((Ok(event), next_state))
         }
         Some(Err(err)) => Some((Err(err), EventStreamState::Done)),
         None => None,
     }
+}
+
+/// Replay after a committed cursor, then stay subscribed across turns. Reconnection
+/// belongs to the cache owner, which must commit each envelope before advancing.
+pub async fn task_stream(
+    client: VossClient,
+    session_id: String,
+    after: u64,
+) -> Result<BoxStream<'static, Result<crate::tasks::TaskEvent, VossError>>, VossError> {
+    let resp = client
+        .auth(client.inner.get(format!(
+            "{}/session/{}/task-events",
+            client.base, session_id
+        )))
+        .query(&[("after", after)])
+        .header("Accept", "text/event-stream")
+        .send()
+        .await?;
+    let resp = ok_or_detail(resp).await?;
+    Ok(resp
+        .bytes_stream()
+        .eventsource()
+        .map(move |item| {
+            let frame = item.map_err(|e| VossError::Sse(e.to_string()))?;
+            let event: crate::tasks::TaskEvent =
+                serde_json::from_str(&frame.data).map_err(|e| VossError::Decode(e.to_string()))?;
+            if !event.event.is_object()
+                || event.cursor == 0
+                || event.v != 1
+                || event.snapshot.v != 1
+                || event.snapshot.session_id != session_id
+                || event
+                    .snapshot
+                    .graph
+                    .as_ref()
+                    .is_some_and(|graph| graph.v != 1)
+                || event.cursor != event.snapshot.watermark
+                || frame.id.parse::<u64>().ok() != Some(event.cursor)
+            {
+                return Err(VossError::Decode(
+                    "invalid task event identity or cursor".into(),
+                ));
+            }
+            Ok(event)
+        })
+        .boxed())
 }
