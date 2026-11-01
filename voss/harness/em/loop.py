@@ -84,6 +84,24 @@ def _execute_plan(
     return failures
 
 
+def render_snapshot(snapshot) -> str:
+    """Board state the EM plans against: one line per ticket, keyed by the
+    ticket id every EM op takes as card_id."""
+    if not snapshot.tickets:
+        return "no tickets yet"
+    cards = {getattr(c, "node_id", ""): c for c in snapshot.cards}
+    lines = []
+    for t in snapshot.tickets:
+        card = cards.get(t.card_node_id)
+        column = getattr(card, "column", "Backlog")
+        state = column if t.id in snapshot.dispatched else f"{column} (awaiting dispatch)"
+        retries = getattr(card, "retry_count", 0)
+        lines.append(
+            f"- {t.id} [{t.worker_role}] {state} retries={retries}: {t.original_idea[:200]}"
+        )
+    return "\n".join(lines)
+
+
 async def em_loop(
     *,
     idea: str,
@@ -107,8 +125,7 @@ async def em_loop(
             em_handle.force_block_all(reason="em_iteration_ceiling")
             break
 
-        snapshot = em_handle.snapshot()
-        snapshot_text = f"cards: {len(snapshot.cards)}, tickets: {len(snapshot.tickets)}"
+        snapshot_text = render_snapshot(em_handle.snapshot())
 
         try:
             plan = await em_agent.plan(

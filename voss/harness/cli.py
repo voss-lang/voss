@@ -4780,24 +4780,52 @@ def team_approve_cmd(
 @click.argument("goal")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--max-iterations", default=50, type=int, help="EM loop iteration ceiling.")
-def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
-    """Run the EM loop on a goal: compose team + board + V6 reviewers, sign off.
+@click.option(
+    "--scope",
+    "scope_globs",
+    multiple=True,
+    help="Glob workers may write (repeatable). Required unless .voss/team.voss sets ceiling.scope.",
+)
+@click.option("--model", default=None, help="Model for the EM, workers, and reviewers.")
+@click.option("--auth", "auth_pref", type=click.Choice(AUTH_CHOICES), default="auto")
+@click.option("--yes", "yes", is_flag=True, help="Skip the unattended-edit confirmation.")
+@click.option(
+    "--no-signoff",
+    "no_signoff",
+    is_flag=True,
+    help="Exit after the run without the approve/reject prompt; the run stays unsigned.",
+)
+def team_run_cmd(
+    goal: str,
+    cwd_str: str,
+    max_iterations: int,
+    scope_globs: tuple[str, ...],
+    model: str | None,
+    auth_pref: str,
+    yes: bool,
+    no_signoff: bool,
+) -> None:
+    """Run the EM loop on a goal: an LLM EM plans tickets, role workers do the
+    work, Reviewer-A/B gate every card, then you sign off.
 
-    Composes the shipped V3 team config + V4 session tree + V5 board + the real
-    V6 Reviewer-A/B slots + the O5 em_loop, runs autonomously to terminal,
-    persists RunFinal, prints a summary, and records a human approve/reject.
+    Workers edit files and run commands without asking per action, so writes
+    are confined to the team scope (--scope or ceiling.scope).
     """
+    import dataclasses
+
     from voss import parse
     from voss.ast_nodes import TeamDecl
     from voss.harness.board.machine import Board
-    from voss.harness.board.stub import DeterministicReviewerStub
+    from voss.harness.board.reviewer_a import ReviewerA
+    from voss.harness.board.reviewer_b import ReviewerB
     from voss.harness.em.handle import EMBoardHandle
+    from voss.harness.em.llm import LLMEMAgent
     from voss.harness.em.loop import em_loop
-    from voss.harness.em.schema import CreateTicketOp, EMPlanResponse, NoopOp
-    from voss.harness.em.stub import DeterministicEMStub
     from voss.harness.permissions import PermissionGate
+    from voss.harness.agent import run_turn
+    from voss.harness.render import PlainRenderer
     from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
-    from voss.harness.team import VossTeamConfigError, compile_team
+    from voss.harness.team import TeamRoleScope, VossTeamConfigError, compile_team
 
     cwd = Path(cwd_str).resolve()
 
@@ -4819,26 +4847,63 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
     else:
         config, registry = _default_team_config()
 
+    if scope_globs and config.ceiling.scope is not None:
+        click.echo(
+            "<error: --scope conflicts with ceiling.scope in .voss/team.voss>", err=True
+        )
+        raise click.exceptions.Exit(2)
+    if scope_globs:
+        config = dataclasses.replace(
+            config,
+            ceiling=dataclasses.replace(
+                config.ceiling, scope=TeamRoleScope(globs=tuple(scope_globs))
+            ),
+        )
+    if config.ceiling.scope is None:
+        click.echo(
+            "<error: team run needs a write scope: pass --scope 'src/**' "
+            "or set ceiling.scope in .voss/team.voss>",
+            err=True,
+        )
+        raise click.exceptions.Exit(2)
+
+    globs = ", ".join(config.ceiling.scope.globs)
+    if not yes:
+        click.confirm(
+            f"Workers will edit files under [{globs}] and run shell commands "
+            "without asking per action (writes outside the scope are refused; "
+            "shell commands are not scope-limited). Continue?",
+            abort=True,
+        )
+
+    _resolve_default_model(model)
+    _res, provider = _resolve_auth_or_die(auth_pref)
+    run_model = get_config().default_model
+    renderer = PlainRenderer()
+    bundle = cognition_mod.load(cwd)
+    base_gate = PermissionGate(
+        mode="auto",
+        auto_yes=True,
+        project_policy=bundle.permissions if bundle.initialized else None,
+        safety_policy=bundle.safety if bundle.initialized else None,
+    )
+
     async def _run():
-        root = SessionTreeNode.create_root(cwd=cwd, limit=500_000)
+        root = SessionTreeNode.create_root(cwd=cwd, limit=config.ceiling.budget_tokens)
         manager = SessionTreeManager(root, reserve=0, cwd=cwd)
-        reviewer_a = DeterministicReviewerStub(
-            conf=0.99, verdict="pass", source="A", tier="fast"
-        )
-        reviewer_b = DeterministicReviewerStub(
-            conf=0.99, verdict="pass", source="B", tier="strong"
-        )
         board = Board.from_team_config(
             config,
             recorder=manager,
-            reviewer_a=reviewer_a,
-            reviewer_b=reviewer_b,
+            reviewer_a=ReviewerA(
+                provider=provider, model=run_model, cwd=cwd,
+                renderer=renderer, base_gate=base_gate,
+            ),
+            reviewer_b=ReviewerB(
+                provider=provider, fast_model=run_model, strong_model=run_model, cwd=cwd,
+            ),
             cwd=cwd,
-            per_card_budget=100_000,
+            per_card_budget=min(100_000, config.ceiling.budget_tokens),
         )
-        # Pre-spawn >=1 card so RunFinal.total_cards >= 1 (Pitfall 1).
-        await board.spawn_card(risk_tier="med")
-        base_gate = PermissionGate(mode="auto", auto_yes=True)
         handle = EMBoardHandle(
             board=board,
             registry=registry,
@@ -4846,22 +4911,16 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
             manager=manager,
             base_gate=base_gate,
             cwd=cwd,
-        )
-        roster_descs = {spec.id: spec.description for spec in registry.entries()}
-        worker_role = "backend" if "backend" in config.roster_ids else sorted(config.roster_ids)[0]
-        em_agent = DeterministicEMStub(
-            scripted=[
-                EMPlanResponse(
-                    ops=[CreateTicketOp(original_idea=goal, worker_role=worker_role)]
-                ),
-                EMPlanResponse(ops=[NoopOp(reason="waiting")]),
-            ]
+            run_turn_fn=run_turn,
+            renderer=renderer,
+            provider=provider,
+            model=run_model,
         )
         return await em_loop(
             idea=goal,
             em_handle=handle,
-            em_agent=em_agent,
-            roster_descriptions=roster_descs,
+            em_agent=LLMEMAgent(provider=provider, model=run_model, cwd=cwd),
+            roster_descriptions={spec.id: spec.description for spec in registry.entries()},
             max_iterations=max_iterations,
         )
 
@@ -4873,11 +4932,9 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
 
     # finalize_run() leaves idea="" (handle.py:352); thread the goal in via the
     # frozen-replace mechanism em_loop itself uses for em_iterations.
-    import dataclasses
-
     rf = dataclasses.replace(rf, idea=goal)
 
-    _persist_run_final(rf, cwd)
+    run_final_path = _persist_run_final(rf, cwd)
 
     click.echo(f"run complete: {rf.idea}")
     click.echo(
@@ -4886,6 +4943,9 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
         f"rescope={rf.rescope_count}"
     )
     click.echo(f"em_iterations: {rf.em_iterations}")
+    click.echo(f"run-final: {run_final_path}")
+    if no_signoff:
+        raise click.exceptions.Exit(0)
 
     # VAUD-SIGNOFF: gate approve behind a forced acknowledgement of the
     # killed-card + misroute risk diff. Misroute = a routing with a stated

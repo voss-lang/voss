@@ -7,6 +7,7 @@ from O2-01 into immutable `TeamConfig` + `SubagentRegistry`.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -268,7 +269,28 @@ def _model_tier_for_spec(spec: SubagentSpec) -> str | None:
     return None
 
 
-def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGate:
+def _edit_scope_for(scope: "TeamRoleScope", cwd: Path):
+    """Write scope for a role: each glob's literal prefix becomes an allowed path.
+
+    Same prefix heuristic as TeamRoleScope.is_contained_in.
+    """
+    from .edit_scope import EditScope
+
+    root = cwd.resolve()
+    es = EditScope(cwd=root)
+    for glob in scope.globs:
+        prefix = re.split(r"[*?\[]", glob, maxsplit=1)[0].rstrip("/")
+        target = (root / prefix).resolve()
+        if prefix != glob.rstrip("/") or target.is_dir():
+            es.dirs.add(target)
+        else:
+            es.files.add(target)
+    return es
+
+
+def gate_for_role(
+    spec: SubagentSpec, base_gate: PermissionGate, *, cwd: Path | None = None
+) -> PermissionGate:
     """Compile a per-role PermissionGate from a SubagentSpec.
 
     Cap-not-expand: when ``spec.mode`` is set, it caps ``base_gate.mode`` via
@@ -282,9 +304,9 @@ def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGa
     ``base_gate`` (same object references). ``safety_actor`` is role-specific —
     it carries ``spec.id`` and the resolved model tier, not the base actor.
 
-    Subagent sessions do not use :class:`~voss.harness.edit_scope.EditScope`
-    in this compile step (O5 may route per-role paths separately); ``edit_scope``
-    is therefore always ``None`` here.
+    Scope: the base gate's ``edit_scope`` is never inherited. When ``cwd`` is
+    given and ``spec.scope`` is set, writes are confined to that scope; an
+    out-of-scope write asks the operator on a TTY and is denied otherwise.
     """
     if spec.mode is None:
         effective_mode = base_gate.mode
@@ -295,7 +317,7 @@ def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGa
         store=None,
         auto_yes=True,
         prompt_fn=None,
-        edit_scope=None,
+        edit_scope=_edit_scope_for(spec.scope, cwd) if cwd is not None and spec.scope else None,
         scope_prompt_fn=None,
         project_policy=base_gate.project_policy,
         allow_net=True if spec.net else False,

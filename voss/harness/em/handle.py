@@ -10,7 +10,6 @@ invariant. W5 integration confirms the on-disk persistence shape.
 """
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import uuid
 from dataclasses import dataclass, field
@@ -18,10 +17,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
+from voss_runtime import EpisodicMemory
+
 from voss.harness.permissions import PermissionGate
 from voss.harness.session_tree import (
     SessionTreeManager,
     finalize_node,
+    mutate_envelope,
 )
 from voss.harness.subagents import (
     MissionBrief,
@@ -59,6 +61,16 @@ class BoardSnapshot:
     """Read-only snapshot of the board state. Mutation is futile."""
     cards: tuple
     tickets: tuple
+    dispatched: frozenset = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerArtifact:
+    """A worker turn's output, attached to its card for the review gates."""
+    artifact_text: str
+    file_diff: str
+    repo_context: str
+    tests_passed: bool
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +107,7 @@ class EMBoardHandle:
         manager: SessionTreeManager,
         base_gate: PermissionGate,
         cwd: Path,
-        subagent_runner: Optional[Callable] = None,
+        run_turn_fn: Optional[Callable] = None,
         renderer: object = None,
         provider: object = None,
         model: str = "",
@@ -106,17 +118,33 @@ class EMBoardHandle:
         self._manager = manager
         self._base_gate = base_gate
         self._cwd = cwd
-        self._subagent_runner = subagent_runner
+        self._run_turn_fn = run_turn_fn
         self._renderer = renderer
         self._provider = provider
         self._model = model
         self._tickets: dict[str, Ticket] = {}
         self._node_audit: dict[str, _NodeAudit] = {}
+        self._dispatched: dict[str, tuple[str, str]] = {}
 
     def _get_audit(self, node_id: str) -> _NodeAudit:
         if node_id not in self._node_audit:
             self._node_audit[node_id] = _NodeAudit()
         return self._node_audit[node_id]
+
+    def _resolve_card_id(self, card_id: str) -> str:
+        """EM-facing ids are ticket ids; map to the board card node id."""
+        ticket = self._tickets.get(card_id)
+        return ticket.card_node_id if ticket and ticket.card_node_id else card_id
+
+    def _find_card(self, node_id: str):
+        for c in self._board.cards():
+            if getattr(c, "node_id", None) == node_id:
+                return c
+        return None
+
+    def _block(self, card) -> None:
+        if card is not None and getattr(card, "column", "") not in TERMINAL_COLUMNS:
+            self._board.move(card, to="Blocked")
 
     def _role_spec(self, role_id: str) -> SubagentSpec:
         spec = self._registry.get(role_id)
@@ -125,8 +153,14 @@ class EMBoardHandle:
         return spec
 
     def _derive_role_gate(self, role_id: str) -> PermissionGate:
-        """Derive per-role gate via registry lookup + gate_for_role (dispatch_card path)."""
-        return gate_for_role(self._role_spec(role_id), self._base_gate)
+        """Derive the worker gate via registry lookup + gate_for_role.
+
+        A role without its own scope is confined to the team ceiling scope.
+        """
+        spec = self._role_spec(role_id)
+        if spec.scope is None:
+            spec = dataclasses.replace(spec, scope=self._team_config.ceiling.scope)
+        return gate_for_role(spec, self._base_gate, cwd=self._cwd)
 
     def _read_claimed_scopes(self) -> tuple[ScopeLine, ...]:
         """Active claims grouped by agent (VRES-03). Best-effort read-only:
@@ -196,12 +230,13 @@ class EMBoardHandle:
         return BoardSnapshot(
             cards=tuple(self._board.cards()),
             tickets=tuple(self._tickets.values()),
+            dispatched=frozenset(self._dispatched),
         )
 
     def all_cards_terminal(self) -> bool:
-        return all(
-            getattr(c, "column", "") in TERMINAL_COLUMNS
-            for c in self._board.cards()
+        cards = self._board.cards()
+        return bool(cards) and all(
+            getattr(c, "column", "") in TERMINAL_COLUMNS for c in cards
         )
 
     # --- WRITE: ticket lifecycle ---------------------------------------------
@@ -282,15 +317,10 @@ class EMBoardHandle:
 
         # Store on side-table.
         # Use card_id as node_id proxy (tickets map card_id → ticket → card_node_id).
-        ticket = self._tickets.get(card_id)
-        node_id = ticket.card_node_id if ticket else card_id
+        node_id = self._resolve_card_id(card_id)
         self._get_audit(node_id).routing_rationales.append(rr)
 
-        # Derive per-role gate + toolset via O2 helpers.
         spec = self._role_spec(role_id)
-        role_gate = self._derive_role_gate(role_id)
-        base_toolset = make_toolset(self._cwd, renderer=self._renderer)
-        role_toolset = filter_toolset_for_role(spec, base_toolset)
 
         # V20 VRES-03: mission brief — outcome, sibling roster, claimed
         # scopes — so the worker is not dispatched blind. Assembled prompt
@@ -298,31 +328,12 @@ class EMBoardHandle:
         brief = self._build_mission_brief(card_id=card_id)
         self._get_audit(node_id).dispatched_prompt = agent_task(spec, task, brief=brief)
 
-        # Fire subagent (async, fire-and-forget if runner provided).
-        if self._subagent_runner is not None:
-            asyncio.ensure_future(
-                self._subagent_runner(
-                    agent_id=role_id,
-                    task=task,
-                    registry=self._registry,
-                    cwd=self._cwd,
-                    renderer=self._renderer,
-                    provider=self._provider,
-                    model=self._model,
-                    gate=role_gate,
-                    brief=brief,
-                )
-            ) if False else None  # placeholder — real dispatch in W4
-
+        self._dispatched[card_id] = (role_id, task)
         return rr
 
     def kill_card(self, card_id: str, rationale_text: str) -> KillRecord:
-        # Find the card via the board.
-        card = None
-        for c in self._board.cards():
-            if getattr(c, "node_id", None) == card_id:
-                card = c
-                break
+        card_id = self._resolve_card_id(card_id)
+        card = self._find_card(card_id)
 
         # Cage: cannot kill a Done card.
         if card is not None and getattr(card, "column", "") == "Done":
@@ -343,6 +354,7 @@ class EMBoardHandle:
         node = self._manager.get_node(card_id)
         if node is not None and not node._finalized:
             finalize_node(node, exit_reason="killed", cwd=self._cwd)
+        self._block(card)
 
         return kr
 
@@ -356,12 +368,9 @@ class EMBoardHandle:
         new_dod: tuple[str, ...] = (),
         new_scope: TeamRoleScope | None = None,
     ) -> RescopeRecord:
-        # Find the card.
-        card = None
-        for c in self._board.cards():
-            if getattr(c, "node_id", None) == card_id:
-                card = c
-                break
+        predecessor_ticket = self._tickets.get(card_id)
+        card_id = self._resolve_card_id(card_id)
+        card = self._find_card(card_id)
 
         # Cage: cannot rescope a Done card.
         if card is not None and getattr(card, "column", "") == "Done":
@@ -378,8 +387,23 @@ class EMBoardHandle:
                     reason="new_scope exceeds ceiling.scope",
                 )
 
-        # Kill the predecessor.
+        # Created first so an out-of-roster role is refused before the kill.
         successor_id = uuid.uuid4().hex[:12]
+        if predecessor_ticket is not None:
+            successor = self.create_ticket(
+                original_idea=predecessor_ticket.original_idea,
+                acceptance_criteria="\n".join(new_acceptance) or predecessor_ticket.acceptance,
+                dod=", ".join(new_dod) or predecessor_ticket.dod,
+                worker_role=new_worker_role,
+                domain=predecessor_ticket.domain,
+                risk_tier=predecessor_ticket.risk_tier,
+            )
+            successor_id = successor.id
+            self._tickets[successor_id] = dataclasses.replace(
+                successor, lineage_parent_id=predecessor_ticket.id,
+            )
+
+        # Kill the predecessor.
         kr = KillRecord(
             killed_node_id=card_id,
             rationale_text=f"rescoped: {rationale_text}",
@@ -393,6 +417,7 @@ class EMBoardHandle:
         node = self._manager.get_node(card_id)
         if node is not None and not node._finalized:
             finalize_node(node, exit_reason="killed", cwd=self._cwd)
+        self._block(card)
 
         # Emit RescopeRecord on the successor.
         rr = RescopeRecord(
@@ -413,6 +438,120 @@ class EMBoardHandle:
     async def tick(self) -> None:
         import time
         self._board._tick_once(time.monotonic())
+        if self._run_turn_fn is not None:
+            await self._advance()
+
+    async def _advance(self) -> None:
+        """Spawn cards for new tickets, then step every dispatched card.
+
+        ponytail: cards run one at a time in the shared cwd; parallel
+        workers need per-card worktrees (see swarm_worktree).
+        """
+        for ticket_id, ticket in list(self._tickets.items()):
+            if not ticket.card_node_id:
+                card = await self._board.spawn_card(
+                    risk_tier=ticket.risk_tier,
+                    idea=ticket.original_idea,
+                    role=ticket.worker_role,
+                    acceptance_criteria=ticket.acceptance,
+                    domain=ticket.domain,
+                )
+                ticket = dataclasses.replace(ticket, card_node_id=card.node_id)
+                self._tickets[ticket_id] = ticket
+            if ticket_id not in self._dispatched:
+                continue
+            card = self._find_card(ticket.card_node_id)
+            if card is not None and card.column not in TERMINAL_COLUMNS:
+                await self._step(ticket_id, card)
+
+    async def _step(self, ticket_id: str, card) -> None:
+        """Move one card as far as its gates allow this tick."""
+        from voss.harness.board.errors import BoardGateError, BoardWIPError
+
+        try:
+            if card.column == "Backlog":
+                card = self._board.move(card, to="Planned")
+            if card.column == "Planned":
+                card = self._board.move(card, to="InProgress")
+        except BoardWIPError:
+            return
+        except BoardGateError:
+            self._block(card)
+            return
+
+        try:
+            if card.column == "InProgress":
+                card = await self._run_worker(ticket_id, card)
+                card = self._board.move(card, to="InReview")
+            if card.column == "InReview":
+                self._board.move(card, to="Done")
+        except BoardWIPError:
+            return
+        except BoardGateError as exc:
+            node = self._manager.get_node(card.node_id)
+            last = node.transitions[-1] if node is not None and node.transitions else {}
+            snap = last.get("verdict_snapshot") or {}
+            notes = f"gate refused: {', '.join(exc.failing_clauses or [])}"
+            if snap.get("notes"):
+                notes = f"{notes}\n{snap['notes']}"
+            self._retry(card, notes)
+        except Exception as exc:  # noqa: BLE001 — a reviewer call failed; retry the card
+            self._retry(card, f"review failed: {exc}")
+
+    def _retry(self, card, notes: str) -> None:
+        from voss.harness.board.verdict import ReviewerVerdict
+
+        self._board.critic_step(card, ReviewerVerdict(
+            conf=0.0, source="B", tier="strong", verdict="fail",
+            notes=notes[:2000], evidence_refs=(),
+        ))
+
+    async def _run_worker(self, ticket_id: str, card):
+        """Run the dispatched role's turn and attach its output to the card."""
+        from voss.harness.board.reviewer_a import _extract_exit_code
+        from voss.harness.board.reviewer_b import build_repo_context
+        from voss.harness.decision_review import collect_working_tree
+
+        role_id, task = self._dispatched[ticket_id]
+        node = self._manager.get_node(card.node_id)
+        if node is not None and node.retry_notes:
+            task = f"{task}\n\nYour previous attempt was rejected:\n{node.retry_notes[-1]['notes']}"
+        spec = self._role_spec(role_id)
+        tools = filter_toolset_for_role(spec, make_toolset(self._cwd, renderer=self._renderer))
+        brief = self._build_mission_brief(card_id=ticket_id)
+        try:
+            result = await self._run_turn_fn(
+                agent_task(spec, task, brief=brief),
+                tools=tools,
+                cwd=self._cwd,
+                renderer=self._renderer,
+                model=self._model,
+                provider=self._provider,
+                history=EpisodicMemory(capacity=20),
+                permissions=self._derive_role_gate(role_id),
+                token_budget=node.envelope["limit"] - node.envelope["spent"] if node else 60_000,
+            )
+            final, tool_results = result.final, result.tool_results
+            if node is not None and result.run is not None:
+                used = (result.run.iteration_total_prompt_tokens or 0) + (
+                    result.run.iteration_total_completion_tokens or 0
+                )
+                if used > 0:
+                    mutate_envelope(node, delta=-used, cwd=self._cwd)
+        except Exception as exc:  # noqa: BLE001 — a crashed worker is a failed attempt
+            final, tool_results = f"<error: worker failed: {exc}>", []
+
+        try:
+            diff, _ = collect_working_tree(self._cwd)
+        except ValueError:
+            diff = ""
+        exit_code, _ = _extract_exit_code(tool_results)
+        return self._board.attach_artifact(card, WorkerArtifact(
+            artifact_text=final,
+            file_diff=diff,
+            repo_context=build_repo_context(self._cwd, diff) if diff else "",
+            tests_passed=exit_code == 0,
+        ))
 
     def force_block_all(self, reason: str) -> None:
         """Harness-only, NOT EM-callable."""

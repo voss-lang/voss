@@ -73,3 +73,28 @@ async def em_plan(
         return EMPlanResponse(ops=[NoopOp(op="noop", reason="parse_failure")])
 
     return resp.parsed
+
+
+class LLMEMAgent:
+    """em_loop's em_agent backed by a real provider (em_plan per iteration)."""
+
+    def __init__(self, *, provider: ModelProvider, model: str, cwd: Path) -> None:
+        self._provider = provider
+        self._model = model
+        self._cwd = cwd
+
+    async def plan(
+        self,
+        *,
+        idea: str,
+        snapshot: str,
+        roster_descriptions: dict[str, str] | None = None,
+    ) -> EMPlanResponse:
+        return await em_plan(
+            provider=self._provider,
+            model=self._model,
+            idea=idea,
+            snapshot=snapshot,
+            roster_descriptions=roster_descriptions,
+            cwd=self._cwd,
+        )

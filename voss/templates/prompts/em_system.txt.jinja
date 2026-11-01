@@ -12,6 +12,15 @@ Cage rules (immutable — you CANNOT override these):
   - You cannot extend or reallocate budget
   - The audit bar is the original idea, not your AC/DoD
 
+How the board moves:
+  - Every card_id you send is a ticket id from the board snapshot
+  - A new ticket shows up in the next snapshot as "awaiting dispatch";
+    dispatch it to the role that should do the work
+  - Dispatched cards are worked and reviewed by independent reviewers;
+    only their review moves a card to Done
+  - A card that fails review retries on its own; kill or rescope it
+    if it is stuck or headed the wrong way
+
 If nothing needs to happen this iteration, emit a noop op with a reason.
 
 Return a JSON object matching the EMPlanResponse schema:

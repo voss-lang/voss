@@ -38,7 +38,7 @@ VossProofs produces reproducible evidence about how well the Voss ecosystem work
 | Headless driving | `voss serve`: `/session`, `/message`, `/events`, `/permission`, `/cost` | Implemented | `voss-serve` adapter |
 | Offline serve turn | `VOSS_SERVE_FAKE_TURN=1` | Test seam | `voss-serve-fake` config |
 | Swarm over the API, worktree per CLI member | `POST /swarm`, `/swarm/{id}/run` | Implemented | Phase 3 multi-agent config |
-| Board and EM | `voss/harness/board/`, `em/`, `voss team run` | Partial: stubbed reviewers, interactive sign-off | Blocked (upstream gap 5) |
+| Board and EM | `voss/harness/board/`, `em/`, `voss team run` | Implemented: LLM EM, real workers and reviewers. `--yes --no-signoff` runs it headless. | Board config needs an adapter (upstream gap 5) |
 | Workflow replay | voss-lang `voss-exec replay` and `tests/exec-fixtures` | Implemented | Phase 4 runtime suite |
 | Sandbox probe | Voss-OS `smoke-test-sandbox.sh` | Implemented, Linux only | Optional Phase 4+ adapter |
 
@@ -121,7 +121,7 @@ Delivered:
 - **A resources and limits table.** Tokens against the scenario budget, timeouts and scope violations.
 - First gate run: [studies/2026-10-18-orchestration-gate.md](studies/2026-10-18-orchestration-gate.md).
 
-Board/EM stays "not evaluable" until upstream gap 5 is closed.
+Board/EM stays "not evaluable" until VossProofs has an adapter for `voss team run --yes --no-signoff`.
 
 **Gate.** The same scenario runs under A, B and C with comparable evidence and resource records. Met by the gate run: 5 scenarios × 3 configs, all on one model.
 

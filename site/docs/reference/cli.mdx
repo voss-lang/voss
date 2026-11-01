@@ -79,7 +79,7 @@ Run and inspect a team — see [Orchestration](/orchestration/overview).
 
 ```bash
 voss team check [path]              # validate .voss/team.voss (default), --json
-voss team run "<goal>" [--cwd .] [--max-iterations 50]
+voss team run "<goal>" --scope "src/**" [--cwd .] [--max-iterations 50] [--model M] [--auth A] [--yes] [--no-signoff]
 
 voss board [root_id] [--cwd .]      # read-only board from persisted nodes
 voss review [run_id]                # Reviewer-A + Reviewer-B per card (latest if omitted)
