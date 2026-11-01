@@ -43,8 +43,7 @@ _AUDIT_BEHAVIORS = ("full", "redact_args", "metadata_only")
 
 
 def _line_anchor(line: str) -> str:
-    """First 8 hex of SHA-256 of a line's raw content (no newline). Mirrors
-    crates/voss-tools/src/anchor.rs for hashline-edit parity."""
+    """First 8 hex of SHA-256 of a line's raw content (no newline)."""
     return hashlib.sha256(line.encode("utf-8", "surrogatepass")).hexdigest()[:8]
 
 
