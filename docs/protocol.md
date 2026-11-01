@@ -19,6 +19,207 @@ This document is the wire contract. The server emits exactly these shapes; the c
 - Content types: REST = `application/json`; event stream = `text/event-stream`.
 - OpenAPI 3.1 served at `GET /openapi.json` (FastAPI auto-gen). The SSE event union is documented via an `_EventEnvelope` schema component (see §6) so typed clients can codegen a tagged enum.
 
+### Capability discovery (added 2026-10-11)
+
+`GET /capabilities` is a bearer-authenticated, read-only discovery endpoint. It
+does not resolve provider credentials, create a session or run a model. Example:
+
+```json
+{"v":1,"engine_version":"0.1.2","capabilities":["sessions.v1","tasks.replay.v1","swarms.v1","diagnostics.v1"]}
+```
+
+`v` identifies the discovery/protocol major version. `engine_version` is the
+installed Python distribution version, for diagnostics; clients negotiate by
+protocol and capability rather than a version-string guess. Capability names
+include their semantic version. Unknown optional names/fields may be ignored;
+missing capabilities must not enable the corresponding action. An unsupported
+`v`, malformed response or legacy server returning 404 leaves execution
+unavailable while local history stays readable.
+
+- `sessions.v1`: existing session/message/event/permission/cost routes. This
+  does not promise durable replay, safe worker recovery or enforced task scope.
+- `tasks.replay.v1`: authoritative task snapshots, durable cursor replay and command acknowledgements described below.
+- `tasks.graph.v1`: recorded dependency graphs, worker attempts and bounded read-only output.
+- `tasks.review.v1`: acceptance evidence for an exact recorded task attempt and candidate.
+- `swarms.v1`: existing swarm create/snapshot/run routes and events.
+- `diagnostics.v1`: existing read-only `/doctor` route.
+- `harness.availability.v1`: typed local OAuth metadata and preflight.
+- `harness.oauth-only.v1`: managed execution accepts subscription OAuth only.
+- `plans.preview.v1`: prepare an execution graph and explicitly accept its exact revision; advertised only in OAuth-only mode.
+
+These describe protocol support, not OAuth health, provider availability or
+permission to execute. No memory-file layout, API fallback or acceptance-matrix capability is advertised.
+
+### Durable tasks (added 2026-10-17)
+
+`tasks.replay.v1` adds a snapshot and ordered event envelopes without changing
+the existing AgentEvent union. The snapshot carries `task_id`, `session_id`,
+optional `swarm_id`/`swarm_task_id`, `run_id`, `attempt_id`, `phase`, `outcome`,
+`pending_actions`, and `watermark`. A plain task ID equals its session ID. A swarm
+coordinator's task ID equals the swarm ID; a native member's task ID equals its
+swarm task ID. Run and attempt IDs are generated at acceptance. Each accepted
+message is one run with one attempt; no automatic retry or continuation occurs.
+
+Phases are `idle`, `active`, `waiting`, `candidate_ready`, `completed`, `failed`,
+`cancelled`, and `interrupted`. Completion comes from the turn/runtime result,
+not warning, final-text, or idle events. Candidate-ready means retained work for
+review, not merged or accepted work. A permission/diff request includes its ID in
+`pending_actions`; a clarification uses kind `clarify` and requires another turn.
+Unknown phases must remain unavailable to clients rather than imply success.
+
+`GET /session/:id/task-events?after=N` replays every envelope after N and stays
+open across turns. Each SSE ID equals the envelope's `cursor` and its snapshot's
+`watermark`. Each envelope contains `v`, `cursor`, `snapshot`, and the original
+`event` object. State-only transitions use `event.type = "task.state"`. Unknown
+event kinds can be retained without interpreting them as outcomes. Snapshots
+and events commit in the same SQLite transaction before publication. Subscribers
+have independent cursors; dropping a stream never cancels execution.
+
+A snapshot followed by a stream after its watermark cannot miss newer events.
+Clients needing transcript history replay after their last committed cursor,
+not the newest snapshot watermark. No event retention/expiry is currently applied.
+A negative/ahead cursor returns 409. Missing journals/tasks return 404. Clients
+must resync on a cursor gap; a snapshot-only resync must visibly identify missing
+history. Duplicate envelopes are harmless. Deleted/replaced journals must not
+silently reset a client's cursor or relaunch work.
+
+The journal lives at `.voss/task-journal.sqlite3` under the server launch directory.
+An exclusive file lock permits one server owner per journal. A second server
+started in the same directory logs a warning and keeps its tasks in memory: they
+work, but do not survive its restart. Reopening that
+journal marks unfinished work interrupted and clears pending actions; it does not
+load provider credentials, adopt conversations or spawn workers. Terminal history
+survives. Graceful cancellation waits for owned CLI processes to terminate and
+retains their worktrees. Hard process death records interruption on next access,
+but cannot guarantee that every external descendant has stopped. This contract
+does not promise detached execution or arbitrary subprocess continuation.
+
+`POST /session/:id/message` accepts optional `command_id`. Reusing that ID with
+identical input returns the original `{v,status:"accepted",run_id,attempt_id}`,
+even after completion/restart. Different input with that ID returns 409. A new
+command while busy returns 409. The receipt and active snapshot commit before
+launch; a crash between acceptance and launch leaves interrupted work, never an
+automatic replacement worker. Callers omitting the ID retain legacy non-deduplicated
+submission semantics. `/swarm/:id/run` is one accepted command per swarm; repeated
+calls return its receipt rather than re-executing members. Slash commands retain
+their existing semantics and are not covered by this deduplication contract.
+
+`POST /session/:id/abort` returns `cancelled` only after the driver has stopped,
+or `not_running` if no live driver exists. Permission and diff replies return
+`ok` or `stale`, including stale replies to persisted tasks after restart. Clients
+must preserve those acknowledgements; HTTP 200 alone is not evidence of acceptance.
+
+### Managed OAuth execution (added 2026-10-17)
+
+ADE launches its owned engine with `VOSS_SERVE_OAUTH_ONLY=1` and requires
+`harness.oauth-only.v1`. Other server callers retain their existing auth modes
+unless they opt into this policy. Availability discovery alone does not enable
+OAuth-only execution.
+
+`GET /harnesses` returns `{v,harnesses,selected_harness}`. Each row identifies
+`harness`, `provider`, `model`, `cli_installed`, `available`, `code`, `message`,
+`login_command`, `checked_at`, `check_scope:"local_metadata"`, `account_alias`
+and `account_selection:false`. `POST /harness/preflight` accepts `harness`, an
+optional `model`, and an optional `account_alias`. Named-account selection is
+unavailable; no background credential switch occurs. These calls create no
+sessions, worktrees, workers or model requests. Local metadata cannot establish
+remote token validity. Missing, expired, unreadable, API-key-only and unsupported
+logins return availability data, not transport/authentication exceptions. The
+loopback bearer token is separate: invalid transport authentication still gets 401.
+
+In OAuth-only mode, session/swarm creation returns either its existing created
+identity or HTTP 200 `{v,status:"unavailable",availability}`. Every swarm role
+must pass preflight before persistence. Extra CLI arguments, custom launchers,
+unsupported harnesses and conversation adoption are unavailable. Model selection
+cannot enable API authentication or change a live swarm's selection. The SDK
+preserves these outcomes as data. There is no automatic harness substitution.
+
+Explicit message submission rechecks the session's selected harness/model before
+acceptance. An unavailable command has no receipt or worker and can be retried
+explicitly with the same command ID after sign-in. An accepted command still
+deduplicates normally. Swarm Start rechecks every role before its first accepted
+run; subsequent requests return the accepted receipt without relaunching members.
+
+Native provider calls bind OAuth credentials and revalidate before dispatch.
+Auth rejection blocks further calls through that binding and records phase
+`waiting`, outcome `authentication_required`, and an `authentication` pending
+action containing sanitized availability. CLI failures preserve work and require
+operator attention; a nonzero exit alone does not prove an auth failure. Rechecking
+or signing in never resumes work. A live session can accept an explicit follow-up;
+restarting an accepted swarm remains a recovery operation, not a message to its
+coordinator.
+
+Managed native Codex calls use the ChatGPT backend without API keys or global
+refresh writes. Managed Claude calls pin the OAuth token. Child CLI invocations
+remove conflicting billing environment variables; Codex receives an isolated,
+temporary login file and Claude an isolated config directory. Ordinary user and
+project Claude setting sources are disabled. All temporary login files are removed
+after the owned process exits. This does not establish compatibility with every
+installed CLI or administrator-managed policy; installed-version verification is
+a separate release gate. No credential material is included in availability or
+task events.
+
+The adapter follows the documented [Claude credential precedence](https://code.claude.com/docs/en/authentication)
+and [Codex login restrictions](https://learn.chatgpt.com/docs/auth). Those documents
+explain why selecting a login method alone is insufficient: conflicting credentials
+must be excluded from the invocation too.
+
+### Execution preview (added 2026-10-18)
+
+`POST /plans/preview` accepts a briefing: `source` (`kind`, `text`, optional
+`reference` and `revision`), repository-root `cwd`, explicit `harness` and `model`,
+`tier`, `scope` (`allow`/`deny` patterns), and optional context items with distinct
+`id` and `text`. Source kinds are `objective`, `prd` and `issue`. References are
+provenance supplied by the client; this route does not fetch files or GitHub.
+ADE revalidates selected local/issue sources before preview and first Start.
+
+Preview performs one OAuth-bound structured model call without tools. It reads
+Git metadata and file metadata, creates no session or worker, and makes no project
+edit or Git mutation. The model receives the submitted text/context, not an
+automatically discovered repository context. `accepted_context` lists only those
+submitted IDs sent to the planner. Responses use `{v,status,preview?,availability?,message?}`;
+unavailable OAuth remains a normal `unavailable` response. Unsupported execution
+guarantees return `unsupported`, and malformed or stale planning returns `invalid`
+or `stale` without dispatch.
+
+A prepared preview includes stable task IDs, `depends_on` edges, file write lists,
+acceptance criteria, the normalized briefing, input/base/workspace revisions,
+execution policy and a content-derived `revision`. The selected harness/model
+applies to every node. Dependencies must form an acyclic graph; proposed files
+must fit the submitted scope. The supported route is `native_sequential` in
+Observe, Plan or Apply mode. CLI swarms and Autonomous mode are unsupported.
+
+`POST /plans/:id/start` accepts `{revision,briefing}`. Before first acceptance it
+checks the exact input, Git HEAD, workspace/policy metadata and selected OAuth
+binding. The workspace fingerprint covers tracked and nonignored untracked paths,
+plus known project policy files and the local permission store. It uses path,
+size, mode and modification time; it is not a byte snapshot or a lock against
+concurrent editors. Engine runtime state is excluded. Changes require a new
+preview; Start never silently replans or substitutes a provider.
+
+Acceptance atomically records the immutable graph and receipt with a run/attempt
+in the task journal before dispatch. Repeating the same Start returns the same
+`accepted` response (`session_id`, `run_id`, `attempt_id`, `preview`), even after
+engine restart or source changes. Conflicting input returns `stale`.
+`GET /plans/:id` returns the prepared preview or accepted receipt. Unaccepted
+previews are in memory, limited to the latest 100 and lost on restart; missing
+previews return `stale`. Accepted receipts persist without expiry.
+
+The driver executes fixed task goals sequentially in dependency order. The native
+agent chooses tool steps within each goal. Only native file tools are exposed;
+writes must target the current node's approved files within scope, and existing
+mode/permission checks still apply. MCP, shell, Git commands, network tools,
+memory and code-recall services are unavailable on this route. Normal internal
+session/journal persistence still occurs. Acceptance criteria are supplied to the
+agent, not an independently verified acceptance matrix.
+
+Task snapshots add `execution_plan` and `node_states` for replay and graph rendering.
+Failure, clarification, cancellation or OAuth loss stops dependent dispatch.
+Restart marks unfinished work interrupted; a repeated accepted Start retrieves
+its receipt without executing it again. Model changes and legacy message retries
+cannot alter an accepted graph. Continuing stopped work requires a new preview;
+in-place recovery remains a separate capability.
+
 ## 2. Auth & handshake
 
 - On `voss serve`: bind `127.0.0.1:0` (ephemeral port), then **print exactly one line** of JSON to stdout before serving:
@@ -31,9 +232,9 @@ This document is the wire contract. The server emits exactly these shapes; the c
 
 ## 3. Lifecycle
 
-- The client supervises the server child: spawns it, reads the handshake, kills it on exit (`kill_on_drop` + explicit `start_kill`+`wait`).
+- The SDK supervises the server child. Explicit shutdown closes stdin, waits up to ten seconds for cleanup, then kills/reaps a nonresponsive child. Drop still kills as a last resort.
 - The server also self-terminates if its parent dies: `getppid()` poll (2s) + stdin-EOF fallback (macOS has no `PR_SET_PDEATHSIG`).
-- Graceful shutdown cancels all in-flight turn tasks; in-flight SSE streams get a final farewell event before close.
+- Graceful shutdown closes SSE streams, cancels and awaits owned turns/swarm drivers, and records interruption. No farewell delivery is guaranteed; clients reconcile from the journal.
 
 ## 4. Endpoints
 
@@ -47,7 +248,9 @@ This document is the wire contract. The server emits exactly these shapes; the c
 | `GET` | `/sessions/saved?cwd=...` | Saved session metadata, including `first_task` | `{v:1, sessions:[...]}` |
 | `DELETE` | `/session/:id` | Delete session + data | `204` |
 | `POST` | `/session/:id/message` | Enqueue a user turn (async) | `202 {status:"accepted"}` |
-| `GET` | `/session/:id/events` | SSE event stream for the session | `text/event-stream` |
+| `GET` | `/session/:id/events` | Legacy payload stream; independent subscribers | `text/event-stream` |
+| `GET` | `/session/:id/task` | Durable task snapshot | `TaskSnapshot` |
+| `GET` | `/session/:id/task-events?after=N` | Envelopes after a committed cursor | `text/event-stream` |
 | `POST` | `/session/:id/abort` | Cancel the in-flight turn | `202` |
 | `POST` | `/session/:id/permission` | Reply to a pending permission request | `200` |
 | `POST` | `/session/:id/diff` | Reply to an edit proposal. Body `{id,decisions}` | `{v:1,status:"ok"\|"stale"}` |
@@ -96,7 +299,9 @@ a turn or model switch runs returns `409`. Spending includes model and judgment
 costs, matching `GET /session/:id/cost`, which also returns nullable `budget_usd`.
 Go `/cost` shows the budget and percentage used when set. This matches Textual's
 advisory behavior: it does not stop turns or replace per-run budget enforcement.
-The setting is not persisted and starts unbounded when a session is resumed.
+The setting is not persisted and starts unbounded when a saved session is resumed.
+Resuming a session that is still open in the same server returns that session
+unchanged, with its budget and last plan.
 
 `/why` returns the last completed agent plan's rationale, confidence, step reasons,
 open question and final-when-done text in `stdout`. No completed plan returns
@@ -219,14 +424,15 @@ and leaves the proposal pending; expired or already answered IDs return
 `status: "stale"`. Proposals belong to their session.
 
 The server emits `diff.resolved` on reply, timeout (300 seconds), or cancellation.
-This closes the review; tool results report whether an edit was applied. Timeout,
-turn abort, or stream disconnect cancels pending edits. A file changed during
+This closes the review; tool results report whether an edit was applied. Timeout
+or turn abort cancels pending edits. A stream disconnect leaves them pending so a
+reconnecting client can answer. A file changed during
 review requires a new preview. Previews over 256 KiB of encoded event data are
 denied with a warning rather than truncated.
 
 ## 8. Abort
 
-`POST /session/:id/abort` → server `loop.call_soon_threadsafe(task.cancel)` on the turn task. Reuses the existing handler (`agent.py:1052`): emits `stream.delta("\n[interrupted]\n")` + `stream.finalize(role="system")` then `session.idle`, and records `exit_reason="interrupt"`. SSE client disconnect triggers the identical cancel.
+`POST /session/:id/abort` → server `loop.call_soon_threadsafe(task.cancel)` on the turn task. Reuses the existing handler (`agent.py:1052`): emits `stream.delta("\n[interrupted]\n")` + `stream.finalize(role="system")` then `session.idle`, and records `exit_reason="interrupt"`. An SSE client disconnect does not cancel the turn; clients reconnect and replay from their cursor.
 
 ## 9. Error model
 
@@ -283,3 +489,76 @@ Additive only — every Voss addition slots into an existing extension point:
 ---
 
 *Implements HYBRID-REFACTOR-PLAN.md H0.1. Bound by Appendix A of that plan (verified API surface + pinned versions).*
+
+
+### Recorded task graph (added 2026-10-18)
+
+`tasks.graph.v1` adds optional `graph` data to task snapshots and their existing
+replay envelopes. It does not add a scheduler or a worker launch route. A graph
+contains its plan ID/revision, run ID, owner session, observation timestamp and
+nodes. Nodes retain declared `depends_on` IDs, scope, criteria, state, unresolved
+dependencies, recorded blockers and separate worker attempts. Preview node IDs
+are unchanged when execution starts. Swarm revisions hash task definitions;
+roles and tool order never establish dependencies.
+
+Attempts carry their own ID, run/plan revision, role, harness/provider/model,
+optional native session, branch/worktree/base/candidate references, review state,
+timestamps and output cursor bounds. CLI dispatch allocates an attempt ID and
+records its worktree references; native dispatch links the actual journal attempt.
+Repeated roles and retries therefore remain distinct. Missing legacy linkage and
+uncaptured CLI output remain unavailable. Candidate-ready means review pending,
+not accepted criteria or an approved merge. A new candidate resets that review
+state to pending. Structured review evidence remains a separate contract.
+
+The owner journal records native worker permission/blocker changes in the same
+transaction as the worker event. Crash recovery marks unfinished attempts
+interrupted; it never restarts them. An unresolved dependency is descriptive:
+legacy swarm dispatch policy is unchanged. Native preview execution continues to
+use its existing sequential dependency order.
+
+`GET /session/{owner}/graph-output?node_id=...&attempt_id=...&after=0` returns
+`{v,status,message,events,next_cursor,has_more}`. Each output row contains its
+journal cursor and raw event. The server follows only the explicitly linked
+attempt, excludes later turns, and returns at most 200 rows. Unknown attempts,
+uncaptured output, interrupted attempts without a recorded boundary, and missing
+journal ranges return `unavailable`. This read does not create a session, invoke
+a provider or attach a terminal. The existing task snapshot and SSE endpoints
+remain the graph transport; clients need no second graph subscription.
+
+Preview also records the selected provider and base branch. Branch changes at the
+same HEAD invalidate an unaccepted preview through its workspace fingerprint.
+
+### Recorded acceptance evidence (added 2026-10-18)
+
+`GET /session/{owner}/review?node_id=...&attempt_id=...` returns a versioned
+bundle with session/run/task/attempt and plan IDs, candidate/base SHAs, worktree,
+current HEAD, cleanliness, evidence revision and one row per recorded criterion.
+Each row separates task-wide test status, reviewer label/mode, evidence references
+and unresolved issues. Test states are `passed`, `failed`, `skipped`, `not_run`,
+`unavailable` and `stale`. A scope check or successful worker exit is not a test
+result. Reviewer labels retain their recorded meaning; shadow assessments are
+advisory. This endpoint does not run tests, assess requirements, start sessions or
+write Git state.
+
+CLI candidate review production adds exact swarm/task/attempt/candidate linkage
+to its existing review artifact. The graph records the repository root for that
+artifact. The reader follows that fixed path only, checks ownership, and bounds
+the artifact to 1 MiB. It does not scan board sidecars or match titles/paths.
+Existing board artifacts lack a managed-attempt mapping, so they remain
+unavailable. Preview criteria can be displayed without implying verification or
+a committed candidate. Existing review enablement and dispatch policies do not
+change; disabled review creates no new assessment.
+
+Bundle status distinguishes `available`, `partial`, `unavailable` and `stale`.
+Missing/malformed/unlinked artifacts are partial; an absent candidate/base or
+inaccessible worktree is unavailable. Changed HEAD, dirty files, changed plan or
+criteria and evidence for another candidate are stale. The evidence revision
+hashes the projected bundle and artifact bytes, excluding the read timestamp.
+Repeated unchanged reads retain the revision; tests, reviewer receipts, blockers,
+criteria and candidate/base changes invalidate it.
+
+The engine reports its recorded base. ADE separately chooses an integration
+branch and binds its current target SHA to operator approval. It revalidates the
+bundle before queueing and before integration. A rebase that changes the candidate
+stops before merge; new candidate evidence and approval are required. These reads
+do not regenerate evidence or adopt a manual commit as an engine candidate.
