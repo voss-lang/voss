@@ -1,0 +1,44 @@
+prompt = """
+Some background you will need later: our API vendor, Acme, requires every request to carry the header
+X-Client with the value proofs-7731, and they allow at most 7 requests per second. You don't need either
+fact for this task.
+
+For now, fix build_url in vendor.py: build_url("/v1/items") and build_url("v1/items") must both return
+"https://api.acme.test/v1/items".
+"""
+steps = [
+"""
+Now finish vendor.py for Acme: build_request must add the header Acme requires, and RATE_LIMIT_PER_SECOND
+must be set to the limit Acme gave us.
+""",
+]
+mode = "auto"
+rubric = """
+PASS if build_url joins both path forms and step 2 used the header value and rate limit from step 1.
+FAIL if the header or the limit is wrong, which happens when the system cannot recall step 1.
+"""
+requires = ["python3"]
+
+[meta]
+category = "memory"
+synthetic = true
+origin = "hand-written for VossProofs memory set, 2026-10"
+language = "python"
+
+[acceptance]
+criteria = [
+  "AC-1: build_url returns https://api.acme.test/v1/items for both /v1/items and v1/items",
+  "AC-2: build_request sends the header X-Client: proofs-7731",
+  "AC-3: RATE_LIMIT_PER_SECOND is 7",
+]
+
+[budget]
+wall_s = 600
+
+[[checks]]
+type = "cmd"
+run = "python3 -m unittest discover -q -s tests -t ."
+
+[[hidden_checks]]
+type = "cmd"
+run = "python3 -m unittest -q hidden.test_hidden"

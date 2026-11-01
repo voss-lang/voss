@@ -1,0 +1,21 @@
+diff --git a/parsing.py b/parsing.py
+index 4934f2d..462e34d 100644
+--- a/parsing.py
++++ b/parsing.py
+@@ -1,2 +1,16 @@
++import re
++
++from errors import InputError
++
++
+ def parse_qty(text: str) -> int:
++    if not re.fullmatch(r"\d+", text):
++        raise InputError(f"parse_qty: {text!r} is not a non-negative whole number")
+     return int(text)
++
++
++def parse_price(text: str) -> int:
++    match = re.fullmatch(r"(\d+)(?:\.(\d{1,2}))?", text)
++    if not match:
++        raise InputError(f"parse_price: {text!r} is not a price with at most two decimals")
++    return int(match[1]) * 100 + int((match[2] or "0").ljust(2, "0"))

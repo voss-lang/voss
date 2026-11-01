@@ -1,0 +1,15 @@
+{
+  "commit": "1a4de9352d7ff6e030fe5caec119eacc28d3f9d5",
+  "frozen_at": "2026-10-24",
+  "locked": false,
+  "scenarios": {
+    "mem-001-vendor-facts": {
+      "sha256": "94c4498bb998d37c686126ddd5fcc881e1d05f37e1e595e440c8499270b30ca9",
+      "version": 1
+    },
+    "mem-002-error-convention": {
+      "sha256": "2db9f68a56d5150eafae4109671d3f5c819c588ed42678e87e3ada3ed24ed653",
+      "version": 1
+    }
+  }
+}

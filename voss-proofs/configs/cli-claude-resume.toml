@@ -1,0 +1,7 @@
+name = "cli-claude-resume"
+adapter = "cli-agent"
+agent = "claude"
+description = "Baseline A with conversation memory: each follow-up step runs claude -p --resume on the previous step's session."
+live = true
+model = "claude-opus-5-5"
+memory = "resume"

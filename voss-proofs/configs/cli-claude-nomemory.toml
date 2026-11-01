@@ -1,0 +1,9 @@
+name = "cli-claude-nomemory"
+adapter = "cli-agent"
+agent = "claude"
+description = "Baseline A without memory: claude -p per step with Claude Code auto-memory off, so a step sees only the workspace."
+live = true
+model = "claude-opus-5-5"
+
+[env]
+CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1"

@@ -1,0 +1,8 @@
+name = "voss-serve-auto-resume"
+adapter = "voss-serve"
+description = "Baseline B with conversation memory: each follow-up step resumes the previous step's saved session."
+live = true
+mode = "auto"
+auth = "auto"
+model = "claude-opus-5-5"
+memory = "resume"
