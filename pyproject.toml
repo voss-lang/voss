@@ -36,7 +36,7 @@ dependencies = [
 # 4 decision). Install via `pip install voss[search]` or, after the npm
 # wrapper lands, via `voss extras install search`.
 search = [
-    "chromadb>=0.5.0",
+    "chromadb>=0.6.3",
     "sentence-transformers>=2.7.0",
 ]
 code = [
@@ -69,7 +69,7 @@ dev = [
     "vcrpy>=8.0.0,<9",  # T4 CACHE-05: cassette replay; v8 patches httpcore
     "watchdog>=4.0,<7",
     # `dev` includes `search` so the test suite can exercise semantic memory.
-    "chromadb>=0.5.0",
+    "chromadb>=0.6.3",
     "sentence-transformers>=2.7.0",
     # `dev` includes `server` so the harness server tests can import FastAPI.
     "fastapi>=0.136",
