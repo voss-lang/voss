@@ -8,13 +8,26 @@ The Engineering Manager (EM) loop is the orchestrator. It is deliberately constr
 Run it with:
 
 ```bash
-voss team run "Add password reset flow with tests"
-voss team run "<goal>" --cwd . --max-iterations 50
+voss team run "Add password reset flow with tests" --scope "src/**" --scope "tests/**"
+voss team run "<goal>" --cwd . --max-iterations 50 --model <model> --auth <auto|claude|codex|api>
 ```
 
 ## The loop
 
-`voss team run` composes the team config, board, session tree, and the Reviewer-A/B pair, then drives `em_loop` to completion and persists a final record.
+`voss team run` composes the team config, board, session tree, and the Reviewer-A/B pair, then drives `em_loop` to completion and persists a final record. The EM, the role workers, and both reviewers all call the provider you pick with `--auth` and `--model`.
+
+## Write scope and approval
+
+Workers run unattended. They edit files and run shell commands without asking for each action, so a run needs a write scope before it starts:
+
+- Pass `--scope` (repeatable), or set `ceiling.scope` in `.voss/team.voss`. With neither, the command exits with an error. `--scope` can't replace a ceiling scope the team file already sets.
+- Each worker can write only inside its role scope, or the ceiling scope when the role sets none. On a terminal you're asked before a write outside it. Without a terminal the write is refused.
+- Shell commands aren't scope-limited. Any `.voss/safety.yml` and `.voss/permissions.yml` rules still apply to them.
+- Before any work starts, the command asks once whether to continue. `--yes` skips that question.
+
+Cards are worked one at a time in the project directory. A card reaches `Done` only when the worker's own test run exits 0 and both reviewers pass it. A failed gate or review sends the card back to its worker with the reviewer's notes, up to the retry ceiling. After that the card is `Blocked`.
+
+When the run ends, the command prints the card counts and the path to `run-final.json`, then asks you to approve or reject the run. `--no-signoff` skips that question and leaves the run unsigned, so scripts can run `voss team run --yes --no-signoff` without a terminal.
 
 ```text
 human idea

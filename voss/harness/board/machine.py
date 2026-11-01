@@ -103,6 +103,23 @@ class Card:
     role: str = ""
     acceptance_criteria: str = ""
     verification_requirement: str = ""
+    domain: str = "code"
+
+    @property
+    def original_idea(self) -> str:
+        return self.idea
+
+    @property
+    def artifact_text(self) -> str:
+        return getattr(self.artifact, "artifact_text", "")
+
+    @property
+    def file_diff(self) -> str:
+        return getattr(self.artifact, "file_diff", "")
+
+    @property
+    def repo_context(self) -> str:
+        return getattr(self.artifact, "repo_context", "")
 
 
 def card_status(card: "Card") -> str:
@@ -402,6 +419,10 @@ class Board:
         artifact: Optional[object] = None,
         deadline_override: Optional[float] = None,
         per_card_budget: Optional[int] = None,
+        idea: str = "",
+        role: str = "",
+        acceptance_criteria: str = "",
+        domain: str = "code",
     ) -> Card:
         """Create a new card in Backlog, backed by a child session-tree node."""
         limit = per_card_budget if per_card_budget is not None else self._per_card_budget
@@ -419,9 +440,22 @@ class Board:
             deadline=deadline,
             scope=self._team_ceiling.scope,
             artifact=artifact,
+            idea=idea,
+            role=role,
+            acceptance_criteria=acceptance_criteria,
+            domain=domain,
         )
         self._cards.append(card)
         return card
+
+    def attach_artifact(self, card: Card, artifact: object) -> Card:
+        """Replace the card's artifact (worker output) without a column move."""
+        new_card = dataclasses.replace(card, artifact=artifact)
+        self._cards = [
+            new_card if c.node_id == card.node_id else c
+            for c in self._cards
+        ]
+        return new_card
 
     def move(self, card: Card, to: str) -> Card:
         """Transition a card to `to` column.
@@ -725,9 +759,8 @@ class Board:
                 "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             }
             node.retry_notes.append(note)
-        # Emit passed transition InReview→InProgress.
         self._append_delta(
-            card, from_col="InReview", to_col="InProgress",
+            card, from_col=card.column, to_col="InProgress",
             outcome="passed",
             verdict_snapshot=dataclasses.asdict(last_verdict),
         )
