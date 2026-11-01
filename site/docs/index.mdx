@@ -35,7 +35,7 @@ voss audit
 ```
 
 <Note>
-`voss team run` currently drives the team cage with a scripted EM and placeholder reviewers, so it proves roster, scope, budget, gate, and audit behavior rather than doing real work. Live multi-agent work runs as a swarm through `voss serve`. See the [orchestration overview](/orchestration/overview).
+`voss team run` runs an LLM EM, role workers, and Reviewer A and B. Cards run one at a time in the project directory, and workers can write only inside the team scope. Swarms through `voss serve` are the other multi-agent path. See the [orchestration overview](/orchestration/overview).
 </Note>
 
 ## What Voss is for

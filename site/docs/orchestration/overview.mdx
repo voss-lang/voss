@@ -49,7 +49,7 @@ voss audit
 ```
 
 <Note>
-Today `voss team run` drives the board with a scripted EM and placeholder reviewers that always pass. It exercises the real team config, session tree, gates, audit, and human sign-off, but it does not do the work itself. The board's worker pipeline is planned for a later phase. Live multi-agent work runs as a [swarm](#swarms).
+`voss team run` drives the board with an LLM EM, role workers, and the real Reviewer A and B. Cards run one at a time in the project directory. The run ends with your approve or reject, unless you pass `--no-signoff`. A [swarm](#swarms) is the other multi-agent path.
 </Note>
 
 This run proves the core invariants:
