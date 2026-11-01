@@ -10,10 +10,11 @@ Permission modes define what kind of tools Voss may run. Each [role](/orchestrat
 | `plan` | Read-only inspection and planning | Denied |
 | `edit` | Scoped file changes | File writes allowed through scope checks; shell denied |
 | `auto` | Higher-trust execution | Allowed through lower-level safeguards |
+| `observe` | Unattended read-only investigation (`voss do --mode observe`) | Denied, along with shell and network tools; never prompts |
 
 ## Plan mode
 
-Plan mode is the default for `voss`, `voss chat`, and `voss do`. It is for reasoning, inspection, and architecture work.
+Plan mode is the default for `voss`, `voss ui`, `voss chat`, and `voss do`. It is for reasoning, inspection, and architecture work.
 
 Use plan mode when you want:
 
@@ -36,3 +37,7 @@ Auto mode is for higher-trust flows where the agent may need to run more tools. 
 <Warning>
 Use auto mode only when you are comfortable with the broader execution surface. Voss v0.1 is intentionally conservative by default.
 </Warning>
+
+## Observe mode
+
+Observe mode is a stricter read-only tier for runs nobody is watching. It denies writes, shell, and network tools outright instead of prompting.

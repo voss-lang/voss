@@ -199,15 +199,16 @@ export default async function OrchestrationPage() {
             </div>
             <div className="space-y-4 text-sm leading-7 text-[var(--muted)]">
               <p>
-                Voss can supervise agents it launches more tightly than tools it only observes. For
-                adopted terminal agents, the product direction is deliberately honest: give them
-                clear identity, ownership signals, review requests, and handoff conventions, while
-                avoiding claims that Voss can sandbox tools outside its control.
+                Voss can supervise agents it launches more tightly than tools it only observes. A
+                swarm runs Claude Code and Codex as headless members, each in its own git worktree,
+                beside native builders. Their candidates pass an ownership check and wait for review.
+                Voss does not claim to sandbox tools outside its control.
               </p>
               <p>
                 The result is a practical coordination layer for mixed local work: Voss-native runs,
-                external CLI agents, and human review can share the same board, attention model, and
-                audit expectations without collapsing into hidden chat history.
+                external CLI agents, and human review share one task journal, the same review
+                expectations, and a recorded graph of every worker attempt, instead of hidden chat
+                history.
               </p>
             </div>
           </div>
@@ -308,7 +309,9 @@ export default async function OrchestrationPage() {
               <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
                 Reviewer-B judges the artifact, diff, and tests narrative-blind, and can fail work
                 when Reviewer-A&apos;s verification has drifted from the original idea. Verdicts
-                carry confidence, evidence references, and an inferred domain.
+                carry confidence, evidence references, and an inferred domain. With judgments on,
+                Jev also assesses each acceptance criterion against the evidence. Those results are
+                advisory and never change a verdict.
               </p>
               <Button asChild variant="outline" className="mt-6">
                 <Link href="/audit">Reviewer verdicts in the audit</Link>

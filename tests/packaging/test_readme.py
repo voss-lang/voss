@@ -16,7 +16,7 @@ def _readme() -> str:
 
 
 def test_pip_install_voss_present():
-    assert "pip install voss" in _readme()
+    assert 'pip install "voss @ git+https://github.com/voss-lang/voss"' in _readme()
 
 
 def test_voss_doctor_first_run_mentioned():
@@ -60,7 +60,7 @@ def test_npm_install_is_primary_over_pip():
     npm_idx = text.find("npm i -g @vosslang/cli")
     if npm_idx == -1:
         npm_idx = text.find("npm install -g @vosslang/cli")
-    pip_idx = text.find("pip install voss")
+    pip_idx = text.find("pip install \"voss @ git+")
     assert npm_idx != -1, (
         "README is missing the npm install command literal "
         "(expected `npm i -g @vosslang/cli` or `npm install -g @vosslang/cli`)"

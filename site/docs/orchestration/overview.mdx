@@ -38,14 +38,19 @@ human idea
 
 ## The MVP flow
 
-A team is declared once in `.voss`, then a single goal runs as scoped, reviewed work.
+A team is declared once in `.voss`, then a single goal runs through the cage.
 
 ```bash
 voss team check
 voss team run "Add password reset flow with tests"
 voss board
-voss review latest
+voss review
+voss audit
 ```
+
+<Note>
+Today `voss team run` drives the board with a scripted EM and placeholder reviewers that always pass. It exercises the real team config, session tree, gates, audit, and human sign-off, but it does not do the work itself. The board's worker pipeline is planned for a later phase. Live multi-agent work runs as a [swarm](#swarms).
+</Note>
 
 This run proves the core invariants:
 
@@ -54,6 +59,14 @@ This run proves the core invariants:
 - Budget cannot be oversold — it is enforced down the session tree.
 - Agents cannot mark their own work Done.
 - Done requires independent reviewer evidence.
+
+## Swarms
+
+A swarm is the live multi-agent path. A client creates one through the `voss serve` swarm routes (`POST /swarm`, or `create_swarm` in the Rust SDK), and the default roster is a coordinator, two builders, and a reviewer. The coordinator splits the goal into tasks, each with owned files; two active tasks may not own the same file unless one depends on the other. Builders can be native Voss agents or headless Claude Code and Codex sessions, each working in its own worktree, and writes outside a task's owned files are denied.
+
+When a task finishes, its work becomes a candidate for review. Candidate-ready means review is pending, not that the work is merged or accepted. Projects with `judgments.review: shadow` also get an advisory Jev [requirement assessment](/orchestration/reviewers#requirement-assessments) for each candidate.
+
+Every swarm run is recorded as a task graph in the task journal: declared dependencies, scope, criteria, and each worker attempt with its role, model, worktree, and review state. Clients replay it by cursor, and an interrupted run is marked interrupted rather than relaunched.
 
 <CardGroup cols={2}>
   <Card title="Team config" icon="users" href="/orchestration/team-config">

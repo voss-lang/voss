@@ -19,9 +19,8 @@ class _StubRenderer:
 def test_all_renderers_have_method() -> None:
     from voss.harness.render import CompactRenderer, JsonRenderer, PlainRenderer, TtyRenderer
     from voss.harness.server.renderer import EventBusRenderer
-    from voss.harness.tui.renderer import TextualRenderer
 
-    for cls in (TtyRenderer, CompactRenderer, PlainRenderer, JsonRenderer, EventBusRenderer, TextualRenderer):
+    for cls in (TtyRenderer, CompactRenderer, PlainRenderer, JsonRenderer, EventBusRenderer):
         assert hasattr(cls, "show_instructions_overflow"), cls
 
 

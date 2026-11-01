@@ -18,7 +18,7 @@ export const metadata = pageMetadata({
 const SCOPE = [
   "Voss CLI and harness behavior",
   ".voss workflow-control files and runtime behavior",
-  "npm, PyPI, and container packaging paths",
+  "npm, GitHub source install, and container packaging paths",
   "Marketing and documentation site behavior",
 ] as const;
 

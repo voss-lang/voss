@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel
 
-from ..tui.widgets.diff_modal import DiffDecision, Hunk
+from ..tools import DiffDecision, Hunk
 from . import events as E
 from .renderer import EventBusRenderer
 
@@ -55,3 +55,5 @@ class DiffReviewRenderer(EventBusRenderer):
         finally:
             self.session.pending_diffs.pop(proposal.id, None)
             self.emit(E.DiffResolved(id=proposal.id))
+            if self.session.journal:
+                self.session.journal.resolve(self.session.id, proposal.id)

@@ -42,28 +42,10 @@ def _codex_provider():
     return OpenAIOAuthProvider(creds)
 
 
-class _FakeTUIApp:
-    """Stands in for the live app: cli only checks the class NAME."""
-
-    def __init__(self) -> None:
-        self.pushed: list = []
-        self.model = ""
-
-    def push_screen(self, screen, callback=None) -> None:
-        self.pushed.append((screen, callback))
-
-    def query_one(self, *a, **kw):  # no widgets mounted in tests
-        raise RuntimeError("no widget tree")
-
-
-_FakeTUIApp.__name__ = "VossTUIApp"
-
-
-def _ctx(provider, app=None):
-    renderer = SimpleNamespace(app=app) if app is not None else None
+def _ctx(provider):
     return SimpleNamespace(
         provider=provider,
-        renderer=renderer,
+        renderer=None,
         record=SimpleNamespace(model=get_config().default_model),
     )
 
@@ -178,9 +160,7 @@ def test_plain_bare_lists_curated_numbered_with_active_marked(env, capsys) -> No
     # numbered curated list, active marked, select hint
     for i, m in enumerate(SUBSCRIPTION_MODELS["claude"], 1):
         assert f"{i}. {m.id}" in out
-    from voss.harness.tui import glyphs
-
-    assert f"claude-sonnet-5-5 {glyphs.CHECK}" in out
+    assert "claude-sonnet-5-5 ✓" in out
     assert "select: /model <id>" in out
 
 
@@ -254,15 +234,12 @@ def test_typed_codex_model_switches_from_claude(env, monkeypatch, query, model) 
 
     monkeypatch.setattr(auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
     monkeypatch.setattr(cli, "_codex_default_model", lambda: "gpt-6-astra")
-    app = _FakeTUIApp()
-    ctx = _ctx(ClaudeAgentProvider(), app=app)
+    ctx = _ctx(ClaudeAgentProvider())
 
     cli._build_slash_registry().dispatch(ctx, f"/model {query}")
 
     assert isinstance(ctx.provider, OpenAIOAuthProvider)
     assert get_config().default_model == model
-    assert app.provider == "Codex"
-    assert app.model == model
     cfg = harness_config.load_harness_config()
     assert cfg["auth"] == "codex"
     assert cfg["preferred_model"] == model
@@ -273,15 +250,12 @@ def test_typed_claude_model_switches_from_codex(env, monkeypatch) -> None:
     monkeypatch.setattr(auth_mod, "resolve", lambda pref: SimpleNamespace(
         source="claude-agent", cli_path=Path("/opt/bin/claude"),
     ))
-    app = _FakeTUIApp()
-    ctx = _ctx(_codex_provider(), app=app)
+    ctx = _ctx(_codex_provider())
 
     cli._build_slash_registry().dispatch(ctx, "/model claude-opus-5-5")
 
     assert isinstance(ctx.provider, ClaudeAgentProvider)
     assert get_config().default_model == "claude-opus-5-5"
-    assert app.provider == "Anthropic"
-    assert app.model == "claude-opus-5-5"
     cfg = harness_config.load_harness_config()
     assert cfg["auth"] == "claude"
     assert cfg["preferred_model"] == "claude-opus-5-5"
@@ -297,15 +271,13 @@ def test_typed_model_provider_failure_preserves_selection(env, monkeypatch, caps
     resolution.codex_oauth = replace(resolution.codex_oauth, auth_mode=42)
     monkeypatch.setattr(auth_mod, "resolve", lambda pref: resolution)
     provider = ClaudeAgentProvider()
-    app = _FakeTUIApp()
-    app.model = "claude-sonnet-5-5"
-    ctx = _ctx(provider, app=app)
+    ctx = _ctx(provider)
 
     cli._build_slash_registry().dispatch(ctx, "/model gpt-6.1-sol")
 
     assert ctx.provider is provider
     assert get_config().default_model == "claude-sonnet-5-5"
-    assert app.model == ctx.record.model == "claude-sonnet-5-5"
+    assert ctx.record.model == "claude-sonnet-5-5"
     cfg = harness_config.load_harness_config()
     assert cfg["auth"] == "claude"
     assert cfg["preferred_model"] == "claude-sonnet-5-5"
@@ -332,48 +304,11 @@ def test_typed_cross_provider_model_requires_subscription(env, monkeypatch, caps
 
 
 # ---------------------------------------------------------------------------
-# TUI dispatch: auth picker vs catalog fallback
+# Catalog picks via /models set
 # ---------------------------------------------------------------------------
 
 
-def test_tui_model_auth_opens_auth_picker_and_pick_applies(env) -> None:
-    from voss.harness.tui.widgets.auth_model_picker_modal import (
-        AuthModelPickerModal,
-    )
-
-    app = _FakeTUIApp()
-    registry = cli._build_slash_registry()
-    registry.dispatch(_ctx(ClaudeAgentProvider(), app=app), "/model auth")
-    assert len(app.pushed) == 1
-    screen, callback = app.pushed[0]
-    assert isinstance(screen, AuthModelPickerModal)
-    # simulate the user picking opus in the modal
-    opus = SUBSCRIPTION_MODELS["claude"][1]
-    callback(opus)
-    assert get_config().default_model == "claude-opus-5-5"
-    assert app.model == "claude-opus-5-5"  # live status source updated
-    cfg = harness_config.load_harness_config()
-    assert cfg.get("preferred_model") == "claude-opus-5-5"
-    # esc → None must be a no-op
-    callback(None)
-    assert get_config().default_model == "claude-opus-5-5"
-
-
-def test_tui_bare_model_opens_catalog_under_codex_auth(env, monkeypatch) -> None:
-    from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
-
-    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
-    app = _FakeTUIApp()
-    registry = cli._build_slash_registry()
-    registry.dispatch(_ctx(_codex_provider(), app=app), "/model")
-    assert len(app.pushed) == 1
-    screen, _callback = app.pushed[0]
-    assert isinstance(screen, ModelPickerModal)
-    group_ids = {g.id for g in screen._groups}
-    assert {"anthropic", "opencode", "ollama-cloud"} <= group_ids
-
-
-def test_tui_catalog_anthropic_pick_switches_from_codex_to_claude(
+def test_catalog_anthropic_pick_switches_from_codex_to_claude(
     env, monkeypatch
 ) -> None:
     from voss.harness.claude_agent_provider import ClaudeAgentProvider
@@ -389,19 +324,11 @@ def test_tui_catalog_anthropic_pick_switches_from_codex_to_claude(
         lambda pref: SimpleNamespace(source="claude-agent", cli_path=Path("/opt/bin/claude")),
     )
 
-    app = _FakeTUIApp()
-    ctx = _ctx(_codex_provider(), app=app)
-    registry = cli._build_slash_registry()
-    registry.dispatch(ctx, "/model")
-    screen, callback = app.pushed[0]
-    entry = next(g.models[0] for g in screen._groups if g.id == "anthropic")
-
-    callback(entry)
+    ctx = _ctx(_codex_provider())
+    cli._build_slash_registry().dispatch(ctx, "/models set claude-sonnet-4-5 anthropic")
 
     assert isinstance(ctx.provider, ClaudeAgentProvider)
     assert ctx.provider.cli_path == "/opt/bin/claude"
-    assert app.provider == "Anthropic"
-    assert app.model == "claude-sonnet-4-5"
     cfg = harness_config.load_harness_config()
     assert cfg.get("auth") == "claude"
     assert cfg.get("preferred_model") == "claude-sonnet-4-5"
@@ -415,9 +342,7 @@ def test_auth_slash_switches_current_session_and_persists(env, monkeypatch) -> N
     monkeypatch.setattr(cli.auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
     monkeypatch.setattr(cli, "_codex_default_model", lambda: "gpt-5.5")
 
-    app = _FakeTUIApp()
-    app.provider = "Anthropic"
-    ctx = _ctx(ClaudeAgentProvider(), app=app)
+    ctx = _ctx(ClaudeAgentProvider())
     registry = cli._build_slash_registry()
 
     registry.dispatch(ctx, "/auth codex")
@@ -425,13 +350,11 @@ def test_auth_slash_switches_current_session_and_persists(env, monkeypatch) -> N
     assert isinstance(ctx.provider, OpenAIOAuthProvider)
     assert get_config().default_model == "gpt-5.5"
     assert ctx.record.model == "gpt-5.5"
-    assert app.provider == "Codex"
-    assert app.model == "gpt-5.5"
     cfg = harness_config.load_harness_config()
     assert cfg.get("auth") == "codex"
 
 
-def test_tui_catalog_openai_pick_keeps_subscription_and_labels_codex(env, monkeypatch) -> None:
+def test_catalog_openai_pick_keeps_subscription(env, monkeypatch) -> None:
     from voss.harness.providers import OpenAIOAuthProvider
 
     monkeypatch.setattr(auth_mod, "load_codex", lambda: _codex_oauth_resolution().codex_oauth)
@@ -440,29 +363,11 @@ def test_tui_catalog_openai_pick_keeps_subscription_and_labels_codex(env, monkey
         "name": "OpenAI", "env": ["OPENAI_API_KEY"],
         "models": {"gpt-6.1-sol": {"id": "gpt-6.1-sol", "name": "GPT-6.1 Sol"}},
     }}))
-    app = _FakeTUIApp()
-    ctx = _ctx(_codex_provider(), app=app)
-    cli._build_slash_registry().dispatch(ctx, "/model")
-    screen, callback = app.pushed[0]
-
-    callback(screen._groups[0].models[0])
+    ctx = _ctx(_codex_provider())
+    cli._build_slash_registry().dispatch(ctx, "/models set gpt-6.1-sol")
 
     assert isinstance(ctx.provider, OpenAIOAuthProvider)
-    assert app.provider == "Codex"
-    assert app.model == "gpt-6.1-sol"
     cfg = harness_config.load_harness_config()
     assert cfg["auth"] == "codex"
     assert cfg["preferred_model"] == "gpt-6.1-sol"
     assert "preferred_provider" not in cfg
-
-
-def test_tui_api_key_auth_falls_back_to_catalog_modal(env, monkeypatch) -> None:
-    from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
-
-    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
-    app = _FakeTUIApp()
-    registry = cli._build_slash_registry()
-    registry.dispatch(_ctx(object(), app=app), "/model")
-    assert len(app.pushed) == 1
-    screen, _callback = app.pushed[0]
-    assert isinstance(screen, ModelPickerModal)

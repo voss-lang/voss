@@ -18,7 +18,7 @@ import pytest
 
 from voss.harness.sandbox import SandboxError
 from voss.harness.tools import make_toolset
-from voss.harness.tui.widgets.diff_modal import DiffDecision, Hunk
+from voss.harness.tools import DiffDecision, Hunk
 
 
 # ---------------------------------------------------------------------------

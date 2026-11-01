@@ -19,6 +19,309 @@
         "title": "Alternative",
         "type": "object"
       },
+      "Attempt": {
+        "properties": {
+          "base_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Base Revision"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Branch"
+          },
+          "candidate_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Candidate Revision"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ended At"
+          },
+          "harness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Harness"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "output_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output After"
+          },
+          "output_through": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Through"
+          },
+          "plan_revision": {
+            "title": "Plan Revision",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repository"
+          },
+          "review_state": {
+            "default": "unavailable",
+            "title": "Review State",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Started At"
+          },
+          "state": {
+            "default": "unknown",
+            "title": "State",
+            "type": "string"
+          },
+          "worktree": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Worktree"
+          }
+        },
+        "required": [
+          "id",
+          "plan_revision"
+        ],
+        "title": "Attempt",
+        "type": "object"
+      },
+      "Availability": {
+        "properties": {
+          "account_alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Alias"
+          },
+          "account_selection": {
+            "const": false,
+            "default": false,
+            "title": "Account Selection",
+            "type": "boolean"
+          },
+          "available": {
+            "default": false,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "check_scope": {
+            "const": "local_metadata",
+            "default": "local_metadata",
+            "title": "Check Scope",
+            "type": "string"
+          },
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "cli_installed": {
+            "default": false,
+            "title": "Cli Installed",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "harness": {
+            "title": "Harness",
+            "type": "string"
+          },
+          "login_command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Command"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "harness",
+          "provider",
+          "model",
+          "code",
+          "message",
+          "checked_at"
+        ],
+        "title": "Availability",
+        "type": "object"
+      },
       "BannerEvent": {
         "properties": {
           "cwd": {
@@ -52,6 +355,69 @@
           "type"
         ],
         "title": "BannerEvent",
+        "type": "object"
+      },
+      "Briefing": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "items": {
+              "$ref": "#/components/schemas/Context"
+            },
+            "maxItems": 8,
+            "title": "Context",
+            "type": "array"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "harness": {
+            "title": "Harness",
+            "type": "string"
+          },
+          "model": {
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "swarm": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swarm"
+          },
+          "tier": {
+            "default": "plan",
+            "enum": [
+              "observe",
+              "plan",
+              "apply",
+              "autonomous"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "cwd",
+          "harness",
+          "model"
+        ],
+        "title": "Briefing",
         "type": "object"
       },
       "BudgetUpdated": {
@@ -101,6 +467,271 @@
           "type"
         ],
         "title": "BudgetUpdated",
+        "type": "object"
+      },
+      "Bundle": {
+        "properties": {
+          "attempt_id": {
+            "title": "Attempt Id",
+            "type": "string"
+          },
+          "base_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Revision"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "candidate_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Revision"
+          },
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/Check"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "clean": {
+            "default": false,
+            "title": "Clean",
+            "type": "boolean"
+          },
+          "criteria_source": {
+            "default": "plan",
+            "title": "Criteria Source",
+            "type": "string"
+          },
+          "current_head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Head"
+          },
+          "evidence_revision": {
+            "default": "",
+            "title": "Evidence Revision",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "plan_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Revision"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Row"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "unavailable",
+            "enum": [
+              "available",
+              "partial",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "unresolved": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved",
+            "type": "array"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "worktree": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worktree"
+          }
+        },
+        "required": [
+          "session_id",
+          "task_id",
+          "attempt_id"
+        ],
+        "title": "Bundle",
+        "type": "object"
+      },
+      "Capabilities": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "engine_version": {
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine_version",
+          "capabilities"
+        ],
+        "title": "Capabilities",
+        "type": "object"
+      },
+      "Catalog": {
+        "properties": {
+          "harnesses": {
+            "items": {
+              "$ref": "#/components/schemas/Availability"
+            },
+            "title": "Harnesses",
+            "type": "array"
+          },
+          "selected_harness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Harness"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "harnesses"
+        ],
+        "title": "Catalog",
+        "type": "object"
+      },
+      "Check": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "not_run",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "Check",
         "type": "object"
       },
       "ClarifyEvent": {
@@ -267,6 +898,57 @@
         "title": "CognitionOverflow",
         "type": "object"
       },
+      "CommandAck": {
+        "properties": {
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Id"
+          },
+          "availability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Availability"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "CommandAck",
+        "type": "object"
+      },
       "CommandCatalog": {
         "properties": {
           "commands": {
@@ -410,6 +1092,29 @@
           "type"
         ],
         "title": "ConfidenceUpdated",
+        "type": "object"
+      },
+      "Context": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 16000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "Context",
         "type": "object"
       },
       "CreateSessionBody": {
@@ -809,6 +1514,34 @@
         "title": "EventEnvelope",
         "type": "object"
       },
+      "Evidence": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "reference",
+          "summary"
+        ],
+        "title": "Evidence",
+        "type": "object"
+      },
       "FinalEvent": {
         "properties": {
           "confidence": {
@@ -884,6 +1617,63 @@
           "type"
         ],
         "title": "GateUpdated",
+        "type": "object"
+      },
+      "Graph": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "owner_session_id": {
+            "title": "Owner Session Id",
+            "type": "string"
+          },
+          "plan_id": {
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Run Id"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "plan_id",
+          "revision",
+          "owner_session_id"
+        ],
+        "title": "Graph",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -979,6 +1769,17 @@
       },
       "MessageBody": {
         "properties": {
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
           "mode": {
             "default": "plan",
             "title": "Mode",
@@ -1126,6 +1927,107 @@
         "title": "ModelSelectionBody",
         "type": "object"
       },
+      "Node": {
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/Attempt"
+            },
+            "title": "Attempts",
+            "type": "array"
+          },
+          "blocked_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocked By",
+            "type": "array"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "harness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Harness"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "state": {
+            "default": "unknown",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "goal"
+        ],
+        "title": "Node",
+        "type": "object"
+      },
       "ObserveEnrollmentPatch": {
         "properties": {
           "analysis": {
@@ -1270,6 +2172,54 @@
         "title": "ObserveSettingsBody",
         "type": "object"
       },
+      "Output": {
+        "properties": {
+          "events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "next_cursor": {
+            "default": 0,
+            "title": "Next Cursor",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Output",
+        "type": "object"
+      },
       "PermissionReply": {
         "properties": {
           "choice": {
@@ -1407,6 +2357,131 @@
         "title": "PlanStep",
         "type": "object"
       },
+      "PreflightBody": {
+        "properties": {
+          "account_alias": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Alias"
+          },
+          "harness": {
+            "maxLength": 64,
+            "title": "Harness",
+            "type": "string"
+          },
+          "model": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "harness"
+        ],
+        "title": "PreflightBody",
+        "type": "object"
+      },
+      "Preview": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_context": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepted Context",
+            "type": "array"
+          },
+          "base_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Branch"
+          },
+          "base_revision": {
+            "title": "Base Revision",
+            "type": "string"
+          },
+          "briefing": {
+            "$ref": "#/components/schemas/Briefing"
+          },
+          "execution": {
+            "const": "native_sequential",
+            "default": "native_sequential",
+            "title": "Execution",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_revision": {
+            "title": "Input Revision",
+            "type": "string"
+          },
+          "policy": {
+            "default": "Native file tools only. Writes limited to approved files and scope. Shell, network tools and Git commands are disabled. Task goals are fixed; tool steps are chosen during execution.",
+            "title": "Policy",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/voss__harness__server__preview__Node"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "workspace_revision": {
+            "title": "Workspace Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "briefing",
+          "input_revision",
+          "base_revision",
+          "workspace_revision",
+          "tasks",
+          "accepted_context"
+        ],
+        "title": "Preview",
+        "type": "object"
+      },
       "PrinciplesOverflow": {
         "properties": {
           "budget": {
@@ -1474,6 +2549,89 @@
         "title": "ProbableEvent",
         "type": "object"
       },
+      "Result": {
+        "properties": {
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Id"
+          },
+          "availability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Availability"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Preview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Result",
+        "type": "object"
+      },
       "RoleSpec": {
         "properties": {
           "agent": {
@@ -1513,6 +2671,104 @@
           "name"
         ],
         "title": "RoleSpec",
+        "type": "object"
+      },
+      "Row": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reviewer_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Mode"
+          },
+          "reviewer_outcome": {
+            "default": "unavailable",
+            "enum": [
+              "supported",
+              "contradicted",
+              "insufficient_evidence",
+              "abstained",
+              "no_answer",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Reviewer Outcome",
+            "type": "string"
+          },
+          "test_outcome": {
+            "default": "unavailable",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "not_run",
+              "unavailable",
+              "stale"
+            ],
+            "title": "Test Outcome",
+            "type": "string"
+          },
+          "test_scope": {
+            "default": "task",
+            "title": "Test Scope",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "unresolved": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "Row",
+        "type": "object"
+      },
+      "Scope": {
+        "additionalProperties": false,
+        "properties": {
+          "allow": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allow",
+            "type": "array"
+          },
+          "deny": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Deny",
+            "type": "array"
+          }
+        },
+        "title": "Scope",
         "type": "object"
       },
       "ServerConnected": {
@@ -1579,6 +2835,74 @@
           "type"
         ],
         "title": "SessionIdle",
+        "type": "object"
+      },
+      "Source": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "default": "objective",
+            "enum": [
+              "objective",
+              "prd",
+              "issue"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "text": {
+            "maxLength": 64000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "Source",
+        "type": "object"
+      },
+      "Start": {
+        "additionalProperties": false,
+        "properties": {
+          "briefing": {
+            "$ref": "#/components/schemas/Briefing"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "briefing"
+        ],
+        "title": "Start",
         "type": "object"
       },
       "StatusEvent": {
@@ -2167,6 +3491,178 @@
         "title": "SwarmWorkerDone",
         "type": "object"
       },
+      "TaskEvent": {
+        "properties": {
+          "cursor": {
+            "title": "Cursor",
+            "type": "integer"
+          },
+          "event": {
+            "additionalProperties": true,
+            "title": "Event",
+            "type": "object"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/TaskSnapshot"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cursor",
+          "snapshot",
+          "event"
+        ],
+        "title": "TaskEvent",
+        "type": "object"
+      },
+      "TaskSnapshot": {
+        "properties": {
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Attempt Id"
+          },
+          "execution_plan": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Execution Plan"
+          },
+          "graph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Graph"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "node_states": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Node States",
+            "type": "object"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          },
+          "pending_actions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Pending Actions",
+            "type": "array"
+          },
+          "phase": {
+            "default": "idle",
+            "enum": [
+              "idle",
+              "active",
+              "waiting",
+              "candidate_ready",
+              "completed",
+              "failed",
+              "cancelled",
+              "interrupted"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Run Id"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "swarm_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Swarm Id"
+          },
+          "swarm_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Swarm Task Id"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "v": {
+            "const": 1,
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "watermark": {
+            "default": 0,
+            "title": "Watermark",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id",
+          "session_id"
+        ],
+        "title": "TaskSnapshot",
+        "type": "object"
+      },
       "ThinkingEvent": {
         "properties": {
           "label": {
@@ -2357,6 +3853,153 @@
         ],
         "title": "WarningEvent",
         "type": "object"
+      },
+      "voss__harness__server__preview__Node": {
+        "additionalProperties": false,
+        "properties": {
+          "criteria": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Criteria",
+            "type": "array"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Depends On",
+            "type": "array"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Files",
+            "type": "array"
+          },
+          "goal": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "goal",
+          "criteria"
+        ],
+        "title": "Node",
+        "type": "object"
+      },
+      "voss__harness__server__task_graph__Node": {
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/Attempt"
+            },
+            "title": "Attempts",
+            "type": "array"
+          },
+          "blocked_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocked By",
+            "type": "array"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "harness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Harness"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "state": {
+            "default": "unknown",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "goal"
+        ],
+        "title": "Node",
+        "type": "object"
       }
     }
   },
@@ -2366,6 +4009,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/capabilities": {
+      "get": {
+        "operationId": "get_capabilities_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Capabilities"
+      }
+    },
     "/commands": {
       "get": {
         "operationId": "list_commands_commands_get",
@@ -2434,6 +4095,62 @@
           }
         },
         "summary": "Doctor"
+      }
+    },
+    "/harness/preflight": {
+      "post": {
+        "operationId": "harness_preflight_harness_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreflightBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Availability"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Harness Preflight"
+      }
+    },
+    "/harnesses": {
+      "get": {
+        "operationId": "harnesses_harnesses_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Harnesses"
       }
     },
     "/memory": {
@@ -2772,6 +4489,132 @@
         "summary": "Observe Stream"
       }
     },
+    "/plans/preview": {
+      "post": {
+        "operationId": "prepare_plan_plans_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Briefing"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prepare Plan"
+      }
+    },
+    "/plans/{plan_id}": {
+      "get": {
+        "operationId": "get_plan_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Plan"
+      }
+    },
+    "/plans/{plan_id}/start": {
+      "post": {
+        "operationId": "start_plan_plans__plan_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Start"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Plan"
+      }
+    },
     "/session": {
       "get": {
         "operationId": "list_sessions_session_get",
@@ -2920,9 +4763,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Abort Session  Session Id  Abort Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CommandAck"
                 }
               }
             },
@@ -3157,6 +4998,73 @@
         "summary": "Events"
       }
     },
+    "/session/{session_id}/graph-output": {
+      "get": {
+        "operationId": "graph_output_session__session_id__graph_output_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attempt_id",
+            "required": true,
+            "schema": {
+              "title": "Attempt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Graph Output"
+      }
+    },
     "/session/{session_id}/history": {
       "get": {
         "operationId": "session_history_session__session_id__history_get",
@@ -3225,9 +5133,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Message Session  Session Id  Message Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CommandAck"
                 }
               }
             },
@@ -3347,6 +5253,154 @@
           }
         },
         "summary": "Reply Permission"
+      }
+    },
+    "/session/{session_id}/review": {
+      "get": {
+        "operationId": "review_bundle_session__session_id__review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attempt_id",
+            "required": true,
+            "schema": {
+              "title": "Attempt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bundle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Bundle"
+      }
+    },
+    "/session/{session_id}/task": {
+      "get": {
+        "operationId": "task_snapshot_session__session_id__task_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Task Snapshot"
+      }
+    },
+    "/session/{session_id}/task-events": {
+      "get": {
+        "operationId": "task_events_session__session_id__task_events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskEvent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Task Events"
       }
     },
     "/sessions/saved": {

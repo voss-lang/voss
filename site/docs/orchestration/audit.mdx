@@ -18,6 +18,8 @@ The trail is built from three durable artifacts, all under `.voss/sessions/<root
 ## Reading a run
 
 ```bash
+voss audit                    # full report for the latest run
+voss audit <root_id> --format markdown --output audit.md
 voss board <root_id>          # cards and their final columns
 voss review <root_id>         # Reviewer-A + Reviewer-B per card
 voss session tree <root_id>   # per-node budget, scope, status
@@ -33,8 +35,10 @@ Together these answer:
 
 ## Determinism
 
-The board and session-tree views are rendered from persisted node files, not from the live agents — so a run reconstructs identically after the fact, and the same `--json` export drives an ADE audit view rendered as a navigable session tree.
+The audit, board, and session-tree views are rendered from persisted node files, not from the live agents, so a run reconstructs identically after the fact. The same `--json` export is what an external client such as Voss ADE reads to render the run as a navigable session tree.
 
-<Note>
-A single unified `voss audit <run_id>` report and the navigable ADE audit panel are planned. Today the same evidence is available through `voss board`, `voss review`, and `voss session tree`.
-</Note>
+## The audit report
+
+`voss audit` assembles one read-only report from persisted data, in text, JSON, or Markdown. Its sections are fixed: Goal, Active Team, Principles, Scope and Budget, Board Timeline, Work Cards, Agent Actions, Diff Summary, Tests and Evals, Reviewer-A Verification, Reviewer-B Verdict, Blocked/Killed/Rescoped Items, Evidence References, Residual Risks, and Final Human Decision. When judgments were recorded, a Judgments section adds Jev receipts and advisory requirement assessments.
+
+`voss audit --approve` records sign-off, and is refused while killed cards or low-confidence routings are unacknowledged.

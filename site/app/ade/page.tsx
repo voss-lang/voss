@@ -31,86 +31,86 @@ import { site } from "@/lib/site";
 export const metadata = pageMetadata({
   title: `Agentic Development Environment - ${site.name}`,
   description:
-    "Voss is a local Agentic Development Environment for running, inspecting, approving, and reviewing agent work.",
+    "Voss ADE is a separate macOS desktop app built on Voss: agent terminals, notes, and managed Voss tasks on one canvas, connected to the engine through voss serve.",
   path: "/ade",
 });
 
 const WHY_ADE: { title: string; body: string; icon: LucideIcon }[] = [
   {
     title: "Stateful workspaces",
-    body: "Keep sessions, project memory, phase context, and validation artifacts tied to the repo where the work happens.",
+    body: "Keep agent terminals, notes, sessions, and task history tied to the repo. Shells run in tmux, so they survive an app quit.",
     icon: Boxes,
   },
   {
     title: "Inspectable execution",
-    body: "Review tool calls, traces, diffs, confidence gates, budget records, and generated artifacts before they become opaque history.",
+    body: "Review task graphs, worker attempts, diffs, output, and acceptance evidence before they become opaque history.",
     icon: BrainCircuit,
   },
   {
     title: "Governed capabilities",
-    body: "Expose tools through explicit modes, MCP surfaces, permission gates, and mutation boundaries instead of all-or-nothing automation.",
+    body: "Managed tasks run on subscription OAuth only, with an isolated login per CLI process, explicit modes, and permission gates.",
     icon: ShieldCheck,
   },
 ];
 
 const STACK: { name: string; desc: string; icon: LucideIcon }[] = [
   { name: "CLI", desc: "Scriptable one-shot and repo commands.", icon: TerminalSquare },
-  { name: "TUI", desc: "Interactive turns, modals, and traces.", icon: SquareTerminal },
-  { name: "Desktop Preview", desc: "Live local workspace for supervised runs.", icon: Monitor },
-  { name: "MCP Server", desc: "Expose Voss tools to agent clients.", icon: Network },
-  { name: "Code Intelligence", desc: "Repo-aware context and navigation.", icon: Code2 },
+  { name: "TUI", desc: "Full-screen Go client for turns, approvals, and inspection.", icon: SquareTerminal },
+  { name: "Voss ADE", desc: "macOS canvas for agent terminals and managed tasks.", icon: Monitor },
+  { name: "MCP Server", desc: "Expose Voss tools to agent clients over stdio.", icon: Network },
+  { name: "Code Intelligence", desc: "Code index, symbols, references, and recall.", icon: Code2 },
   { name: "Voss Tools", desc: "Diff, inspect, lint, and budget helpers.", icon: Wrench },
-  { name: "Planning + Validation", desc: "Phase plans, checks, and summaries.", icon: Layers3 },
+  { name: "voss serve + SDKs", desc: "Local REST + SSE API with Go, Rust, and TypeScript clients.", icon: Layers3 },
 ];
 
 const LIVE_PREVIEW: { title: string; body: string; icon: LucideIcon }[] = [
   {
-    title: "Structured run view",
-    body: "Native Voss runs can show task progress, tool activity, model output, and final results as readable rows instead of terminal noise.",
+    title: "Preview before Start",
+    body: "An objective, PRD, or issue becomes a task graph with dependencies, file lists, and acceptance criteria. Start runs only the exact revision you accepted.",
     icon: ScrollText,
   },
   {
     title: "Inline approvals",
-    body: "Permission decisions can appear where the work is happening, with the same pending item also visible in the attention queue.",
+    body: "Permission and diff requests appear beside the work, and the engine confirms each reply as applied or stale.",
     icon: ShieldCheck,
   },
   {
-    title: "Reconnect to recent work",
-    body: "The cockpit can list recent local work and open a live pane back onto a run when the local workspace is available.",
+    title: "Durable task state",
+    body: "Task state and events are journaled on disk. ADE replays from its last cursor after a restart, and unfinished work shows as interrupted instead of relaunching.",
     icon: GitBranch,
   },
   {
     title: "Honest run states",
-    body: "Starting, ended, failed, and disconnected states are shown directly. The UI does not pretend a run is live when it is not.",
+    body: "Active, waiting, candidate ready, failed, and interrupted come from the engine. Candidate ready means waiting for review, not merged.",
     icon: Gauge,
   },
 ];
 
 const PANELS: { name: string; desc: string; icon: LucideIcon }[] = [
-  { name: "Team roster", desc: "Declared roles, scope, budget, and model tier.", icon: Users },
-  { name: "Board", desc: "Cards moving across columns with WIP limits.", icon: KanbanSquare },
-  { name: "Session tree", desc: "Per-agent budget, scope, and status, live.", icon: GitBranch },
-  { name: "Reviewer verdicts", desc: "Reviewer-A and Reviewer-B output, side by side.", icon: Scale },
-  { name: "Budget meter", desc: "Allocation and consumption per root, card, and agent.", icon: Gauge },
-  { name: "Audit view", desc: "The run as a navigable, replayable trail.", icon: ScrollText },
+  { name: "Worker attempts", desc: "Each attempt with its harness, model, branch, and output.", icon: Users },
+  { name: "Review queue", desc: "Approve candidates tied to an exact recorded attempt.", icon: KanbanSquare },
+  { name: "Task graph", desc: "Nodes, dependencies, and blockers, live.", icon: GitBranch },
+  { name: "Acceptance evidence", desc: "The diff, checks, and criteria behind each review.", icon: Scale },
+  { name: "OAuth availability", desc: "Which harnesses are signed in before you start.", icon: Gauge },
+  { name: "Task replay", desc: "The run rebuilt from the engine's journal.", icon: ScrollText },
 ];
 
 const WORKFLOW = [
   {
-    step: "Plan",
-    body: "Start with bounded intent, phase context, and read-only analysis before edits.",
+    step: "Preview",
+    body: "Turn a briefing into a task graph with scope, file lists, and acceptance criteria.",
   },
   {
-    step: "Run",
-    body: "Execute tool calls through declared modes and workspace-scoped capabilities.",
+    step: "Start",
+    body: "Accept the exact revision. The engine checks HEAD and the workspace before dispatch.",
   },
   {
     step: "Inspect",
-    body: "Open traces, budget records, probable decisions, and Voss diffs while the work is fresh.",
+    body: "Follow each node's attempts and output while the work is fresh.",
   },
   {
-    step: "Ship",
-    body: "Close the loop with validation checks, summaries, and PR-ready artifacts.",
+    step: "Review",
+    body: "Approve candidates against recorded acceptance evidence before anything merges.",
   },
 ];
 
@@ -137,9 +137,9 @@ export default function AdePage() {
               </Reveal>
               <Reveal delay={0.1}>
                 <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-                  Voss gives coding agents a local workspace: live runs, scoped tools, approvals,
-                  review surfaces, and replayable history built for software work instead of chat
-                  drift.
+                  Voss ADE is a separate desktop app built on Voss. It puts Claude Code and Codex
+                  terminals, notes, and managed Voss tasks on one canvas, and talks to the engine
+                  only through voss serve and the SDK.
                 </p>
               </Reveal>
               <Reveal delay={0.15}>
@@ -182,15 +182,15 @@ export default function AdePage() {
           <div className="mx-auto max-w-6xl px-6 py-20">
             <div className="mb-12 max-w-2xl">
               <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
-                Live workspace preview
+                Managed Voss tasks
               </p>
               <h2 className="display mt-3 text-4xl sm:text-5xl">
                 Local agent work you can <span className="em">watch and steer</span>.
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                The desktop path is moving from a terminal grid toward a live review cockpit: start
-                a native run, inspect the work as it happens, approve risky actions, and reconnect
-                to recent local sessions while verification continues.
+                ADE runs managed Voss tasks: preview the plan as a task graph, accept the exact
+                revision, watch each worker attempt, and approve from a review queue tied to
+                recorded acceptance evidence.
               </p>
             </div>
             <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -248,8 +248,8 @@ export default function AdePage() {
                 The Voss <span className="em">ADE stack</span>.
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                Voss spans the CLI, TUI, desktop shell, MCP bridge, and code intelligence surfaces
-                users operate locally.
+                ADE owns the desktop: canvas, terminals, panes, and layouts. Voss owns the engine
+                underneath: CLI, TUI, harness, protocol, and SDKs.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -283,8 +283,9 @@ export default function AdePage() {
                 Watch a team work, <span className="em">without the spam</span>.
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                The ADE centers the orchestration surfaces: roster, board, session tree, reviewer
-                verdicts, and the audit. Panels stay quiet by default and reveal detail on demand.
+                ADE renders what the engine records: the task graph, each worker attempt, and the
+                evidence behind every review. Panels stay quiet by default and reveal detail on
+                demand.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -315,7 +316,7 @@ export default function AdePage() {
                 Workflow
               </p>
               <h2 className="display mt-3 text-4xl sm:text-5xl">
-                Plan, run, inspect, <span className="em">ship</span>.
+                Preview, start, inspect, <span className="em">review</span>.
               </h2>
             </div>
             <div className="grid gap-4 md:grid-cols-4">
@@ -341,12 +342,11 @@ export default function AdePage() {
               <div className="mt-3 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
                 <div>
                   <h2 className="display text-4xl sm:text-5xl">
-                    Use the CLI today. <span className="em">Desktop preview is in verification.</span>
+                    Use the CLI today. <span className="em">ADE is in private preview.</span>
                   </h2>
                   <p className="mt-4 text-[var(--muted)]">
-                    The stable setup path is still the Voss CLI. The desktop workspace is active in
-                    local preview while the live run path, approval loop, and packaging experience
-                    are verified.
+                    Voss itself installs from npm. ADE is a separate macOS app for Apple Silicon,
+                    developed in its own repository and not yet distributed.
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -360,20 +360,20 @@ export default function AdePage() {
                     </code>
                   </article>
                   <article className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-5">
-                    <h3 className="text-xl font-medium">Desktop workspace</h3>
+                    <h3 className="text-xl font-medium">Voss ADE</h3>
                     <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                      Local preview for live work, approvals, inspection, and reconnecting to
-                      recent sessions.
+                      Separate macOS app for agent terminals, managed tasks, and review.
                     </p>
                     <Badge variant="secondary" className="mt-5 font-mono uppercase tracking-wider">
-                      In verification
+                      Private preview
                     </Badge>
                   </article>
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-6">
                 <p className="text-sm text-[var(--muted)]">
-                  Run Voss from source while desktop packaging and preview verification continue.
+                  ADE needs only a released Voss executable. Until it ships, everything runs from
+                  the Voss CLI.
                 </p>
                 <Button asChild variant="outline">
                   <Link href={site.docsUrl} target="_blank" rel="noreferrer">

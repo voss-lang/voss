@@ -129,7 +129,10 @@ async fn swarm_is_readable_and_runnable_by_id() {
             .expect("server should start");
         let client = supervisor.client.clone();
 
-        let roster = [RoleSpec::cli("builder1", "claude")];
+        let roster = [
+            RoleSpec::native("coordinator"),
+            RoleSpec::cli("builder1", "claude"),
+        ];
         let created = client
             .create_swarm("tidy the docs", ".", 1, &roster)
             .await
@@ -144,7 +147,7 @@ async fn swarm_is_readable_and_runnable_by_id() {
                 .iter()
                 .map(|r| r.name.as_str())
                 .collect::<Vec<_>>(),
-            ["builder1"]
+            ["coordinator", "builder1"]
         );
         assert!(swarm.tasks.is_empty(), "a fresh swarm has no plan yet");
 
@@ -245,12 +248,16 @@ async fn sse_event_sequence() {
             .await
             .expect("post message");
 
-        let events: Vec<AgentEvent> = event_stream(client, sid)
-            .collect::<Vec<Result<AgentEvent, VossError>>>()
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .expect("collect events");
+        let mut stream = Box::pin(event_stream(client, sid));
+        let mut events = Vec::new();
+        while let Some(event) = stream.next().await {
+            let event = event.expect("event");
+            let idle = matches!(event, AgentEvent::SessionIdle(_));
+            events.push(event);
+            if idle {
+                break;
+            }
+        }
 
         assert!(matches!(
             events.first(),

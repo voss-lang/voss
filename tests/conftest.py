@@ -59,7 +59,7 @@ _ABORT_PRONE_NATIVE = frozenset({
 })
 _EXIT_DIAG_NATIVE = _ABORT_PRONE_NATIVE | frozenset({
     "grpc", "chromadb", "hnswlib", "transformers", "posthog",
-    "opentelemetry", "watchdog", "textual", "litellm",
+    "opentelemetry", "watchdog", "litellm",
 })
 
 

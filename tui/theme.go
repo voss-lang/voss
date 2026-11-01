@@ -2,7 +2,7 @@ package main
 
 import "os"
 
-// palette mirrors voss/harness/tui/palette.py; theme_test.go fails on any drift.
+// palette is the client's color palette.
 var palette = struct {
 	Accent, Dim, Good, Warn, Error, Bg, Surface, Raised, Text, InputText, OutputText string
 }{
@@ -19,8 +19,7 @@ var palette = struct {
 	OutputText: "#e6e6e6",
 }
 
-// glyphSet mirrors voss/harness/tui/glyphs.py. Field names are the Python
-// constant names in CamelCase.
+// glyphSet is the client's glyph vocabulary.
 type glyphSet struct {
 	Prompt, UserInput, ToolCall, Warn, BarFill, BarEmpty, BudgetFill, BudgetEmpty,
 	NestLast, NestMid, Fork, Assistant, Working, SpinnerFrames, ToolOk, OutputElbow,

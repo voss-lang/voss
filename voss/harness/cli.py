@@ -322,29 +322,10 @@ def _sync_model_selection(
     *,
     model: str,
     provider: ModelProvider | None = None,
-    provider_label: str | None = None,
-    toast: str | None = None,
 ) -> None:
     if provider is not None:
         setattr(ctx, "provider", provider)
     setattr(ctx, "model", model)
-    app = getattr(getattr(ctx, "renderer", None), "app", None)
-    if app is None or app.__class__.__name__ != "VossTUIApp":
-        return
-    app.model = model
-    if provider_label is not None:
-        app.provider = provider_label
-    try:
-        from .tui.widgets.status_line import StatusLine
-
-        kwargs: dict[str, str] = {"model": model}
-        if provider_label is not None:
-            kwargs["provider"] = provider_label
-        if toast is not None:
-            kwargs["toast"] = toast
-        app.query_one("#status", StatusLine).set_status(**kwargs)
-    except Exception:  # noqa: BLE001 — status widget absent in tests
-        pass
 
 
 def _apply_role_chain(provider, role: str, *, user_explicit: str | None = None):
@@ -444,15 +425,12 @@ def _run_turn_cancellable(coro, *, renderer):
 
     Replaces `asyncio.run(coro)` everywhere. Steps:
       1. Create a new event loop and a Task wrapping the coro.
-      2. If `renderer.app` exists (TextualRenderer only — see
-         voss/harness/tui/renderer.py:47), register the Task on that app so
-         VossTUIApp.action_interrupt can cancel it.
-      3. Install a SIGINT handler so Ctrl-C in the headless path also
+      2. Install a SIGINT handler so Ctrl-C in the headless path also
          cancels the Task. On platforms where add_signal_handler raises
          NotImplementedError (Windows) or RuntimeError (non-main thread),
          fall back without raising.
-      4. Run the loop until the Task completes.
-      5. Return the result. Re-raise CancelledError as click.Abort so the
+      3. Run the loop until the Task completes.
+      4. Return the result. Re-raise CancelledError as click.Abort so the
          CLI exits with a non-zero status on user-initiated cancel.
     """
     import signal as _signal
@@ -460,10 +438,6 @@ def _run_turn_cancellable(coro, *, renderer):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     task = loop.create_task(coro)
-
-    app = getattr(renderer, "app", None)
-    if app is not None and hasattr(app, "register_turn_task"):
-        app.register_turn_task(task)
 
     handler_installed = False
     try:
@@ -584,16 +558,6 @@ def _handle_login_status(provider: str | None) -> None:
 
 
 _handle_login = _handle_login_status  # backward-compat alias for older callers
-
-
-def _run_textual_app(app) -> None:
-    """Run a Textual app via its synchronous entry point.
-
-    Textual owns signal handling and terminal teardown in `App.run()`. Wrapping
-    `run_async()` in `asyncio.run()` leaks internal focus/unmount trace lines
-    after Ctrl-C restores the terminal.
-    """
-    app.run()
 
 
 def _build_provider_for_auth(
@@ -1613,8 +1577,6 @@ def _build_slash_registry() -> SlashRegistry:
         cfg = get_config()
         auth_mode = sub.detect_auth_mode(getattr(ctx, "provider", None))
         models = sub.SUBSCRIPTION_MODELS.get(auth_mode or "", ())
-        app = getattr(getattr(ctx, "renderer", None), "app", None)
-        in_tui = app is not None and app.__class__.__name__ == "VossTUIApp"
 
         def _apply(m, target_auth=auth_mode) -> None:
             provider = ctx.provider
@@ -1638,45 +1600,10 @@ def _build_slash_registry() -> SlashRegistry:
             configure(default_model=m.id)
             harness_config.set_preferred_model(m.id)
             harness_config.set_preferred_auth(target_auth)
-            _sync_model_selection(
-                ctx,
-                model=m.id,
-                provider=provider,
-                provider_label=_provider_label_for_runtime(provider),
-                toast=f"model: {m.label} · {m.id} (persisted)",
-            )
+            _sync_model_selection(ctx, model=m.id, provider=provider)
             click.echo(f"  model: {m.id} (persisted)")
 
-        def _open_auth_picker() -> bool:
-            if not in_tui or not models:
-                return False
-            from .tui.widgets.auth_model_picker_modal import (
-                AuthModelPickerModal,
-            )
-
-            label = "Claude" if auth_mode == "claude" else "Codex"
-
-            def _on_pick(m) -> None:
-                if m is not None:
-                    _apply(m)
-
-            app.push_screen(
-                AuthModelPickerModal(
-                    models,
-                    cfg.default_model,
-                    subtitle=(
-                        f"Switch between {label} models. Your pick "
-                        "becomes the default for new sessions."
-                    ),
-                ),
-                _on_pick,
-            )
-            return True
-
         if not args:
-            if in_tui:
-                _models(ctx, [], "/models")
-                return
             claude = auth_mod.load_anthropic_oauth()
             codex = auth_mod.load_codex()
             claude_ok = bool(claude and not claude.expired)
@@ -1685,18 +1612,15 @@ def _build_slash_registry() -> SlashRegistry:
             click.echo(f"  Claude: {'available' if claude_ok else 'unavailable'}")
             click.echo(f"  Codex:  {'available' if codex_ok else 'unavailable'}")
             if models:
-                from .tui import glyphs
-
+                check = "*" if os.environ.get("VOSS_NO_UNICODE") == "1" else "✓"
                 click.echo(f"\n  {auth_mode} subscription models:")
                 for i, m in enumerate(models, 1):
-                    here = f" {glyphs.CHECK}" if m.id == cfg.default_model else ""
+                    here = f" {check}" if m.id == cfg.default_model else ""
                     click.echo(f"    {i}. {m.id}{here}  — {m.description}")
                 click.echo("\n  select: /model <id>")
             return
 
         if args[0].strip().lower() in ("auth", "subscription", "subscriptions"):
-            if _open_auth_picker():
-                return
             if not models:
                 click.echo("  no active subscription model picker for this auth mode", err=True)
                 return
@@ -1769,13 +1693,7 @@ def _build_slash_registry() -> SlashRegistry:
 
             model_prefs.record_recent(entry.provider_id, entry.id)
             label = _provider_label_for_runtime(provider, fallback=entry.provider_label)
-            _sync_model_selection(
-                ctx,
-                model=model_str,
-                provider=provider,
-                provider_label=label,
-                toast=f"model: {entry.name} · {label} (persisted)",
-            )
+            _sync_model_selection(ctx, model=model_str, provider=provider)
             click.echo(f"  model: {entry.name} · {label} (persisted)")
 
         def _print(entries) -> None:
@@ -1788,46 +1706,6 @@ def _build_slash_registry() -> SlashRegistry:
                 tag = " · Free" if m.free else ""
                 here = "  ←" if (m.id == current or f"openai/{m.id}" == current) else ""
                 click.echo(f"    {m.id}{tag}{here}")
-
-        # Bare `/models` in the TUI opens the searchable modal picker, with
-        # Favorites + Recent sections pinned on top (models.dev catalog below).
-        app = getattr(getattr(ctx, "renderer", None), "app", None)
-        if not args and app is not None and app.__class__.__name__ == "VossTUIApp":
-            from . import model_prefs
-            from .model_catalog import ProviderGroup
-            from .tui.widgets.model_picker_modal import ModelPickerModal
-
-            def _resolve(pairs):
-                out = []
-                for pid, mid in pairs:
-                    e = model_router.find_entry(groups, pid, mid)
-                    if e is not None:
-                        out.append(e)
-                return out
-
-            synth, syn_ids, conn2 = [], set(), dict(connected)
-            fav = _resolve(model_prefs.favorites())
-            if fav:
-                synth.append(ProviderGroup("favorites", "Favorites", None, None, tuple(fav)))
-                syn_ids.add("favorites")
-                conn2["favorites"] = True
-            rec = _resolve(model_prefs.recent())
-            if rec:
-                synth.append(ProviderGroup("recent", "Recent", None, None, tuple(rec)))
-                syn_ids.add("recent")
-                conn2["recent"] = True
-
-            def _on_pick(entry) -> None:
-                if entry is not None:
-                    _apply(entry)
-
-            app.push_screen(
-                ModelPickerModal(
-                    synth + groups, conn2, current, synthetic_ids=frozenset(syn_ids)
-                ),
-                _on_pick,
-            )
-            return
 
         # `/models set <id> [provider]` — non-interactive, works in CLI + TUI.
         if args and args[0] == "set":
@@ -1906,13 +1784,7 @@ def _build_slash_registry() -> SlashRegistry:
         harness_config.set_preferred_auth(pref)
         model = get_config().default_model
         provider_label = _provider_label_for_auth(res, provider)
-        _sync_model_selection(
-            ctx,
-            model=model,
-            provider=provider,
-            provider_label=provider_label,
-            toast=f"auth: {pref} · {provider_label}",
-        )
+        _sync_model_selection(ctx, model=model, provider=provider)
         ctx.record.model = model
         click.echo(f"  default auth: {pref} (persisted)")
         click.echo(f"  active auth: {res.source} · {provider_label} / {model}")
@@ -2137,19 +2009,6 @@ def _provider_label(auth_detail: str) -> str:
     return ""
 
 
-def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
-    """If `renderer` is a TextualRenderer, install modal-driven permission prompts.
-
-    Deferred imports keep cli.py decoupled from the Textual import graph on
-    the plain / non-TTY paths.
-    """
-    from .tui.permissions_bridge import install_tui_permissions
-    from .tui.renderer import TextualRenderer
-
-    if isinstance(renderer, TextualRenderer):
-        install_tui_permissions(gate, renderer.app)
-
-
 @click.command("do")
 @click.argument("task", nargs=-1, required=False)
 @click.option("--model", default=None, help="Override default model.")
@@ -2251,7 +2110,6 @@ def do_cmd(
         project_policy=do_bundle.permissions if do_bundle.initialized else None,
         safety_policy=do_bundle.safety if do_bundle.initialized else None,
     )
-    _wire_tui_permissions_if_textual(gate, renderer)
     attach_subagent_tool(
         tools,
         registry=default_subagent_registry(),
@@ -2526,7 +2384,6 @@ def _run_repl(
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    from .tui.renderer import TextualRenderer
 
     tools = make_toolset(
         cwd,
@@ -2555,10 +2412,7 @@ def _run_repl(
         for err in bundle.load_errors:
             click.echo(f"cognition error: {err}", err=True)
     voss_md_text = voss_md.read_and_inject(cwd)
-    project_index_text = (
-        "" if isinstance(renderer, TextualRenderer)
-        else _render_project_index_text(cwd, session_id=record.id)
-    )
+    project_index_text = _render_project_index_text(cwd, session_id=record.id)
 
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
@@ -2567,7 +2421,6 @@ def _run_repl(
         project_policy=bundle.permissions if bundle.initialized else None,
         safety_policy=bundle.safety if bundle.initialized else None,
     )
-    _wire_tui_permissions_if_textual(gate, renderer)
     ctx = ReplContext(
         cwd=cwd,
         renderer=renderer,
@@ -2636,7 +2489,7 @@ def _run_repl(
     git_status = _git_status(cwd)
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=git_status)
 
-    if auth_detail and not isinstance(renderer, TextualRenderer):
+    if auth_detail:
         click.echo(f"  [auth: {auth_detail}]")
     if record.turns:
         click.echo(f"resumed: {record.name} ({len(record.turns)} prior turns)")
@@ -2655,137 +2508,6 @@ def _run_repl(
                 )
 
     try:
-        if isinstance(renderer, TextualRenderer):
-            renderer.app.history = ctx.history
-            renderer.app.cwd = cwd
-            renderer.app.record = record
-            renderer.app.slash_registry = slash_registry
-            renderer.app.model = cfg.default_model
-            renderer.app.git_status = git_status
-            renderer.app.provider = _provider_label_for_runtime(
-                provider,
-                fallback=_provider_label(auth_detail),
-            )
-            renderer.app.mode = mode
-            renderer.set_phase("ambient")
-            renderer.app.total_cost = ctx.total_cost
-
-            async def _dispatch_tui_turn(line: str):
-                line = _expand_local_skill(line, skill_registry)
-                if line.startswith("/"):
-                    import io
-                    old_stdout, old_stderr = sys.stdout, sys.stderr
-                    cap_out, cap_err = io.StringIO(), io.StringIO()
-                    handled = False
-                    try:
-                        sys.stdout, sys.stderr = cap_out, cap_err
-                        handled = slash_registry.dispatch(ctx, line)
-                    except ValueError as exc:
-                        renderer.show_warning(str(exc))
-                        return None
-                    finally:
-                        sys.stdout, sys.stderr = old_stdout, old_stderr
-                    out = cap_out.getvalue().rstrip()
-                    err = cap_err.getvalue().rstrip()
-                    if out:
-                        try:
-                            tv = renderer.app.query_one("#main")
-                            renderer._post(tv.append_turn, "system", out)
-                        except Exception:  # noqa: BLE001
-                            pass
-                    if err:
-                        renderer.show_warning(err)
-                    if handled:
-                        if ctx.should_exit:
-                            renderer.app.exit()
-                        return None
-                    renderer.show_warning(f"unknown command: {line}. /help for list.")
-                    return None
-                renderer.show_user(line)
-                route = _ambient_route(line)
-                if route == "local":
-                    answer = _ambient_status_answer(ctx, auth_detail=auth_detail)
-                    ctx.history.add(line, role="user")
-                    ctx.history.add(answer, role="assistant")
-                    renderer.show_final(answer, confidence=1.0, cost_usd=0.0)
-                    return None
-                try:
-                    if not ctx.project_index_text:
-                        ctx.project_index_text = _render_project_index_text(
-                            cwd, session_id=record.id
-                        )
-                    if route == "ambient":
-                        response = await _run_ambient_provider_turn(line, ctx)
-                        ctx.total_cost += response.cost_usd
-                        renderer.show_final(
-                            response.text,
-                            confidence=1.0,
-                            cost_usd=response.cost_usd,
-                        )
-                        return None
-                    renderer.set_phase("run")
-                    try:
-                        renderer.show_thinking("starting Voss run")
-                        run_turn = _resolve_run_turn(cwd)
-                        pinned = await asyncio.to_thread(
-                            _pinned_memory_kwargs, run_turn, cwd,
-                            model=get_config().default_model, store=ctx.memory_store,
-                        )
-                        result = await _scoped_turn(
-                            cwd, line, record.id, run_turn,
-                            lambda recall: _run_turn_with_teardown(
-                                run_turn(
-                                    line,
-                                    tools=tools,
-                                    cwd=cwd,
-                                    renderer=renderer,
-                                    model=get_config().default_model,
-                                    history=ctx.history,
-                                    permissions=gate,
-                                    provider=ctx.provider,
-                                    session_id=record.id,
-                                    cognition=bundle,
-                                    prior_context=ctx.prior_context,
-                                    voss_md_text=ctx.voss_md_text,
-                                    project_index_text=ctx.project_index_text,
-                                    **recall,
-                                    **pinned,
-                                ),
-                                _multiagent_teardown,
-                                tools=tools, cwd=cwd,
-                            ),
-                            sidecar_root=_chat_root.id,
-                        )
-                        ctx.prior_context = None
-                    finally:
-                        renderer.set_phase("ambient")
-                except Exception as e:  # noqa: BLE001
-                    renderer.show_warning(f"error: {e}")
-                    return None
-                ctx.last_plan = result.plan
-                if result.run is not None:
-                    record.runs.append(asdict(result.run))
-                ctx.total_cost += result.cost_usd
-                renderer.show_final(
-                    result.final,
-                    confidence=result.confidence,
-                    cost_usd=result.cost_usd,
-                )
-                return result
-
-            renderer.app._turn_dispatch = _dispatch_tui_turn
-            _run_textual_app(renderer.app)
-            try:
-                conventions.run_on_clean_exit(
-                    ctx,
-                    history=ctx.history,
-                    record=record,
-                    memory_store=ctx.memory_store,
-                )
-            except Exception as exc:  # noqa: BLE001
-                click.echo(f"conventions extraction skipped: {exc}", err=True)
-            return
-
         while True:
             try:
                 line = input(_repl_prompt())

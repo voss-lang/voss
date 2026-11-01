@@ -226,10 +226,10 @@ def test_do_routes_through_scoped_turn_without_sidecar():
     assert "_code_recall_kwargs" not in ast.unparse(tree)
 
 
-def test_chat_tui_and_plain_route_through_scoped_turn_with_chat_root_sidecar():
+def test_chat_routes_through_scoped_turn_with_chat_root_sidecar():
     tree, calls, cancellable, awaited = _scoped_calls(cli._run_repl)
-    assert len(calls) == 2 and len(cancellable) == 1 and len(awaited) == 1
-    assert [_sidecar_root(c) for c in calls] == ["_chat_root.id", "_chat_root.id"]
+    assert len(calls) == 1 and len(cancellable) == 1 and len(awaited) == 0
+    assert [_sidecar_root(c) for c in calls] == ["_chat_root.id"]
     for call in calls:
         make_turn = call.args[4]
         assert isinstance(make_turn, ast.Lambda)
@@ -273,7 +273,6 @@ def test_do_off_sends_byte_identical_code_recall_text(jev, tmp_path, monkeypatch
         patch("_get_net_session", return_value=None)
         patch("_render_project_index_text", return_value="")
         patch("PermissionGate", return_value=object())
-        patch("_wire_tui_permissions_if_textual")
         patch("attach_subagent_tool")
         patch("default_subagent_registry", return_value=object())
         patch("_git_status", return_value="clean")

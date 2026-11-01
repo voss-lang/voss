@@ -23,6 +23,12 @@ voss resume <session-id>
 
 Resume restores prior conversation context and model/session metadata. Use `voss sessions` first when you need the id.
 
+In the Go terminal client, `/resume` opens a picker that shows and searches each session's first prompt, and `/resume <id-or-name>` or `voss ui resume <id-or-name>` resumes directly. Saved messages reappear in the transcript. Use `/save-session [name]` to name a conversation so it is easy to find later.
+
+## Task journal for server clients
+
+When a client drives Voss through `voss serve`, task state and events are also written to a SQLite journal at `.voss/task-journal.sqlite3`. Clients can replay every event after a cursor, so a dropped connection or a client restart does not lose history. If the server stops mid-task, the work is marked interrupted on the next start; it is never relaunched automatically.
+
 ## What sessions are for
 
 - Continuing multi-step repo work

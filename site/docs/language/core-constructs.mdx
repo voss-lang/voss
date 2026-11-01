@@ -7,17 +7,24 @@ The language exists because AI workflows repeat the same control patterns.
 
 ## Confidence
 
-`probable<T>` represents a value with confidence metadata.
+`probable<T>` represents a value with confidence metadata, and every probable value records where its number came from: a Jev judgment, the model's own self-report, a value you supplied, or unknown. An unknown confidence never passes a gate.
+
+A plain `ask()` reply is unmeasured, so its confidence is unknown. For a real probability, ask Jev with `judge(...)` and convert a choice answer with `to_probable()`:
 
 ```voss
-let intent: probable<string> = classify(message)
+use voss_runtime::judge
 
-if intent @ 0.80 {
-  return intent.value
+let res = judge(text, {"route": {"type": "choice", "instructions": "Which support queue should handle this request?", "criteria": {"billing": "Payment, refund, or invoice issue.", "other": "Anything else."}}})
+let p: probable<string> = res.answers["route"].to_probable()
+
+if p @ p >= 0.80 {
+  return p.value
 }
 
 return "unknown"
 ```
+
+The compiler warns (ANLY004) when a gate checks an `ask()` value, because that gate can never pass.
 
 ## Context budgets
 

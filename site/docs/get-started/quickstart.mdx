@@ -12,7 +12,10 @@ This quickstart shows the v0.1 harness loop: inspect, plan, edit, validate, and 
     ```bash
     cd path/to/your/repo
     voss doctor
+    voss login
     ```
+
+    `voss login` is only needed when no Claude, Codex, or API key credentials are found.
   </Step>
 
   <Step title="Ask for a read-only summary">
@@ -49,8 +52,14 @@ This quickstart shows the v0.1 harness loop: inspect, plan, edit, validate, and 
     voss sessions
     voss resume <session-id>
     ```
+
+    In the Go terminal client, `/resume` opens a picker over saved sessions.
   </Step>
 </Steps>
+
+<Tip>
+Run bare `voss` for the full-screen Go terminal client. It uses the same harness loop, sessions, and permission prompts as `voss do` and `voss chat`.
+</Tip>
 
 <Check>
 You have completed the core harness loop when Voss can inspect the repo, make a scoped change, run validation, and resume the session.
