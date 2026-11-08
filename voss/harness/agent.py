@@ -549,17 +549,24 @@ def _format_tools(tools: dict[str, ToolEntry]) -> str:
     return text
 
 
+_DESCRIBE_PAGE_CHARS = 360
+
+
 def _with_tool_describe(tools: dict[str, ToolEntry]) -> dict[str, ToolEntry]:
     if "tool_describe" in tools or not any(getattr(td, "group", None) == "mcp" for td in tools.values()):
         return tools
     from voss_runtime import tool
 
-    @tool(name="tool_describe", description="Show an MCP tool's description and parameters.")
-    async def tool_describe(name: str) -> str:
+    @tool(name="tool_describe", description="Show an MCP tool's description and parameters, one page at a time. Pass page=N for later pages.")
+    async def tool_describe(name: str, page: int = 1) -> str:
         td = tools.get(name)
         if td is None:
             return f"<error: unknown tool {name}>"
-        return f"{name}({_signature(td)}) — {td.description}\n{json.dumps(td.parameters)}"
+        text = f"{name}({_signature(td)}) — {td.description}\n{json.dumps(td.parameters)}"
+        pages = [text[i:i + _DESCRIBE_PAGE_CHARS] for i in range(0, len(text), _DESCRIBE_PAGE_CHARS)]
+        if not 1 <= page <= len(pages):
+            return f"<error: page must be between 1 and {len(pages)}>"
+        return f"[page {page}/{len(pages)}] {pages[page - 1]}"
 
     return {**tools, "tool_describe": ToolEntry(descriptor=tool_describe, is_mutating=False, group="fs", scope_requirements=("fs",))}
 
@@ -1103,7 +1110,7 @@ async def _run_turn_exec(
                             exit_reason="done",
                         )
                         _emit_budget_osc(
-                            tokens_used=total_prompt_tokens + total_completion_tokens + iter_prompt_tokens + iter_completion_tokens,
+                            tokens_used=total_prompt_tokens + total_completion_tokens + total_cache_write_tokens + iter_prompt_tokens + iter_completion_tokens + iter_cache_creation,
                             token_limit=token_budget,
                             cost_usd=total_cost_usd + iter_cost,
                             iteration=iteration_index + 1,
@@ -1150,7 +1157,7 @@ async def _run_turn_exec(
                         exit_reason="done",
                     )
                     _emit_budget_osc(
-                        tokens_used=total_prompt_tokens + total_completion_tokens + iter_prompt_tokens + iter_completion_tokens,
+                        tokens_used=total_prompt_tokens + total_completion_tokens + total_cache_write_tokens + iter_prompt_tokens + iter_completion_tokens + iter_cache_creation,
                         token_limit=token_budget,
                         cost_usd=total_cost_usd + iter_cost,
                         iteration=iteration_index + 1,
@@ -1202,7 +1209,7 @@ async def _run_turn_exec(
                     exit_reason=None,
                 )
                 _emit_budget_osc(
-                    tokens_used=total_prompt_tokens + total_completion_tokens + iter_prompt_tokens + iter_completion_tokens,
+                    tokens_used=total_prompt_tokens + total_completion_tokens + total_cache_write_tokens + iter_prompt_tokens + iter_completion_tokens + iter_cache_creation,
                     token_limit=token_budget,
                     cost_usd=total_cost_usd + iter_cost,
                     iteration=iteration_index + 1,
@@ -1311,7 +1318,7 @@ async def _run_turn_exec(
         if history is not None:
             history.add(final, role="assistant")
 
-        total_tokens = total_prompt_tokens + total_completion_tokens
+        total_tokens = total_prompt_tokens + total_completion_tokens + total_cache_write_tokens
         ctx_pct = total_tokens / token_budget if token_budget else 0.0
         renderer.status(
             model=model,

@@ -42,7 +42,7 @@ async def _fake_run_turn(text, *, renderer, **kw):
 
 def _builders_edit_files(monkeypatch):
     async def _editing_turn(session, text, mode):
-        session.record.runs.append({"changed": [f"{text.lower()}.py"]})
+        (Path(session.cwd) / f"{text.lower()}.py").write_text(text)
         session.turn_outcome = "done"
 
     monkeypatch.setattr(appmod, "_run_turn", _editing_turn)

@@ -51,9 +51,10 @@ def _server_key(server: Any) -> str:
 
 def _read_tool_cache() -> dict[str, Any]:
     try:
-        return json.loads(_tool_cache_path().read_text())
+        cache = json.loads(_tool_cache_path().read_text())
     except (OSError, ValueError):
         return {}
+    return cache if isinstance(cache, dict) else {}
 
 
 class McpClient:
@@ -113,7 +114,9 @@ class McpClient:
         return proc
 
     def load_cached_tools(self, server_name: str) -> bool:
-        entry = _read_tool_cache().get(server_name) or {}
+        entry = _read_tool_cache().get(server_name)
+        if not isinstance(entry, dict) or not isinstance(entry.get("tools"), list):
+            return False
         if entry.get("key") != _server_key(self._server_config(server_name)):
             return False
         self._tools_cache[server_name] = entry["tools"]

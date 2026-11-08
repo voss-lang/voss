@@ -7,7 +7,6 @@ import json
 import os
 import signal as _signal
 import subprocess
-import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -954,7 +953,7 @@ def make_toolset(
     local_skills = discover(cwd)
     if local_skills:
         catalog = "\n".join(
-            f"- {s.name}: {textwrap.shorten(s.description, 100, placeholder='...')}"
+            f"- {s.name}: {_short_description(s.description)}"
             + (" (only when explicitly requested)" if s.manual else "")
             for s in local_skills.values()
         )
@@ -1078,14 +1077,26 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
     return f"[exit {proc.returncode}]\n{text}"
 
 
+def _short_description(text: str, limit: int = 100) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
 _MCP_DISCOVERY_WAIT_S = 2.0
-_MCP_DISCOVERING: set[str] = set()
+_MCP_DISCOVERING: set[tuple[str, str, str]] = set()
 _MCP_DISCOVERY_TASKS: set[asyncio.Task] = set()
+
+
+def _discovery_key(config: Any, cwd: Path, name: str) -> tuple[str, str, str]:
+    from .mcp.client import _server_key
+
+    return (str(cwd.resolve()), name, _server_key(config.servers[name]))
 
 
 async def _discover_mcp_tools(client: Any, cwd: Path, names: list[str]) -> None:
     client.set_cwd(cwd)
-    _MCP_DISCOVERING.update(names)
+    keys = {_discovery_key(client._config, cwd, name) for name in names}
+    _MCP_DISCOVERING.update(keys)
 
     async def launch(name: str) -> None:
         try:
@@ -1096,7 +1107,7 @@ async def _discover_mcp_tools(client: Any, cwd: Path, names: list[str]) -> None:
     try:
         await asyncio.gather(*(launch(name) for name in names))
     finally:
-        _MCP_DISCOVERING.difference_update(names)
+        _MCP_DISCOVERING.difference_update(keys)
         await client.aclose()
 
 
@@ -1119,7 +1130,7 @@ async def attach_mcp_tools(result: dict[str, ToolEntry], cwd: Path, *, close_aft
         client = McpClient(config)
         client.set_cwd(cwd)
         uncached = [name for name in config.servers
-                    if not client.load_cached_tools(name) and name not in _MCP_DISCOVERING]
+                    if not client.load_cached_tools(name) and _discovery_key(config, cwd, name) not in _MCP_DISCOVERING]
         if uncached:
             task = asyncio.create_task(_discover_mcp_tools(McpClient(config), cwd, uncached))
             _MCP_DISCOVERY_TASKS.add(task)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
+import hashlib
 import json
 import logging
 import sqlite3
@@ -361,6 +362,13 @@ async def _run_ambient_turn(
         cost_usd=response.cost_usd, ctx_pct=0.0,
     )
     renderer.show_final(response.text, confidence=1.0, cost_usd=response.cost_usd)
+
+
+def _file_digests(root: Path, paths: list[str]) -> dict[str, str | None]:
+    return {
+        p: hashlib.sha256((root / p).read_bytes()).hexdigest() if (root / p).is_file() else None
+        for p in paths
+    }
 
 
 async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
@@ -1942,6 +1950,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             if sess is None or sess.busy:
                 raise RuntimeError("native builder is unavailable or busy")
             before = mgr.journal.snapshot(sess.id).watermark
+            files_before = _file_digests(repo_root, task.owned_files)
             runs_before = len(sess.record.runs)
             mgr.journal.begin(sess.id, f"swarm:{task.id}", {"goal": task.goal}, swarm_id=swarm_id, swarm_task_id=task.id)
             _assign_to_session(swarm_id, task, session_id, before)
@@ -1955,7 +1964,12 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                     "state": snapshot.phase if snapshot.phase != "active" else "cancelled", "detail": snapshot.outcome})
             if mgr.journal.snapshot(sess.id).phase != "completed":
                 raise RuntimeError("native builder did not complete")
-            if not any(run.get("changed") for run in sess.record.runs[runs_before:]):
+            changed = (
+                _file_digests(repo_root, task.owned_files) != files_before
+                if task.owned_files
+                else any(run.get("changed") for run in sess.record.runs[runs_before:])
+            )
+            if not changed:
                 raise RuntimeError("native builder finished without changing any files")
             store.mark_done(swarm_id, task.id, summary=None)
             event = E.SwarmWorkerDone(
