@@ -232,27 +232,22 @@ async def test_iter_01_while_loop_exits_on_max_iter(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_iter_01_while_loop_exits_on_budget(
-    tmp_path: Path, monkeypatch
-) -> None:
+async def test_iter_01_while_loop_exits_on_budget(tmp_path: Path) -> None:
     never_done = _plan(steps=[], confidence=0.9, final_when_done="")
-    provider = FakeStreamingProvider(scripts=[_done_script(plan=never_done)] * 8)
-
-    real_build = agent_mod._build_iter_rider
-
-    def inflating(**kw):
-        import sys
-        ctx = sys._getframe(1).f_locals.get("ctx")
-        if ctx is not None and kw.get("index", 0) >= 1:
-            ctx.tokens_used = ctx.token_budget + 1
-        return real_build(**kw)
-
-    monkeypatch.setattr(agent_mod, "_build_iter_rider", inflating)
+    cached_iter = [
+        TextDelta(text="…"),
+        ParsedPlan(plan=never_done),
+        Usage(prompt_tokens=2, completion_tokens=5, cache_creation_input_tokens=600,
+              cache_read_input_tokens=50_000, cost_usd=0.0),
+        Done(stop_reason="end_turn"),
+    ]
+    provider = FakeStreamingProvider(scripts=[cached_iter] * 8)
     result = await _run_turn_exec(
         "x", tools={}, cwd=tmp_path, renderer=RecordingRenderer(),
         provider=provider, model="stub", token_budget=1000,
     )
     assert result.run.exit_reason == "budget"
+    assert result.run.iteration_count == 2
     assert HALTED_BUDGET_FINAL in result.final
 
 
@@ -624,21 +619,12 @@ async def test_exit_reason_matrix_all_four_reachable(
     reset_config()
 
     # budget
-    real_build = agent_mod._build_iter_rider
-    def inflating(**kw):
-        import sys
-        ctx = sys._getframe(1).f_locals.get("ctx")
-        if ctx is not None and kw.get("index", 0) >= 1:
-            ctx.tokens_used = ctx.token_budget + 1
-        return real_build(**kw)
-    monkeypatch.setattr(agent_mod, "_build_iter_rider", inflating)
     provider = FakeStreamingProvider(scripts=[_done_script(plan=never)] * 8)
     r = await _run_turn_exec(
         "x", tools={}, cwd=tmp_path, renderer=RecordingRenderer(),
-        provider=provider, model="stub", token_budget=1000,
+        provider=provider, model="stub", token_budget=20,
     )
     seen.add(r.run.exit_reason)
-    monkeypatch.undo()
 
     # interrupt
     release = asyncio.Event()

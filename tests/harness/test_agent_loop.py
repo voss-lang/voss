@@ -277,77 +277,25 @@ async def test_max_iter_cap_returns_halted_string(
 
 
 @pytest.mark.asyncio
-async def test_budget_exit_returns_halted_budget(
-    tmp_path: Path, monkeypatch
-) -> None:
+async def test_budget_exit_returns_halted_budget(tmp_path: Path) -> None:
     never_done = _make_plan(
         steps=[], confidence=0.9, final_when_done="",
     )
-    # Each iter's Usage reports 1_000_000 tokens, so after iter 0 the
-    # ContextScope.tokens_used will not actually go up (Usage events only
-    # update local accumulators, not ctx.tokens_used). Instead, inflate
-    # ctx via monkeypatch: patch ContextScope to set tokens_used directly.
     provider = FakeStreamingProvider(
-        scripts=[_done_script(plan=never_done)] * 8
+        scripts=[_done_script(plan=never_done, prompt_tokens=400)] * 8
     )
-
-    # Patch ContextScope to set tokens_used >= token_budget after first iter.
-    from voss_runtime import context as _ctx_mod
-
-    real_aenter = _ctx_mod.ContextScope.__aenter__
-    inflate_counter = {"n": 0}
-
-    async def _inflate_aenter(self):
-        # Each call to __aenter__ is once per turn; the inflation happens
-        # inside the loop instead. We patch the property after first yield.
-        return await real_aenter(self)
-
-    # Simpler approach: zero out budget so any tokens_used >= 0 triggers
-    # exhaustion. The loop checks `ctx.token_budget and ctx.tokens_used >=
-    # ctx.token_budget`. Setting token_budget=0 short-circuits via the
-    # truthiness check. We want exhaustion, so use budget=1 and bump
-    # ctx.tokens_used to >=1 via a side-effect patch on _is_done_plan.
-    real_is_done = agent_mod._is_done_plan
-
-    def patched_is_done(plan):
-        # Smuggle: every call to _is_done_plan happens once per iter just
-        # after the stream consumes; inflate ctx after the first call.
-        result = real_is_done(plan)
-        return result
-
-    # Cleanest: hook _build_iter_rider to inflate ctx via the live frame.
-    # Skip the indirection — patch ContextScope.token_budget to 1 and
-    # update tokens_used via _serialize_iter_for_replay side-effect.
-    renderer = RecordingRenderer()
-
-    # Direct approach: monkeypatch the loop's ctx check by setting
-    # ctx.token_budget=1 + ctx.tokens_used=1 mid-loop via patched
-    # _build_iter_rider which receives ctx implicitly... it does not.
-    # Instead expose a tokens-inflate hook on ContextScope.
-    real_build = agent_mod._build_iter_rider
-
-    def inflating_build(**kw):
-        # On second iter, walk the frame to find the live ctx and inflate.
-        import sys
-        frame = sys._getframe(1)
-        ctx = frame.f_locals.get("ctx")
-        if ctx is not None and kw.get("index", 0) >= 1:
-            ctx.tokens_used = ctx.token_budget + 1
-        return real_build(**kw)
-
-    monkeypatch.setattr(agent_mod, "_build_iter_rider", inflating_build)
-
     result = await _run_turn_exec(
         "do thing",
         tools={},
         cwd=tmp_path,
-        renderer=renderer,
+        renderer=RecordingRenderer(),
         provider=provider,
         model="stub-model",
         token_budget=1000,
     )
 
     assert result.run.exit_reason == "budget"
+    assert result.run.iteration_count == 3
     assert "halted: budget" in result.final
 
 

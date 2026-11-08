@@ -66,6 +66,7 @@ class ServerSession:
     swarm_task_id: str | None = None
     swarm_owned_files: list[str] = field(default_factory=list)
     swarm_role: str | None = None
+    token_budget: int | None = None
     # PermissionsConfig attached by; typed Any to avoid importing
     # cognition_schemas into sessions.py
     # Tasks assigned by orchestraotr per init sys prompt

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
+import hashlib
 import json
 import logging
 import sqlite3
@@ -363,6 +364,13 @@ async def _run_ambient_turn(
     renderer.show_final(response.text, confidence=1.0, cost_usd=response.cost_usd)
 
 
+def _file_digests(root: Path, paths: list[str]) -> dict[str, str | None]:
+    return {
+        p: hashlib.sha256((root / p).read_bytes()).hexdigest() if (root / p).is_file() else None
+        for p in paths
+    }
+
+
 async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     """Drive one turn; publish events; persist. Runs as session.task."""
     loop = asyncio.get_running_loop()
@@ -493,6 +501,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
                 code_recall_text=recall.get("code_recall_text", ""),
                 prior_context=session.prior_context,
                 **memory_kwargs,
+                **({"token_budget": session.token_budget} if session.token_budget else {}),
             )
 
         if session.execution_plan is not None:
@@ -633,6 +642,7 @@ class CreateSwarmBody(BaseModel):
     goal: str
     cwd: str | None = None
     builders: int = 2
+    token_budget: int | None = Field(default=None, ge=1)
     # Optional explicit roster; when omitted the SwarmStore default_roster
     # (coordinator + N builders + reviewer) is spawned (VSWARM-08)
     roster: list[RoleSpec] | None = None
@@ -1632,6 +1642,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             sess.swarm_role = role.name
             if role.name.startswith("builder"):
                 sess.gate_event = asyncio.Event()
+                if body.token_budget:
+                    native_builders = sum(1 for r in swarm.roster if is_native(r) and r.name.startswith("builder"))
+                    sess.token_budget = max(body.token_budget // native_builders, 1)
             store.register_agent(swarm.id, sess.id, role.name, [])
             spawned.append(
                 {
@@ -1937,6 +1950,8 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             if sess is None or sess.busy:
                 raise RuntimeError("native builder is unavailable or busy")
             before = mgr.journal.snapshot(sess.id).watermark
+            files_before = _file_digests(repo_root, task.owned_files)
+            runs_before = len(sess.record.runs)
             mgr.journal.begin(sess.id, f"swarm:{task.id}", {"goal": task.goal}, swarm_id=swarm_id, swarm_task_id=task.id)
             _assign_to_session(swarm_id, task, session_id, before)
             sess.task = asyncio.create_task(_drive_turn(sess, task.goal, "auto"))
@@ -1949,6 +1964,13 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                     "state": snapshot.phase if snapshot.phase != "active" else "cancelled", "detail": snapshot.outcome})
             if mgr.journal.snapshot(sess.id).phase != "completed":
                 raise RuntimeError("native builder did not complete")
+            changed = (
+                _file_digests(repo_root, task.owned_files) != files_before
+                if task.owned_files
+                else any(run.get("changed") for run in sess.record.runs[runs_before:])
+            )
+            if not changed:
+                raise RuntimeError("native builder finished without changing any files")
             store.mark_done(swarm_id, task.id, summary=None)
             event = E.SwarmWorkerDone(
                 swarm_id=swarm_id, task_id=task.id, session_id=session_id, summary=None,

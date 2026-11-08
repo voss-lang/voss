@@ -56,7 +56,9 @@ def _system_prompt(known: list[str], min_tasks: int, max_tasks: int) -> str:
         "`depends_on` the other instead of overlapping their files.\n"
         f"3. Pick one `agent` per subtask from exactly this set: {agents}.\n"
         "4. Keep `owned_files` to concrete repo-relative paths the subtask will "
-        "edit."
+        "edit.\n"
+        "5. Use one subtask when the goal is a single change. Never add work the "
+        "goal does not ask for, such as analysis notes, reports or extra scripts."
     )
 
 
@@ -67,10 +69,10 @@ async def decompose(
     model: str,
     cwd: str,
     project_context: str = "",
-    min_tasks: int = 2,
+    min_tasks: int = 1,
     max_tasks: int = 6,
 ) -> list[SubtaskSpec]:
-    """Call the provider once to split `goal` into 2–6 parallel subtasks.
+    """Call the provider once to split `goal` into 1–6 parallel subtasks.
 
     Uses forced structured output (`response_format=Decomposition`) so the result
     arrives as a validated pydantic object on `resp.parsed`; if that is None the
@@ -173,7 +175,7 @@ async def seed_tasks(
                 model=model,
                 cwd=cwd,
                 project_context=context,
-                min_tasks=min(2, slots),
+                min_tasks=1,
                 max_tasks=slots,
             )
             if any(spec.depends_on for spec in subtasks):

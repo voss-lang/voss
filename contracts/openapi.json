@@ -1223,6 +1223,18 @@
               }
             ],
             "title": "Roster"
+          },
+          "token_budget": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Budget"
           }
         },
         "required": [

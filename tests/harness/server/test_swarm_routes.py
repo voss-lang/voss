@@ -40,6 +40,14 @@ async def _fake_run_turn(text, *, renderer, **kw):
     )
 
 
+def _builders_edit_files(monkeypatch):
+    async def _editing_turn(session, text, mode):
+        (Path(session.cwd) / f"{text.lower()}.py").write_text(text)
+        session.turn_outcome = "done"
+
+    monkeypatch.setattr(appmod, "_run_turn", _editing_turn)
+
+
 def _build_app(monkeypatch, tmp_path):
     monkeypatch.setattr(
         appmod, "_resolve_provider", lambda pref: (_FakeRes(), object())
@@ -249,10 +257,33 @@ async def test_spawn_gate_zero_turns_before_assign(monkeypatch, tmp_path):
     assert calls["n"] == 1  # exactly one turn after assign
 
 
+def test_swarm_token_budget_is_split_across_native_builders(monkeypatch, tmp_path):
+    budgets = []
+
+    async def _budget_run_turn(text, *, renderer, **kw):
+        budgets.append(kw.get("token_budget"))
+        return await _fake_run_turn(text, renderer=renderer, **kw)
+
+    app = _build_app(monkeypatch, tmp_path)
+    monkeypatch.setattr(appmod, "run_turn", _budget_run_turn)
+    with TestClient(app) as c:
+        r = c.post("/swarm", json={"goal": "g", "cwd": str(tmp_path), "token_budget": 1000}, headers=_auth())
+        builders = [app.state.sessions.get(s["session_id"]) for s in r.json()["sessions"] if s["role"].startswith("builder")]
+        assert [b.token_budget for b in builders] == [500, 500]
+
+        builders[0].gate_event.set()
+        msg = {"parts": [{"type": "text", "text": "do a"}], "mode": "auto"}
+        assert c.post(f"/session/{builders[0].id}/message", json=msg, headers=_auth()).status_code == 202
+        deadline = time.monotonic() + 10
+        while not budgets and time.monotonic() < deadline:
+            time.sleep(0.05)
+    assert budgets == [500]
+
+
 def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
     # The default roster's native builders now run too, and the run's terminal
     # event waits for them; the canned turn keeps that deterministic.
-    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    _builders_edit_files(monkeypatch)
     # R3 driver: POST /swarm/{id}/run kicks off run_cli_swarm and its plain-dict
     # events are mapped to typed SSE events fanned to registered sessions.
     import voss.harness.swarm_coordinator as sc
@@ -655,7 +686,7 @@ def test_run_drives_native_builders_on_the_default_roster(client, monkeypatch):
     """The default roster is all native: /run used to be a silent no-op."""
     import voss.harness.swarm_coordinator as sc
 
-    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    _builders_edit_files(monkeypatch)
     seen = _canned_decomposition(
         monkeypatch,
         [
@@ -705,7 +736,7 @@ def test_a_second_run_leaves_finished_and_busy_members_alone(client, monkeypatch
     """One run per swarm, and one turn per session."""
     import voss.harness.swarm_coordinator as sc
 
-    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    _builders_edit_files(monkeypatch)
     _canned_decomposition(
         monkeypatch,
         [
@@ -795,3 +826,32 @@ def test_a_run_that_fails_outright_says_so(client, monkeypatch):
 
     gates = [(e.gate_type, e.detail) for e in events if e.type == "swarm.gate"]
     assert ("run_failed", "CLI members: worktree add failed: no HEAD") in gates
+
+
+def test_a_native_builder_that_changes_nothing_leaves_its_task_open(client, monkeypatch):
+    import voss.harness.swarm_coordinator as sc
+
+    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
+    with client:
+        r = client.post("/swarm", json={"goal": "tidy up", "cwd": client._cwd}, headers=_auth()).json()
+        sid = r["id"]
+        coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
+        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        events = _drain_until(client, sid, coord, "swarm.gate")
+        tasks = client.get(f"/swarm/{sid}", headers=_auth()).json()["swarm"]["tasks"]
+
+    assert DONE not in [t["state"] for t in tasks]
+    assert "swarm.complete" not in [e.type for e in events]
+    gates = [e for e in events if e.type == "swarm.gate"]
+    assert [(g.gate_type, g.detail) for g in gates] == [
+        ("member_failed", "native builder: native builder finished without changing any files"),
+        ("member_failed", "native builder: native builder finished without changing any files"),
+        ("run_incomplete", "2 of 2 members failed"),
+    ]

@@ -228,6 +228,7 @@ async def test_same_role_native_workers_and_readers_keep_separate_attempts(
             await release.wait()
             session.journal.resolve(session.id, "synthetic-permission")
         await asyncio.sleep(0)
+        (session.cwd / text).write_text(text)
         session.turn_outcome = "done"
 
     monkeypatch.setattr(appmod, "_run_turn", turn)

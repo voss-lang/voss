@@ -4,6 +4,7 @@ JSON-RPC MCP client for stdio and Streamable HTTP tools.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import subprocess
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from voss.harness import lifecycle, telemetry
+from voss.harness.config import app_state_dir
 from voss.harness.sandbox import scrubbed_env
 
 from .http import HttpConnection
@@ -36,6 +38,23 @@ def _emit_mcp_request(data: dict[str, Any]) -> None:
 
 def _emit_mcp_response(level: str, data: dict[str, Any]) -> None:
     telemetry.emit("mcp.response", level, data=data)
+
+
+def _tool_cache_path() -> Path:
+    return app_state_dir() / "mcp-tools.json"
+
+
+def _server_key(server: Any) -> str:
+    data = server.model_dump(exclude={"enabled_tools", "disabled_tools"}) if hasattr(server, "model_dump") else vars(server)
+    return hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _read_tool_cache() -> dict[str, Any]:
+    try:
+        cache = json.loads(_tool_cache_path().read_text())
+    except (OSError, ValueError):
+        return {}
+    return cache if isinstance(cache, dict) else {}
 
 
 class McpClient:
@@ -81,6 +100,7 @@ class McpClient:
             timeout_s = float(getattr(server, "timeout_s", 30.0))
             await self._handshake(proc, timeout_s)
             self._tools_cache[server_name] = await self._tools_list(proc, timeout_s)
+            self._save_tools(server_name)
         except BaseException:
             await self._stop_failed_launch(proc)
             raise
@@ -92,6 +112,27 @@ class McpClient:
             self._procs[server_name] = proc
             lifecycle.register_subprocess(proc)
         return proc
+
+    def load_cached_tools(self, server_name: str) -> bool:
+        entry = _read_tool_cache().get(server_name)
+        if not isinstance(entry, dict) or not isinstance(entry.get("tools"), list):
+            return False
+        if entry.get("key") != _server_key(self._server_config(server_name)):
+            return False
+        self._tools_cache[server_name] = entry["tools"]
+        return True
+
+    def _save_tools(self, server_name: str) -> None:
+        path = _tool_cache_path()
+        cache = _read_tool_cache()
+        cache[server_name] = {"key": _server_key(self._server_config(server_name)), "tools": self._tools_cache[server_name]}
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+            tmp.write_text(json.dumps(cache))
+            tmp.replace(path)
+        except OSError:
+            pass
 
     async def list_tools(self, server_name: str) -> list[dict[str, Any]]:
         await self.ensure_launched(server_name)

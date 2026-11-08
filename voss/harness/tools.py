@@ -953,7 +953,8 @@ def make_toolset(
     local_skills = discover(cwd)
     if local_skills:
         catalog = "\n".join(
-            f"- {s.name}: {s.description}" + (" (only when explicitly requested)" if s.manual else "")
+            f"- {s.name}: {_short_description(s.description)}"
+            + (" (only when explicitly requested)" if s.manual else "")
             for s in local_skills.values()
         )
 
@@ -1076,6 +1077,40 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
     return f"[exit {proc.returncode}]\n{text}"
 
 
+def _short_description(text: str, limit: int = 100) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+_MCP_DISCOVERY_WAIT_S = 2.0
+_MCP_DISCOVERING: set[tuple[str, str, str]] = set()
+_MCP_DISCOVERY_TASKS: set[asyncio.Task] = set()
+
+
+def _discovery_key(config: Any, cwd: Path, name: str) -> tuple[str, str, str]:
+    from .mcp.client import _server_key
+
+    return (str(cwd.resolve()), name, _server_key(config.servers[name]))
+
+
+async def _discover_mcp_tools(client: Any, cwd: Path, names: list[str]) -> None:
+    client.set_cwd(cwd)
+    keys = {_discovery_key(client._config, cwd, name) for name in names}
+    _MCP_DISCOVERING.update(keys)
+
+    async def launch(name: str) -> None:
+        try:
+            await client.ensure_launched(name)
+        except Exception as exc:  # noqa: BLE001
+            _emit_mcp_boot_error(name, exc)
+
+    try:
+        await asyncio.gather(*(launch(name) for name in names))
+    finally:
+        _MCP_DISCOVERING.difference_update(keys)
+        await client.aclose()
+
+
 def _merge_mcp_tools(result: dict[str, ToolEntry], cwd: Path) -> None:
     try:
         asyncio.get_running_loop()
@@ -1094,15 +1129,15 @@ async def attach_mcp_tools(result: dict[str, ToolEntry], cwd: Path, *, close_aft
             return
         client = McpClient(config)
         client.set_cwd(cwd)
-        try:
-            for name in config.servers:
-                try:
-                    await client.ensure_launched(name)
-                except Exception as exc:  # noqa: BLE001
-                    _emit_mcp_boot_error(name, exc)
-        finally:
-            if close_after_discovery:
-                await client.aclose()
+        uncached = [name for name in config.servers
+                    if not client.load_cached_tools(name) and _discovery_key(config, cwd, name) not in _MCP_DISCOVERING]
+        if uncached:
+            task = asyncio.create_task(_discover_mcp_tools(McpClient(config), cwd, uncached))
+            _MCP_DISCOVERY_TASKS.add(task)
+            task.add_done_callback(_MCP_DISCOVERY_TASKS.discard)
+            await asyncio.wait({task}, timeout=None if close_after_discovery else _MCP_DISCOVERY_WAIT_S)
+            for name in uncached:
+                client.load_cached_tools(name)
         bundle = cognition_mod.load(cwd)
         scopes = bundle.permissions.mcp if bundle.permissions else {}
         result.update(register_mcp_tools(config, scopes, client))
