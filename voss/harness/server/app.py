@@ -493,6 +493,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
                 code_recall_text=recall.get("code_recall_text", ""),
                 prior_context=session.prior_context,
                 **memory_kwargs,
+                **({"token_budget": session.token_budget} if session.token_budget else {}),
             )
 
         if session.execution_plan is not None:
@@ -633,6 +634,7 @@ class CreateSwarmBody(BaseModel):
     goal: str
     cwd: str | None = None
     builders: int = 2
+    token_budget: int | None = Field(default=None, ge=1)
     # Optional explicit roster; when omitted the SwarmStore default_roster
     # (coordinator + N builders + reviewer) is spawned (VSWARM-08)
     roster: list[RoleSpec] | None = None
@@ -1632,6 +1634,9 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             sess.swarm_role = role.name
             if role.name.startswith("builder"):
                 sess.gate_event = asyncio.Event()
+                if body.token_budget:
+                    native_builders = sum(1 for r in swarm.roster if is_native(r) and r.name.startswith("builder"))
+                    sess.token_budget = max(body.token_budget // native_builders, 1)
             store.register_agent(swarm.id, sess.id, role.name, [])
             spawned.append(
                 {

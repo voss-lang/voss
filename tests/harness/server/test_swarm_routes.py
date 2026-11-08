@@ -249,6 +249,29 @@ async def test_spawn_gate_zero_turns_before_assign(monkeypatch, tmp_path):
     assert calls["n"] == 1  # exactly one turn after assign
 
 
+def test_swarm_token_budget_is_split_across_native_builders(monkeypatch, tmp_path):
+    budgets = []
+
+    async def _budget_run_turn(text, *, renderer, **kw):
+        budgets.append(kw.get("token_budget"))
+        return await _fake_run_turn(text, renderer=renderer, **kw)
+
+    app = _build_app(monkeypatch, tmp_path)
+    monkeypatch.setattr(appmod, "run_turn", _budget_run_turn)
+    with TestClient(app) as c:
+        r = c.post("/swarm", json={"goal": "g", "cwd": str(tmp_path), "token_budget": 1000}, headers=_auth())
+        builders = [app.state.sessions.get(s["session_id"]) for s in r.json()["sessions"] if s["role"].startswith("builder")]
+        assert [b.token_budget for b in builders] == [500, 500]
+
+        builders[0].gate_event.set()
+        msg = {"parts": [{"type": "text", "text": "do a"}], "mode": "auto"}
+        assert c.post(f"/session/{builders[0].id}/message", json=msg, headers=_auth()).status_code == 202
+        deadline = time.monotonic() + 10
+        while not budgets and time.monotonic() < deadline:
+            time.sleep(0.05)
+    assert budgets == [500]
+
+
 def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
     # The default roster's native builders now run too, and the run's terminal
     # event waits for them; the canned turn keeps that deterministic.

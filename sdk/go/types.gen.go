@@ -571,10 +571,11 @@ type CreateSessionBody struct {
 
 // CreateSwarmBody defines model for CreateSwarmBody.
 type CreateSwarmBody struct {
-	Builders *int        `json:"builders,omitempty"`
-	Cwd      *string     `json:"cwd,omitempty"`
-	Goal     string      `json:"goal"`
-	Roster   *[]RoleSpec `json:"roster,omitempty"`
+	Builders    *int        `json:"builders,omitempty"`
+	Cwd         *string     `json:"cwd,omitempty"`
+	Goal        string      `json:"goal"`
+	Roster      *[]RoleSpec `json:"roster,omitempty"`
+	TokenBudget *int        `json:"token_budget,omitempty"`
 }
 
 // CreateTaskBody defines model for CreateTaskBody.
