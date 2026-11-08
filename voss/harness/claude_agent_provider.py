@@ -99,8 +99,8 @@ def _flatten_messages(
 ) -> tuple[str, str]:
     """Split messages into (system_prompt, one-shot prompt).
 
-    System contents join with blank lines; the rest become sentinel-delimited
-    turns. The trailing JSON instruction is defensive glue — the SDK's
+    The first system message is the system prompt; later ones (the
+    per-iteration rider) and the rest become sentinel-delimited turns. The trailing JSON instruction is defensive glue — the SDK's
     `output_format` json_schema does the heavy lifting.
     """
     system_chunks: list[str] = []
@@ -108,7 +108,7 @@ def _flatten_messages(
     for m in messages:
         role = m.get("role", "user")
         text = _content_to_text(m.get("content", ""))
-        if role == "system":
+        if role == "system" and not system_chunks:
             system_chunks.append(text)
             continue
         marker = "<<<ASSISTANT>>>" if role == "assistant" else "<<<USER>>>"

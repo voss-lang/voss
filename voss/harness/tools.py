@@ -7,6 +7,7 @@ import json
 import os
 import signal as _signal
 import subprocess
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -953,7 +954,8 @@ def make_toolset(
     local_skills = discover(cwd)
     if local_skills:
         catalog = "\n".join(
-            f"- {s.name}: {s.description}" + (" (only when explicitly requested)" if s.manual else "")
+            f"- {s.name}: {textwrap.shorten(s.description, 100, placeholder='...')}"
+            + (" (only when explicitly requested)" if s.manual else "")
             for s in local_skills.values()
         )
 

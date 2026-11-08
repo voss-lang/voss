@@ -280,9 +280,9 @@ async def test_options_lock_down_tools_and_settings() -> None:
     assert opt.cwd is None
     assert opt.output_format["type"] == "json_schema"
     assert opt.output_format["schema"] == Plan.model_json_schema()
-    # System messages land in system_prompt, not the prompt body.
-    assert opt.system_prompt == "sys A\n\nsys B"
+    assert opt.system_prompt == "sys A"
     assert "sys A" not in captured["prompt"]
+    assert "sys B" in captured["prompt"]
     assert "do the thing" in captured["prompt"]
 
 
@@ -344,6 +344,19 @@ def test_flatten_messages_markers_and_order() -> None:
     assert prompt.index("<<<USER>>>\nu1") < prompt.index("<<<ASSISTANT>>>\na1")
     assert prompt.index("a1") < prompt.index("u2")
     assert prompt.rstrip().endswith("required schema.")
+
+
+def test_flatten_keeps_later_system_messages_out_of_the_cached_system_prompt() -> None:
+    def flatten(rider: str) -> tuple[str, str]:
+        return _flatten_messages([
+            {"role": "system", "content": [{"type": "text", "text": "static"}]},
+            {"role": "system", "content": rider},
+            {"role": "user", "content": "task"},
+        ])
+
+    first, second = flatten("Iteration 1 of 8."), flatten("Iteration 2 of 8.")
+    assert first[0] == second[0] == "static"
+    assert first[1].index("Iteration 1 of 8.") < first[1].index("task")
 
 
 def test_flatten_messages_no_json_tail_without_schema() -> None:

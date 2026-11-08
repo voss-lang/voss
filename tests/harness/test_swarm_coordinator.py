@@ -67,6 +67,16 @@ async def test_decompose_clamps_to_max() -> None:
 
 
 @pytest.mark.asyncio
+async def test_decompose_allows_a_single_task_and_forbids_invented_work() -> None:
+    provider = _StubProvider(Decomposition(subtasks=[SubtaskSpec(goal="fix", owned_files=["stats.py"])]))
+    out = await decompose(provider, goal="fix stats.py", model="m", cwd=".", max_tasks=2)
+    system = provider.last_kwargs["messages"][0]["content"]
+    assert len(out) == 1
+    assert "between 1 and 2 subtasks" in system
+    assert "Never add work the goal does not ask for" in system
+
+
+@pytest.mark.asyncio
 async def test_decompose_none_parsed_raises() -> None:
     with pytest.raises(DecompositionError):
         await decompose(_StubProvider(None), goal="g", model="m", cwd=".")

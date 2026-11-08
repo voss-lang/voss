@@ -410,6 +410,7 @@ def _compose_system_blocks(
     code_recall_text: str = "",
     prior_context_text: str,
     loop_system: str,
+    tools_text: str = "",
 ) -> list[dict]:
     """Render the CACHE-01 static prefix as cacheable text blocks.
 
@@ -429,6 +430,7 @@ def _compose_system_blocks(
             code_recall_text,  # V19-05 VSEM-06 — rides the same evictable tuple, no second budget
             prior_context_text,
             loop_system,
+            tools_text,
         )
         if text
     ]
@@ -522,17 +524,44 @@ class TurnResult:
     run: RunRecord | None = None
 
 
+def _signature(td: ToolEntry) -> str:
+    params = td.parameters.get("properties", {})
+    return ", ".join(f"{k}: {v.get('type', 'any')}" for k, v in params.items())
+
+
 def _format_tools(tools: dict[str, ToolEntry]) -> str:
     catalog = []
+    mcp: dict[str, list[str]] = {}
     for name, td in tools.items():
-        params = td.parameters.get("properties", {})
-        sig = ", ".join(f"{k}: {v.get('type', 'any')}" for k, v in params.items())
-        catalog.append({"name": name, "signature": sig, "description": td.description})
-    return render_package_template(
+        if getattr(td, "group", None) == "mcp":
+            server, _, short = name.partition("__")
+            mcp.setdefault(server, []).append(short or name)
+            continue
+        catalog.append({"name": name, "signature": _signature(td), "description": td.description})
+    text = render_package_template(
         "voss",
         "templates/agent/tool_catalog.txt.jinja",
         {"tools": catalog},
     )
+    if mcp:
+        text += "\nMCP tools, named <server>__<tool>. Call tool_describe(name) for a tool's parameters before using it:\n"
+        text += "".join(f"- {server}: {', '.join(names)}\n" for server, names in mcp.items())
+    return text
+
+
+def _with_tool_describe(tools: dict[str, ToolEntry]) -> dict[str, ToolEntry]:
+    if "tool_describe" in tools or not any(getattr(td, "group", None) == "mcp" for td in tools.values()):
+        return tools
+    from voss_runtime import tool
+
+    @tool(name="tool_describe", description="Show an MCP tool's description and parameters.")
+    async def tool_describe(name: str) -> str:
+        td = tools.get(name)
+        if td is None:
+            return f"<error: unknown tool {name}>"
+        return f"{name}({_signature(td)}) — {td.description}\n{json.dumps(td.parameters)}"
+
+    return {**tools, "tool_describe": ToolEntry(descriptor=tool_describe, is_mutating=False, group="fs", scope_requirements=("fs",))}
 
 
 async def run_turn(
@@ -680,10 +709,10 @@ async def _run_turn_exec(
         if parts:
             history_block = "\n\nRecent conversation:\n" + "\n".join(parts)
 
+    tools = _with_tool_describe(tools)
     user_prompt = (
         f"Task:\n{task}\n\n"
-        f"Working directory: {cwd}\n\n"
-        f"Available tools:\n{_format_tools(tools)}{history_block}\n"
+        f"Working directory: {cwd}\n{history_block}\n"
     )
 
     if history is not None:
@@ -732,6 +761,7 @@ async def _run_turn_exec(
             code_recall_text=code_recall_text,
             prior_context_text=prior_context_text,
             loop_system=_compose_loop_system(max_iterations),
+            tools_text=f"Available tools:\n{_format_tools(tools)}",
         )
 
         if cognition is not None and getattr(cognition, "initialized", False):
@@ -760,6 +790,7 @@ async def _run_turn_exec(
         total_cost_usd: float = 0.0
         total_prompt_tokens: int = 0
         total_completion_tokens: int = 0
+        total_cache_write_tokens: int = 0
         all_iter_records: list[IterationRecord] = []
         # M13-03 D-04: per-turn buffer for parent->child steer guidance drained
         # from steer_inbox at the loop boundary (agent.py:830) and injected
@@ -807,7 +838,7 @@ async def _run_turn_exec(
                 rider = _build_iter_rider(
                     index=iteration_index,
                     max_iterations=max_iterations,
-                    tokens_used=total_prompt_tokens + total_completion_tokens,
+                    tokens_used=total_prompt_tokens + total_completion_tokens + total_cache_write_tokens,
                     token_budget=token_budget,
                     prior_iters=all_iter_records,
                 )
@@ -1140,6 +1171,7 @@ async def _run_turn_exec(
                     total_cost_usd += iter_cost
                     total_prompt_tokens += iter_prompt_tokens
                     total_completion_tokens += iter_completion_tokens
+                    total_cache_write_tokens += iter_cache_creation
                     all_iter_records.append(rec._iterations[-1])
                     break
 
@@ -1191,6 +1223,7 @@ async def _run_turn_exec(
                 total_cost_usd += iter_cost
                 total_prompt_tokens += iter_prompt_tokens
                 total_completion_tokens += iter_completion_tokens
+                total_cache_write_tokens += iter_cache_creation
                 all_iter_records.append(rec._iterations[-1])
 
                 # M13-03 D-04 steer-inbox drain (RESEARCH Pattern 3). This sits
@@ -1207,8 +1240,8 @@ async def _run_turn_exec(
                             break
 
                 if (
-                    ctx.token_budget
-                    and ctx.tokens_used >= ctx.token_budget
+                    token_budget
+                    and total_prompt_tokens + total_completion_tokens + total_cache_write_tokens >= token_budget
                 ):
                     exit_reason = "budget"
                     break
