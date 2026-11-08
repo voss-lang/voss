@@ -1942,6 +1942,7 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
             if sess is None or sess.busy:
                 raise RuntimeError("native builder is unavailable or busy")
             before = mgr.journal.snapshot(sess.id).watermark
+            runs_before = len(sess.record.runs)
             mgr.journal.begin(sess.id, f"swarm:{task.id}", {"goal": task.goal}, swarm_id=swarm_id, swarm_task_id=task.id)
             _assign_to_session(swarm_id, task, session_id, before)
             sess.task = asyncio.create_task(_drive_turn(sess, task.goal, "auto"))
@@ -1954,6 +1955,8 @@ def create_app(token: str | None = None, *, oauth_only: bool = False) -> FastAPI
                     "state": snapshot.phase if snapshot.phase != "active" else "cancelled", "detail": snapshot.outcome})
             if mgr.journal.snapshot(sess.id).phase != "completed":
                 raise RuntimeError("native builder did not complete")
+            if not any(run.get("changed") for run in sess.record.runs[runs_before:]):
+                raise RuntimeError("native builder finished without changing any files")
             store.mark_done(swarm_id, task.id, summary=None)
             event = E.SwarmWorkerDone(
                 swarm_id=swarm_id, task_id=task.id, session_id=session_id, summary=None,
