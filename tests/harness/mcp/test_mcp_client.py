@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 import textwrap
@@ -180,3 +181,54 @@ async def test_call_tool_emits_mcp_telemetry(tmp_path: Path, monkeypatch) -> Non
     assert [event["kind"] for event in mcp_events] == ["mcp.request", "mcp.response"]
     assert not any(event["kind"].startswith("net.") for event in events)
     assert mcp_events[0]["data"]["args"]["api_token"] == "<redacted>"
+
+
+@pytest.mark.asyncio
+async def test_cached_tool_list_defers_launch_until_first_call(tmp_path: Path) -> None:
+    script = _write_mock_server(tmp_path)
+    first = _client_for_server(tmp_path, script)
+    await first.ensure_launched("mock")
+    await first.aclose()
+
+    second = _client_for_server(tmp_path, script)
+    try:
+        assert second.load_cached_tools("mock")
+        assert second._procs == {}
+        assert [tool["name"] for tool in second._tools_cache["mock"]] == ["read_text_file", "write_file"]
+
+        result = await second.call_tool("mock", "read_text_file", {})
+        assert result["content"][0]["text"] == "mock-result"
+        assert "mock" in second._procs
+    finally:
+        await second.aclose()
+
+    changed = _client_for_server(tmp_path, script)
+    changed._config.servers["mock"].args = ["--other"]
+    assert not changed.load_cached_tools("mock")
+
+
+@pytest.mark.asyncio
+async def test_uncached_servers_are_discovered_without_blocking_the_turn(tmp_path: Path) -> None:
+    from voss.harness import tools as tools_mod
+
+    script = _write_mock_server(tmp_path, "import time\ntime.sleep(3)\n" + MOCK_SERVER_SRC)
+    (tmp_path / ".voss").mkdir()
+    (tmp_path / ".voss" / "mcp.yml").write_text(
+        json.dumps({"servers": {"mock": {"command": [sys.executable, "-u", str(script)]}}})
+    )
+
+    first: dict = {}
+    started = time.monotonic()
+    client = await tools_mod.attach_mcp_tools(first, tmp_path)
+    assert time.monotonic() - started < 3
+    assert not any(name.startswith("mock__") for name in first)
+    await asyncio.gather(*tools_mod._MCP_DISCOVERY_TASKS)
+    await client.aclose()
+
+    second: dict = {}
+    client = await tools_mod.attach_mcp_tools(second, tmp_path)
+    try:
+        assert {"mock__read_text_file", "mock__write_file"} <= set(second)
+        assert client._procs == {}
+    finally:
+        await client.aclose()
